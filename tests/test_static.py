@@ -55,6 +55,14 @@ def test_post_form_page_is_served(client: TestClient) -> None:
     assert "/static/js/pages/post-form.js" in response.text
 
 
+def test_my_posts_page_is_served(client: TestClient) -> None:
+    response = client.get("/static/my-posts.html")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "/static/js/pages/my-posts.js" in response.text
+
+
 def test_root_redirect_ends_at_index(client: TestClient) -> None:
     response = client.get("/")
 

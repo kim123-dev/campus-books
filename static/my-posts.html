@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>내 글 | Campus Books</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <script type="module" src="/static/js/pages/my-posts.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <main class="container">
+      <h1 class="page-title">내 글</h1>
+
+      <!-- 내 정보는 헤더가 받아 온 /users/me 결과로 채운다. -->
+      <section id="profile" class="card profile-card" aria-label="내 정보" hidden>
+        <div class="profile-card__info">
+          <p id="profile-nickname" class="profile-card__nickname"></p>
+          <p id="profile-meta" class="profile-card__meta"></p>
+        </div>
+        <a class="button button--primary" href="/static/post-form.html">글쓰기</a>
+      </section>
+
+      <p id="result-summary" class="result-summary" aria-live="polite">불러오는 중…</p>
+      <p id="list-error" class="form-error" role="alert" hidden></p>
+
+      <p id="empty-actions" class="empty-actions" hidden>
+        <a class="button button--primary" href="/static/post-form.html">첫 글 쓰기</a>
+      </p>
+
+      <ul id="post-list" class="post-list"></ul>
+      <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
+    </main>
+  </body>
+</html>

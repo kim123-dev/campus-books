@@ -65,6 +65,11 @@ export function listPosts(params) {
   return request("/posts", { query: params });
 }
 
+/** 내 판매글 목록. 판매 완료를 포함한 모든 상태를 최신순으로 준다. params: page, size */
+export function listMyPosts(params) {
+  return request("/users/me/posts", { query: params });
+}
+
 /** 판매글 상세. 로그인하지 않아도 볼 수 있다. */
 export function getPost(postId) {
   return request(`/posts/${encodeURIComponent(postId)}`);

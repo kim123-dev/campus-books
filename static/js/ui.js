@@ -101,3 +101,51 @@ export function readPostIdFromUrl() {
   const raw = new URLSearchParams(window.location.search).get("id");
   return raw !== null && /^[1-9]\d*$/.test(raw) ? raw : null;
 }
+
+// ---------- 판매글 카드와 페이지 이동 (목록 화면과 내 글 화면이 함께 쓴다) ----------
+
+/** 판매글 카드 하나(li). 누르면 상세 화면으로 간다. */
+export function renderPostCard(post) {
+  const courseText = post.course_name ? ` · ${post.course_name}` : "";
+  return el(
+    "li",
+    {},
+    el(
+      "a",
+      { className: "card post-card", href: `/static/post.html?id=${encodeURIComponent(post.id)}` },
+      el(
+        "div",
+        { className: "post-card__top" },
+        statusBadge(post.status),
+        el("span", { className: "post-card__condition", text: `책 상태 ${CONDITION_LABELS[post.condition] ?? post.condition}` }),
+      ),
+      el("h2", { className: "post-card__title", text: post.title }),
+      el("p", { className: "post-card__book", text: `${post.book_title}${courseText}` }),
+      el("p", { className: "post-card__price", text: formatPrice(post.price) }),
+      el("p", { className: "post-card__meta", text: `${post.seller.nickname} · ${formatDate(post.created_at)}` }),
+    ),
+  );
+}
+
+/**
+ * "이전 / 2 / 5 페이지 / 다음" 버튼을 그린다. 한 페이지뿐이면 아무것도 그리지 않는다.
+ * 범위를 넘은 페이지(?page=99)에서 "이전"을 누르면 마지막 페이지로 가게 해, 빈 화면에서 빠져나올 수 있게 한다.
+ * @param {(page: number) => void} onPageChange 버튼을 눌렀을 때 이동할 페이지 번호를 받는다.
+ */
+export function renderPagination(container, page, totalPages, onPageChange) {
+  if (totalPages <= 1 && page === 1) {
+    container.replaceChildren();
+    return;
+  }
+
+  const prev = el("button", { type: "button", className: "button", text: "이전", disabled: page <= 1 });
+  const next = el("button", { type: "button", className: "button", text: "다음", disabled: page >= totalPages });
+  prev.addEventListener("click", () => onPageChange(Math.min(page - 1, totalPages)));
+  next.addEventListener("click", () => onPageChange(page + 1));
+
+  container.replaceChildren(
+    prev,
+    el("span", { className: "pagination__info", text: `${page} / ${totalPages} 페이지` }),
+    next,
+  );
+}

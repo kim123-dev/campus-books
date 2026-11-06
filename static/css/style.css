@@ -511,3 +511,36 @@ a.button {
   font: inherit;
   resize: vertical;
 }
+
+/* ---------- 내 글 화면 ---------- */
+
+.profile-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--gap);
+}
+
+.profile-card__info {
+  min-width: 0;
+}
+
+.profile-card__nickname {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.profile-card__meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.empty-actions {
+  margin: 0 0 24px;
+}

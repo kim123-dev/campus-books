@@ -2,15 +2,7 @@
 // 필터와 페이지는 주소창(?q=...&page=2)에 저장한다. 새로고침, 뒤로 가기, 링크 공유에도 같은 결과가 나오게 하기 위해서다.
 import { listPosts } from "../api.js";
 import { renderHeader } from "../auth.js";
-import {
-  CONDITION_LABELS,
-  clearFormErrors,
-  el,
-  formatDate,
-  formatPrice,
-  showFormErrors,
-  statusBadge,
-} from "../ui.js";
+import { clearFormErrors, renderPagination, renderPostCard, showFormErrors } from "../ui.js";
 
 const PAGE_SIZE = 10;
 const FILTER_KEYS = ["q", "status", "course_name", "min_price", "max_price"];
@@ -112,45 +104,8 @@ function render(data, filters) {
     items.length === 0
       ? `이 페이지에는 글이 없습니다. (전체 ${total}개, ${totalPages}페이지까지)`
       : `총 ${total}개`;
-  list.replaceChildren(...items.map(renderCard));
-  renderPagination(filters, page, totalPages);
-}
-
-function renderCard(post) {
-  const courseText = post.course_name ? ` · ${post.course_name}` : "";
-  return el(
-    "li",
-    {},
-    el(
-      "a",
-      { className: "card post-card", href: `/static/post.html?id=${encodeURIComponent(post.id)}` },
-      el(
-        "div",
-        { className: "post-card__top" },
-        statusBadge(post.status),
-        el("span", { className: "post-card__condition", text: `책 상태 ${CONDITION_LABELS[post.condition] ?? post.condition}` }),
-      ),
-      el("h2", { className: "post-card__title", text: post.title }),
-      el("p", { className: "post-card__book", text: `${post.book_title}${courseText}` }),
-      el("p", { className: "post-card__price", text: formatPrice(post.price) }),
-      el("p", { className: "post-card__meta", text: `${post.seller.nickname} · ${formatDate(post.created_at)}` }),
-    ),
-  );
-}
-
-function renderPagination(filters, page, totalPages) {
-  if (totalPages <= 1 && page === 1) return;
-
-  const prev = el("button", { type: "button", className: "button", text: "이전", disabled: page <= 1 });
-  const next = el("button", { type: "button", className: "button", text: "다음", disabled: page >= totalPages });
-  prev.addEventListener("click", () => goToPage(filters, Math.min(page - 1, totalPages)));
-  next.addEventListener("click", () => goToPage(filters, page + 1));
-
-  pagination.replaceChildren(
-    prev,
-    el("span", { className: "pagination__info", text: `${page} / ${totalPages} 페이지` }),
-    next,
-  );
+  list.replaceChildren(...items.map(renderPostCard));
+  renderPagination(pagination, page, totalPages, (nextPage) => goToPage(filters, nextPage));
 }
 
 function goToPage(filters, page) {

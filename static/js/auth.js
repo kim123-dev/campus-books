@@ -8,6 +8,7 @@ export const LOGIN_PAGE = "/static/login.html";
 export const SIGNUP_PAGE = "/static/signup.html";
 const HOME_PAGE = "/static/index.html";
 const POST_FORM_PAGE = "/static/post-form.html";
+const MY_POSTS_PAGE = "/static/my-posts.html";
 
 // ---------- 돌아갈 주소 (next) ----------
 
@@ -99,13 +100,13 @@ function loggedOutLinks() {
   ];
 }
 
-// "내 글" 링크는 해당 화면을 만드는 7-5단계에서 추가한다.
 function loggedInItems(me) {
   const logoutButton = el("button", { type: "button", className: "link-button", text: "로그아웃" });
   logoutButton.addEventListener("click", logout);
   return [
     el("span", { className: "site-nav__user", text: `${me.nickname}님` }),
     el("a", { href: POST_FORM_PAGE, text: "글쓰기" }),
+    el("a", { href: MY_POSTS_PAGE, text: "내 글" }),
     logoutButton,
   ];
 }
