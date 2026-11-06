@@ -1,6 +1,6 @@
 // 서버 API 호출은 모두 이 파일을 거친다.
 // 화면 코드(pages/*.js)가 fetch, 토큰 헤더, 에러 형식을 직접 다루지 않게 하기 위해서다.
-import { clearToken, getToken } from "./auth.js";
+import { clearToken, getToken } from "./token.js";
 
 /** API 실패를 화면에서 한 가지 형식으로 다루기 위한 에러. */
 export class ApiError extends Error {
@@ -65,6 +65,21 @@ export function listPosts(params) {
   return request("/posts", { query: params });
 }
 
+/** 로그인. 서버 규격(OAuth2)상 이메일을 username이라는 이름의 form 값으로 보낸다. */
+export function login(username, password) {
+  return request("/auth/login", { method: "POST", form: { username, password } });
+}
+
+/** 회원가입. data: {email, password, nickname} */
+export function signup(data) {
+  return request("/auth/signup", { method: "POST", json: data });
+}
+
+/** 내 정보. 헤더의 닉네임 표시와 "이미 로그인했는지" 확인에 쓴다. */
+export function getMe() {
+  return request("/users/me");
+}
+
 // ---------- 에러 변환 ----------
 
 function toApiError(status, data) {
@@ -112,6 +127,8 @@ function translateValidation({ type, msg, ctx = {} }) {
     case "enum":
       return "선택할 수 없는 값입니다.";
     case "value_error":
+      // 이메일 형식 검사(EmailStr)는 라이브러리의 영어 메시지가 오므로 따로 바꾼다.
+      if (String(msg).startsWith("value is not a valid email address")) return "올바른 이메일 형식이 아닙니다.";
       return String(msg).replace(/^Value error, /, "");
     default:
       return "입력값을 확인해 주세요.";

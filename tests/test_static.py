@@ -30,6 +30,15 @@ def test_index_html_is_served(client: TestClient) -> None:
     assert "<title>" in response.text
 
 
+@pytest.mark.parametrize("page", ["login.html", "signup.html"])
+def test_auth_pages_are_served(client: TestClient, page: str) -> None:
+    response = client.get(f"/static/{page}")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "<form" in response.text
+
+
 def test_root_redirect_ends_at_index(client: TestClient) -> None:
     response = client.get("/")
 

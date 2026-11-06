@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>회원가입 | Campus Books</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <script type="module" src="/static/js/pages/signup.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <main class="container">
+      <section class="card auth-card">
+        <h1 class="page-title">회원가입</h1>
+
+        <form id="signup-form" class="auth-form" novalidate>
+          <div class="field">
+            <label for="email">이메일</label>
+            <input id="email" name="email" type="email" autocomplete="email" required />
+            <p class="field-error" data-error-for="email" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="password">비밀번호</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              aria-describedby="password-hint"
+              required
+            />
+            <p id="password-hint" class="field-hint">8~64자</p>
+            <p class="field-error" data-error-for="password" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="password_confirm">비밀번호 확인</label>
+            <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required />
+            <p class="field-error" data-error-for="password_confirm" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="nickname">닉네임</label>
+            <input
+              id="nickname"
+              name="nickname"
+              type="text"
+              autocomplete="nickname"
+              aria-describedby="nickname-hint"
+              required
+            />
+            <p id="nickname-hint" class="field-hint">2~30자, 다른 학생에게 판매자 이름으로 보입니다.</p>
+            <p class="field-error" data-error-for="nickname" hidden></p>
+          </div>
+
+          <p id="signup-error" class="form-error" role="alert" hidden></p>
+
+          <button type="submit" class="button button--primary button--block">가입하기</button>
+        </form>
+
+        <p class="auth-switch">
+          이미 회원이신가요? <a id="login-link" href="/static/login.html">로그인</a>
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

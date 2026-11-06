@@ -290,3 +290,68 @@ a {
 .pagination__info {
   color: var(--color-muted);
 }
+
+/* ---------- 헤더 로그인 상태 ---------- */
+
+.site-nav {
+  align-items: center;
+}
+
+.site-nav__user {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* 링크처럼 보이는 버튼. 페이지 이동이 아니라 동작(로그아웃)이므로 button을 쓴다. */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* ---------- 로그인 · 회원가입 ---------- */
+
+.auth-card {
+  max-width: 420px;
+  margin: 32px auto 48px;
+  padding: 8px 20px 20px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.form-notice {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #e8f5ec;
+  color: var(--color-on-sale);
+  font-size: 0.9rem;
+}
+
+.button--block {
+  width: 100%;
+}
+
+.auth-switch {
+  margin: 20px 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
