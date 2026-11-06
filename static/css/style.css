@@ -1,43 +1,73 @@
 /* Campus Books 공통 스타일. 모바일 화면을 기본으로 하고, 넓은 화면에서 칸을 늘린다. */
-/* 테마: 따뜻한 책방 (베이지·갈색 + 주황 포인트). 글자 색은 모두 배경 대비 4.5:1 이상으로 골랐다. */
+/* 테마: 모던 앱. 큰 글자와 넉넉한 여백, 그림자 카드, 누르는 느낌이 있는 버튼.
+   포인트 색은 바이올렛 하나만 쓰고, 나머지는 중립 회색과 상태 색으로 구성한다.
+   글자 색은 모두 놓이는 바탕 대비 4.5:1 이상으로 골랐다. */
 
-:root {
-  --color-bg: #f7f1e8;            /* 베이지 종이 */
-  --color-surface: #fffcf7;       /* 카드·입력칸 */
-  --color-text: #3b2a1e;          /* 진한 갈색, 13.4:1 */
-  --color-muted: #6b5644;         /* 보조 글자, 6.8:1 */
-  --color-border: #e3d5c3;        /* 장식용 구분선 */
-  --color-input-border: #998268;  /* 입력칸 테두리는 칸이 보이도록 3:1 이상 */
-  --color-primary: #c2410c;       /* 주황 포인트, 흰 글자 5.2:1 */
-  --color-primary-hover: #9a3412;
-  --color-link: #9a4a14;          /* 본문 링크, 6.1:1 */
-  --color-price: #b4410d;         /* 가격, 5.5:1 */
-  --color-danger: #b42318;
-  --color-on-sale: #2e6b3a;
-  --color-reserved: #a15c00;
-  --color-sold: #75685d;
-  --color-spine: #8b5e3c;         /* 상태를 알 수 없을 때의 기본 책등 색 */
-  --color-header-bg: #4a3222;
-  --color-header-text: #f7e9d4;
-  --color-header-link: #f5b971;
-  --shadow-hover: 0 6px 16px rgba(74, 50, 34, 0.14);
-  --radius: 14px;          /* 카드 */
-  --radius-control: 10px;  /* 버튼·입력칸 */
-  --gap: 16px;
-  /* 제목용 명조. 폰트 파일을 못 불러오면 PC에 있는 명조, 그것도 없으면 기본 serif로 대체된다. */
-  --font-heading: "Gowun Batang", "Nanum Myeongjo", "AppleMyungjo", "Batang", "바탕", serif;
-  --font-body: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+/* ---------- 글꼴 (Pretendard, OFL-1.1, static/fonts/OFL-Pretendard.txt) ---------- */
+/* 공식 배포본의 서브셋 woff2를 그대로 쓴다. 외부 CDN 없이 자체 호스팅한다.
+   swap은 폰트를 받는 동안에도 시스템 고딕으로 글자를 먼저 보여준다. */
+@font-face {
+  font-family: "Pretendard";
+  src: url("../fonts/Pretendard-Regular.subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* 고운바탕 Bold (OFL-1.1, static/fonts/OFL.txt). 제목은 모두 굵은 글씨라 Bold만 둔다.
-   용량을 줄이려고 영문·문장부호와 자주 쓰는 한글 2,350자(KS X 1001)만 남긴 서브셋이다.
-   그 밖의 글자는 --font-heading의 다음 명조로 보인다. swap은 폰트를 받는 동안에도 글자를 먼저 보여준다. */
 @font-face {
-  font-family: "Gowun Batang";
-  src: url("../fonts/GowunBatang-Bold.woff2") format("woff2");
+  font-family: "Pretendard";
+  src: url("../fonts/Pretendard-SemiBold.subset.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard";
+  src: url("../fonts/Pretendard-Bold.subset.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
+}
+
+:root {
+  --color-primary: #5b3fd6;        /* 포인트 바이올렛, 흰 글자 6.7:1 */
+  --color-primary-hover: #4a30b8;
+  --color-primary-soft: #efebfc;   /* 포인트 색의 옅은 면 (선택된 느낌, 포커스 그림자) */
+
+  --color-bg: #f5f6f8;             /* 페이지 배경 */
+  --color-surface: #ffffff;        /* 카드 */
+  --color-fill: #eff1f4;           /* 입력칸·보조 버튼 면 */
+  --color-fill-hover: #e5e8ec;
+  --color-divider: #eceef1;        /* 상세 정보 구분선 */
+
+  --color-text: #191c21;           /* 본문, 17.1:1 */
+  --color-sub: #4e5563;            /* 보조 글자, 7.5:1 */
+  --color-muted: #5c6370;          /* 날짜·안내·placeholder, 입력칸 면 위에서도 5.3:1 */
+
+  --color-danger: #c4243a;         /* 흰 바탕 5.7:1, 연빨강 면 위에서도 5.0:1 */
+  --color-danger-soft: #fdecee;
+
+  /* 상태 배지: 옅은 바탕 + 진한 글자 */
+  --color-on-sale: #0f6e4f;
+  --color-on-sale-bg: #e3f5ee;
+  --color-reserved: #9a4a00;
+  --color-reserved-bg: #fdf0dc;
+  --color-sold: #4e5563;
+  --color-sold-bg: #eceef1;
+
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 4px 16px rgba(17, 24, 39, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(17, 24, 39, 0.05), 0 10px 28px rgba(17, 24, 39, 0.1);
+  --shadow-header: 0 1px 0 rgba(17, 24, 39, 0.06);
+  --focus-ring: 0 0 0 3px rgba(91, 63, 214, 0.35);
+
+  --radius: 20px;          /* 카드 */
+  --radius-control: 14px;  /* 버튼·입력칸 */
+  --gap: 20px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration: 0.15s;
+
+  --font-body: "Pretendard", system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
 *,
@@ -51,19 +81,21 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
+  font-size: 1.0625rem; /* 17px. 앱처럼 조금 큰 기본 글자 */
   line-height: 1.6;
+  word-break: keep-all; /* 한글 단어가 중간에서 끊기지 않게 한다 */
+  -webkit-font-smoothing: antialiased;
 }
 
-/* 페이지 제목, 카드 제목, 상세 글 제목은 모두 h1·h2다. 본문과 버튼·입력칸은 고딕을 유지한다. */
 h1,
 h2 {
-  font-family: var(--font-heading);
   font-weight: 700;
   line-height: 1.35;
+  letter-spacing: -0.02em;
 }
 
 a {
-  color: var(--color-link);
+  color: var(--color-primary);
 }
 
 .container {
@@ -77,12 +109,20 @@ a {
   display: none !important;
 }
 
+/* 키보드로 이동할 때만 포인트 색 링을 보여준다. */
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 /* ---------- 헤더 ---------- */
 
 .site-header {
-  background: var(--color-header-bg);
-  border-bottom: 3px solid var(--color-primary);
-  color: var(--color-header-text);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-header);
 }
 
 /* 좁은 화면에서 메뉴가 넘치면 로고 아래 줄로 내려간다. */
@@ -92,16 +132,16 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 8px var(--gap);
-  min-height: 56px;
+  min-height: 60px;
   padding-top: 8px;
   padding-bottom: 8px;
 }
 
 .site-logo {
-  font-family: var(--font-heading);
+  color: var(--color-primary);
+  font-size: 1.2rem;
   font-weight: 700;
-  font-size: 1.15rem;
-  color: var(--color-header-text);
+  letter-spacing: -0.02em;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -116,72 +156,118 @@ a {
 .site-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
+  gap: 4px 16px;
 }
 
 .site-nav a {
-  color: var(--color-header-link);
+  color: var(--color-sub);
+  font-weight: 600;
   text-decoration: none;
+  transition: color var(--duration) var(--ease);
 }
 
 .site-nav a:hover {
-  text-decoration: underline;
+  color: var(--color-primary);
 }
 
-/* 어두운 헤더 위에서는 주황 포커스 테두리 대신 밝은 색을 써야 보인다. */
-.site-header :focus-visible {
-  outline-color: var(--color-header-link);
+.site-nav__user {
+  color: var(--color-text);
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- 공통 ---------- */
 
 .page-title {
-  font-size: 1.4rem;
-  margin: 24px 0 16px;
-  letter-spacing: -0.01em;
+  margin: 32px 0 20px;
+  font-size: 1.75rem;
 }
 
 .card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 0;
   border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
 
 .button {
-  min-height: 40px;
-  padding: 0 16px;
-  border: 1px solid var(--color-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
   border-radius: var(--radius-control);
-  background: var(--color-surface);
+  background: var(--color-fill);
   color: var(--color-text);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .button:hover:not(:disabled) {
-  border-color: var(--color-spine);
-  background: #fbf3e8;
+  background: var(--color-fill-hover);
+}
+
+/* 누르는 동안 살짝 작아져서 눌렀다는 느낌을 준다. */
+.button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .button:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .button--primary {
   background: var(--color-primary);
-  border-color: var(--color-primary);
   color: #ffffff;
 }
 
 .button--primary:hover:not(:disabled) {
   background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+.button--block {
+  width: 100%;
+  min-height: 52px;
+}
+
+/* a 태그에도 버튼 모양을 쓸 수 있게 한다. (오류 화면의 "목록으로" 등) */
+a.button {
+  text-decoration: none;
+}
+
+.button--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.button--danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: #ffffff;
+}
+
+/* 링크처럼 보이는 버튼. 페이지 이동이 아니라 동작(로그아웃)이므로 button을 쓴다. */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-sub);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--duration) var(--ease);
+}
+
+.link-button:hover {
+  color: var(--color-primary);
 }
 
 /* ---------- 폼 ---------- */
@@ -189,57 +275,99 @@ a {
 .filter-form {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 16px;
   padding: var(--gap);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
+/* 입력칸에 테두리가 없으므로 라벨을 항상 칸 위에 또렷하게 보여 칸을 알아보게 한다. */
 .field label {
-  font-size: 0.875rem;
-  color: var(--color-muted);
+  color: var(--color-sub);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
+/* 테두리 없는 연회색 면. 오류·포커스 표시는 box-shadow로 그린다. */
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
-  min-height: 40px;
-  padding: 0 10px;
-  border: 1px solid var(--color-input-border);
+  min-height: 52px;
+  padding: 0 16px;
+  border: 0;
   border-radius: var(--radius-control);
-  background: var(--color-surface);
+  background: var(--color-fill);
   color: var(--color-text);
   font: inherit;
+  transition:
+    background-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
 }
 
-/* 포커스된 칸은 주황 테두리와 옅은 그림자로 표시한다. */
+.field textarea {
+  min-height: 160px;
+  padding: 14px 16px;
+  resize: vertical;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--color-muted);
+  opacity: 1;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover {
+  background: var(--color-fill-hover);
+}
+
 .field input:focus-visible,
 .field select:focus-visible,
 .field textarea:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 0;
-  box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.15);
+  outline: none;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 2px var(--color-primary), 0 0 0 4px var(--color-primary-soft);
 }
 
 .field [aria-invalid="true"] {
-  border-color: var(--color-danger);
+  box-shadow: inset 0 0 0 2px var(--color-danger);
 }
 
 .field-error,
 .form-error {
   margin: 0;
   color: var(--color-danger);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--color-muted);
   font-size: 0.875rem;
 }
 
 .form-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.form-notice {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-control);
+  background: var(--color-on-sale-bg);
+  color: var(--color-on-sale);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 @media (min-width: 640px) {
@@ -261,14 +389,15 @@ a {
 /* ---------- 목록 ---------- */
 
 .result-summary {
-  margin: 20px 0 12px;
-  color: var(--color-muted);
+  margin: 28px 0 14px;
+  color: var(--color-sub);
+  font-weight: 600;
 }
 
 .post-list {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -280,65 +409,38 @@ a {
   }
 }
 
-/* 카드 왼쪽의 굵은 띠는 책장에 꽂힌 책등을 표현한다. 색은 판매 상태를 따른다. */
 .post-card {
   display: flex;
   flex-direction: column;
   gap: 4px;
   height: 100%;
-  padding: var(--gap) var(--gap) var(--gap) calc(var(--gap) + 2px);
-  border-left: 6px solid var(--color-spine);
+  padding: 22px 22px 20px;
   color: inherit;
   text-decoration: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    box-shadow var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* 카드 안 배지의 상태로 띠 색을 고른다. JS를 바꾸지 않으려고 :has()를 썼고,
-   지원하지 않는 브라우저에서는 기본 갈색 띠로 보인다. */
-.post-card:has(.badge--on_sale) {
-  border-left-color: var(--color-on-sale);
-}
-
-.post-card:has(.badge--reserved) {
-  border-left-color: var(--color-reserved);
-}
-
-.post-card:has(.badge--sold) {
-  border-left-color: var(--color-sold);
-}
-
-/* 키보드로 이동해도 마우스를 올린 것과 같은 효과를 준다. */
-.post-card:focus-visible {
-  border-top-color: var(--color-primary);
-  border-right-color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-  box-shadow: var(--shadow-hover);
-}
-
-/* 터치 화면에서는 눌린 뒤 효과가 남지 않도록 마우스가 있는 기기에서만 적용한다. */
+/* 터치 화면에서는 눌린 뒤 효과가 남지 않도록 마우스가 있는 기기에서만 그림자를 키운다. */
 @media (hover: hover) {
   .post-card:hover {
-    border-top-color: var(--color-primary);
-    border-right-color: var(--color-primary);
-    border-bottom-color: var(--color-primary);
-    box-shadow: var(--shadow-hover);
-    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
   }
 }
 
-/* "동작 줄이기"를 켠 사용자에게는 카드를 움직이지 않는다. */
-@media (prefers-reduced-motion: reduce) {
-  .post-card {
-    transition: none;
-  }
+.post-card:active {
+  transform: scale(0.98);
+}
 
-  .post-card:hover {
-    transform: none;
-  }
+.post-card:focus-visible {
+  box-shadow: var(--shadow-card-hover);
 }
 
 .post-card__top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -352,20 +454,23 @@ a {
 }
 
 .post-card__title {
-  margin: 4px 0 0;
-  font-size: 1.05rem;
+  margin: 8px 0 0;
+  font-size: 1.125rem;
   overflow-wrap: anywhere;
 }
 
 .post-card__book {
+  color: var(--color-sub);
+  font-size: 0.9375rem;
   overflow-wrap: anywhere;
 }
 
 .post-card__price {
-  margin: 4px 0;
-  color: var(--color-price);
-  font-size: 1.15rem;
-  font-weight: 800;
+  margin: 8px 0 4px;
+  color: var(--color-text);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 /* 판매 완료 글은 가격을 낮춰, 살 수 있는 글이 먼저 눈에 띄게 한다. */
@@ -375,24 +480,26 @@ a {
 
 .badge {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 700;
-  color: #ffffff;
   white-space: nowrap;
 }
 
 .badge--on_sale {
-  background: var(--color-on-sale);
+  background: var(--color-on-sale-bg);
+  color: var(--color-on-sale);
 }
 
 .badge--reserved {
-  background: var(--color-reserved);
+  background: var(--color-reserved-bg);
+  color: var(--color-reserved);
 }
 
 .badge--sold {
-  background: var(--color-sold);
+  background: var(--color-sold-bg);
+  color: var(--color-sold);
 }
 
 /* ---------- 페이지 이동 ---------- */
@@ -402,136 +509,91 @@ a {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin: 24px 0 48px;
+  margin: 32px 0 56px;
 }
 
 .pagination__info {
-  color: var(--color-muted);
-}
-
-/* ---------- 헤더 로그인 상태 ---------- */
-
-.site-nav {
-  align-items: center;
-}
-
-.site-nav__user {
-  color: var(--color-header-text);
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-/* 링크처럼 보이는 버튼. 페이지 이동이 아니라 동작(로그아웃)이므로 button을 쓴다. */
-.link-button {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-link);
-  font: inherit;
-  cursor: pointer;
-}
-
-.site-header .link-button {
-  color: var(--color-header-link);
-}
-
-.link-button:hover {
-  text-decoration: underline;
+  color: var(--color-sub);
+  font-weight: 600;
 }
 
 /* ---------- 로그인 · 회원가입 ---------- */
 
 .auth-card {
-  max-width: 420px;
-  margin: 32px auto 48px;
-  padding: 8px 20px 20px;
+  max-width: 440px;
+  margin: 32px auto 56px;
+  padding: 8px 24px 28px;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-
-.field-hint {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.8125rem;
-}
-
-.form-notice {
-  margin: 0 0 16px;
-  padding: 10px 12px;
-  border-radius: var(--radius-control);
-  background: #e6f0e3;
-  color: var(--color-on-sale);
-  font-size: 0.9rem;
-}
-
-.button--block {
-  width: 100%;
+  gap: 18px;
 }
 
 .auth-switch {
-  margin: 20px 0 0;
+  margin: 24px 0 0;
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   text-align: center;
+}
+
+.auth-switch a {
+  font-weight: 600;
 }
 
 /* ---------- 상세 화면 ---------- */
 
-/* a 태그에도 버튼 모양을 쓸 수 있게 한다. (오류 화면의 "목록으로") */
-a.button {
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
-}
-
 .back-link {
-  margin: 20px 0 0;
+  margin: 24px 0 0;
 }
 
 .back-link a {
+  color: var(--color-sub);
+  font-weight: 600;
   text-decoration: none;
+}
+
+.back-link a:hover {
+  color: var(--color-primary);
 }
 
 .page-error {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
   margin-top: 16px;
   padding: var(--gap);
 }
 
 .post-detail {
   margin-top: 16px;
-  padding: 20px;
+  padding: 24px;
 }
 
 .post-detail__title {
-  margin: 8px 0 4px;
-  font-size: 1.4rem;
+  margin: 12px 0 4px;
+  font-size: 1.5rem;
   overflow-wrap: anywhere;
 }
 
 .post-detail__price {
-  margin: 0 0 16px;
-  color: var(--color-price);
-  font-size: 1.5rem;
-  font-weight: 800;
+  margin: 0 0 20px;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 /* 항목 이름과 값을 두 칸으로 나란히 둔다. */
 .post-detail__info {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 6px 16px;
+  gap: 10px 20px;
   margin: 0;
-  padding: 12px 0;
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  padding: 18px 0;
+  border-top: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .post-detail__info dt {
@@ -544,8 +606,8 @@ a.button {
 }
 
 .post-detail__subtitle {
-  margin: 20px 0 8px;
-  font-size: 1rem;
+  margin: 24px 0 8px;
+  font-size: 1.0625rem;
 }
 
 /* 판매자가 입력한 줄바꿈을 그대로 보여준다. */
@@ -564,20 +626,20 @@ a.button {
 .owner-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 16px 0 48px;
-  padding: var(--gap) 20px 20px;
+  gap: 14px;
+  margin: 16px 0 56px;
+  padding: 22px 24px 24px;
 }
 
 .owner-panel__title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.0625rem;
 }
 
 .owner-panel__notice {
   margin: 0 0 12px;
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
 }
 
 .owner-actions__buttons {
@@ -586,54 +648,31 @@ a.button {
   gap: 8px;
 }
 
-.button--danger {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.button--danger:hover:not(:disabled) {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: #ffffff;
-}
-
 /* ---------- 작성 · 수정 화면 ---------- */
 
 .form-card {
   max-width: 640px;
-  margin: 24px auto 48px;
-  padding: 4px 20px 20px;
+  margin: 24px auto 56px;
+  padding: 4px 24px 28px;
 }
 
 .post-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 }
 
 /* 책 상태와 가격은 넓은 화면에서 한 줄에 나란히 둔다. */
 .field-row {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
+  gap: 18px;
 }
 
 @media (min-width: 640px) {
   .field-row {
     grid-template-columns: 1fr 1fr;
   }
-}
-
-.field textarea {
-  width: 100%;
-  min-height: 160px;
-  padding: 8px 10px;
-  border: 1px solid var(--color-input-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  resize: vertical;
 }
 
 /* ---------- 내 글 화면 ---------- */
@@ -643,8 +682,8 @@ a.button {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: var(--gap);
+  gap: 14px;
+  padding: var(--gap) 24px;
 }
 
 .profile-card__info {
@@ -653,7 +692,7 @@ a.button {
 
 .profile-card__nickname {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -661,10 +700,47 @@ a.button {
 .profile-card__meta {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   overflow-wrap: anywhere;
 }
 
 .empty-actions {
   margin: 0 0 24px;
+}
+
+/* ---------- 좁은 화면 ---------- */
+
+@media (max-width: 400px) {
+  :root {
+    --gap: 16px;
+  }
+
+  .page-title {
+    margin-top: 24px;
+    font-size: 1.5rem;
+  }
+
+  .post-detail,
+  .owner-panel,
+  .auth-card,
+  .form-card {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
+
+/* ---------- 동작 줄이기 ---------- */
+
+/* 이 설정을 켠 사용자에게는 작아지는 효과와 전환을 모두 끈다. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+
+  .button:active:not(:disabled),
+  .post-card:active {
+    transform: none;
+  }
 }

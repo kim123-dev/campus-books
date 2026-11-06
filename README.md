@@ -79,7 +79,7 @@
 | 프론트 | HTML/CSS/JS (ES 모듈, 빌드 도구 없음) | 별도 서버 없이 FastAPI가 정적 파일로 서빙하고, fetch로 API 호출 |
 | 테스트 | pytest, httpx (TestClient) | API를 실제 요청처럼 호출하는 통합 테스트 |
 
-제목 글꼴: [Gowun Batang](https://fonts.google.com/specimen/Gowun+Batang) (Google Fonts) Bold, SIL Open Font License 1.1 ([`static/fonts/OFL.txt`](static/fonts/OFL.txt)). 자주 쓰는 한글 2,350자만 남긴 woff2로 변환해 `static/fonts/`에서 직접 제공합니다.
+글꼴: [Pretendard](https://github.com/orioncactus/pretendard) v1.3.9 (Regular·SemiBold·Bold), SIL Open Font License 1.1 ([`static/fonts/OFL-Pretendard.txt`](static/fonts/OFL-Pretendard.txt)). 공식 배포본의 서브셋 woff2를 수정 없이 `static/fonts/`에서 직접 제공합니다.
 
 ## 프로젝트 구조
 
