@@ -91,3 +91,13 @@ export function showFormErrors(form, generalErrorEl, error) {
     generalErrorEl.hidden = false;
   }
 }
+
+/**
+ * 주소의 ?id= 값을 글 번호로 읽는다. 1 이상의 정수가 아니면 null.
+ * 숫자가 아닌 id로 요청하면 서버는 "정수로 입력해 주세요."(422)를 주는데, 화면에서는 뜻이 통하지 않아
+ * 상세·수정 화면이 요청 전에 같은 규칙으로 걸러낸다.
+ */
+export function readPostIdFromUrl() {
+  const raw = new URLSearchParams(window.location.search).get("id");
+  return raw !== null && /^[1-9]\d*$/.test(raw) ? raw : null;
+}

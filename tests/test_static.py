@@ -47,6 +47,14 @@ def test_post_detail_page_is_served(client: TestClient) -> None:
     assert "/static/js/pages/post.js" in response.text
 
 
+def test_post_form_page_is_served(client: TestClient) -> None:
+    response = client.get("/static/post-form.html")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "/static/js/pages/post-form.js" in response.text
+
+
 def test_root_redirect_ends_at_index(client: TestClient) -> None:
     response = client.get("/")
 
@@ -101,3 +109,32 @@ def test_js_does_not_use_html_string_apis(js_file: Path) -> None:
         if FORBIDDEN_DOM_APIS.search(line)
     ]
     assert not found, "textContent/createElement를 사용하세요:\n" + "\n".join(found)
+
+
+# ---------- 프론트와 서버의 상태 규칙 일치 ----------
+
+POST_JS = STATIC_DIR / "js" / "pages" / "post.js"
+
+
+def _read_front_transitions() -> dict[str, set[str]]:
+    """post.js의 ALLOWED_TRANSITIONS 상수를 읽어 {현재 상태: 바꿀 수 있는 상태들}로 돌려준다."""
+    source = POST_JS.read_text(encoding="utf-8")
+    block = re.search(r"const ALLOWED_TRANSITIONS = \{(.*?)\};", source, re.S)
+    # 상수 이름이나 모양이 바뀌면 비교 없이 통과하지 않도록 여기서 실패시킨다.
+    assert block, "post.js에서 `const ALLOWED_TRANSITIONS = { ... };`를 찾지 못했습니다."
+    rows = re.findall(r"(\w+):\s*\[(.*?)\]", block.group(1), re.S)
+    assert rows, "ALLOWED_TRANSITIONS에서 상태 항목을 읽지 못했습니다."
+    return {state: set(re.findall(r'"(\w+)"', targets)) for state, targets in rows}
+
+
+def test_front_status_transitions_match_server() -> None:
+    # 상세 화면은 이 표로 상태 변경 버튼을 고른다. 서버 규칙이 바뀌었는데 프론트를 놓치면
+    # 누를 수 없는 버튼이 보이거나(400) 필요한 버튼이 사라지므로, 두 표가 같은지 확인한다.
+    from app.services.post_service import ALLOWED_TRANSITIONS
+
+    server = {
+        state.value: {target.value for target in targets}
+        for state, targets in ALLOWED_TRANSITIONS.items()
+    }
+
+    assert _read_front_transitions() == server

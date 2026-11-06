@@ -70,6 +70,16 @@ export function getPost(postId) {
   return request(`/posts/${encodeURIComponent(postId)}`);
 }
 
+/** 판매글 작성. data: {title, book_title, course_name, condition, price, description} */
+export function createPost(data) {
+  return request("/posts", { method: "POST", json: data });
+}
+
+/** 판매글 수정. 보낸 필드만 바뀐다. (status는 changePostStatus로만 바꾼다) */
+export function updatePost(postId, data) {
+  return request(`/posts/${encodeURIComponent(postId)}`, { method: "PATCH", json: data });
+}
+
 /** 판매 상태 변경. 바뀐 글 전체를 돌려받아 화면을 다시 그리는 데 쓴다. */
 export function changePostStatus(postId, status) {
   return request(`/posts/${encodeURIComponent(postId)}/status`, { method: "PATCH", json: { status } });
@@ -144,6 +154,8 @@ function translateValidation({ type, msg, ctx = {} }) {
     case "value_error":
       // 이메일 형식 검사(EmailStr)는 라이브러리의 영어 메시지가 오므로 따로 바꾼다.
       if (String(msg).startsWith("value is not a valid email address")) return "올바른 이메일 형식이 아닙니다.";
+      // 수정 화면에서 가격·책 상태를 비우면 null을 보내는데, 서버 문구는 개발자용이라 화면용으로 바꾼다.
+      if (String(msg).includes("null로 바꿀 수 없습니다")) return "필수 항목입니다.";
       return String(msg).replace(/^Value error, /, "");
     default:
       return "입력값을 확인해 주세요.";

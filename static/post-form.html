@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>판매글 작성 | Campus Books</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <script type="module" src="/static/js/pages/post-form.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <main class="container">
+      <p id="page-status" class="result-summary" aria-live="polite">불러오는 중…</p>
+
+      <!-- 수정할 수 없는 글(남의 글, 판매 완료, 없는 글)이면 폼 대신 보여준다. -->
+      <div id="page-error" class="card page-error" hidden>
+        <p id="page-error-text" class="form-error" role="alert"></p>
+        <a id="page-error-link" class="button" href="/static/index.html">목록으로</a>
+      </div>
+
+      <section id="form-card" class="card form-card" hidden>
+        <h1 id="form-title" class="page-title">판매글 작성</h1>
+
+        <!-- 각 칸의 name은 API 필드 이름과 같게 맞춰, 422 에러가 해당 칸 아래에 바로 연결되게 한다. -->
+        <!-- maxlength 등은 서버 규칙과 같게 둔 입력 편의용이고, 실제 검사는 서버가 한다. -->
+        <form id="post-form" class="post-form" novalidate>
+          <div class="field">
+            <label for="title">제목</label>
+            <input id="title" name="title" type="text" maxlength="100" required />
+            <p class="field-error" data-error-for="title" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="book_title">교재명</label>
+            <input id="book_title" name="book_title" type="text" maxlength="200" required />
+            <p class="field-error" data-error-for="book_title" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="course_name">과목명 (선택)</label>
+            <input id="course_name" name="course_name" type="text" maxlength="100" aria-describedby="course-hint" />
+            <p id="course-hint" class="field-hint">목록의 과목명 필터는 정확히 일치할 때만 찾습니다.</p>
+            <p class="field-error" data-error-for="course_name" hidden></p>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="condition">책 상태</label>
+              <select id="condition" name="condition" required>
+                <option value="">선택해 주세요</option>
+                <option value="GOOD">상</option>
+                <option value="FAIR">중</option>
+                <option value="POOR">하</option>
+              </select>
+              <p class="field-error" data-error-for="condition" hidden></p>
+            </div>
+
+            <div class="field">
+              <label for="price">가격 (원)</label>
+              <input
+                id="price"
+                name="price"
+                type="number"
+                min="0"
+                max="10000000"
+                step="1"
+                inputmode="numeric"
+                aria-describedby="price-hint"
+                required
+              />
+              <p id="price-hint" class="field-hint">0원이면 무료 나눔으로 표시됩니다.</p>
+              <p class="field-error" data-error-for="price" hidden></p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="description">설명 (선택)</label>
+            <textarea id="description" name="description" rows="8" maxlength="2000"></textarea>
+            <p class="field-error" data-error-for="description" hidden></p>
+          </div>
+
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+
+          <div class="form-actions">
+            <button type="submit" class="button button--primary">등록하기</button>
+            <a id="cancel-link" class="button" href="/static/index.html">취소</a>
+          </div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

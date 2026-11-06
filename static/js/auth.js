@@ -7,6 +7,7 @@ import { el } from "./ui.js";
 export const LOGIN_PAGE = "/static/login.html";
 export const SIGNUP_PAGE = "/static/signup.html";
 const HOME_PAGE = "/static/index.html";
+const POST_FORM_PAGE = "/static/post-form.html";
 
 // ---------- 돌아갈 주소 (next) ----------
 
@@ -44,6 +45,15 @@ function currentNext() {
   const { pathname, search, hash } = window.location;
   if (pathname === LOGIN_PAGE || pathname === SIGNUP_PAGE) return getNextFromUrl();
   return pathname + search + hash;
+}
+
+/**
+ * 로그인 화면으로 보낸다. 지금 화면을 next로 붙여 로그인 후 돌아오게 한다.
+ * replace를 쓰는 이유: 로그인 화면에서 뒤로 가기를 눌렀을 때 로그인이 필요한 화면으로 돌아가
+ * 다시 로그인 화면으로 튕겨 나오는 일을 막기 위해서다.
+ */
+export function redirectToLogin() {
+  window.location.replace(authPageUrl(LOGIN_PAGE));
 }
 
 // ---------- 공통 헤더 ----------
@@ -89,11 +99,15 @@ function loggedOutLinks() {
   ];
 }
 
-// "글쓰기", "내 글" 링크는 해당 화면을 만드는 7-4, 7-5단계에서 추가한다.
+// "내 글" 링크는 해당 화면을 만드는 7-5단계에서 추가한다.
 function loggedInItems(me) {
   const logoutButton = el("button", { type: "button", className: "link-button", text: "로그아웃" });
   logoutButton.addEventListener("click", logout);
-  return [el("span", { className: "site-nav__user", text: `${me.nickname}님` }), logoutButton];
+  return [
+    el("span", { className: "site-nav__user", text: `${me.nickname}님` }),
+    el("a", { href: POST_FORM_PAGE, text: "글쓰기" }),
+    logoutButton,
+  ];
 }
 
 /**

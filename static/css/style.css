@@ -472,3 +472,42 @@ a.button {
   border-color: var(--color-danger);
   color: #ffffff;
 }
+
+/* ---------- 작성 · 수정 화면 ---------- */
+
+.form-card {
+  max-width: 640px;
+  margin: 24px auto 48px;
+  padding: 4px 20px 20px;
+}
+
+.post-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 책 상태와 가격은 넓은 화면에서 한 줄에 나란히 둔다. */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .field-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.field textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  resize: vertical;
+}

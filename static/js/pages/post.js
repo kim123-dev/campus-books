@@ -1,8 +1,8 @@
 // 상세 화면: 글 정보를 보여주고, 내 글이면 상태 변경과 삭제를 할 수 있게 한다.
 // 권한과 상태 규칙의 최종 판단은 서버가 한다. 화면은 누를 수 없는 버튼을 미리 숨기는 정도만 한다.
 import { changePostStatus, deletePost, getPost } from "../api.js";
-import { LOGIN_PAGE, authPageUrl, renderHeader } from "../auth.js";
-import { CONDITION_LABELS, el, formatDate, formatPrice, statusBadge } from "../ui.js";
+import { redirectToLogin, renderHeader } from "../auth.js";
+import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, statusBadge } from "../ui.js";
 
 const HOME_PAGE = "/static/index.html";
 
@@ -31,18 +31,12 @@ const actionError = document.getElementById("action-error");
 
 // 헤더(/users/me)와 글 조회를 동시에 시작한다. renderHeader는 실패해도 null을 돌려주고 멈추지 않는다.
 const mePromise = renderHeader(document.getElementById("site-header"));
-const postId = readPostId();
+const postId = readPostIdFromUrl();
 
 if (postId === null) {
-  // 숫자가 아닌 id로 요청하면 서버는 "정수로 입력해 주세요."(422)를 주는데, 이 화면에서는 뜻이 통하지 않는다.
   showPageError("글 주소가 올바르지 않습니다.");
 } else {
   load(postId);
-}
-
-function readPostId() {
-  const raw = new URLSearchParams(window.location.search).get("id");
-  return raw !== null && /^[1-9]\d*$/.test(raw) ? raw : null;
 }
 
 // ---------- 불러오기 ----------
@@ -112,9 +106,14 @@ function renderDetail(post) {
   );
 }
 
-// 수정 버튼은 수정 화면을 만드는 7-4단계에서 판매 중·예약 중 글에만 추가한다.
 function renderOwnerActions(post) {
   const nextStatuses = ALLOWED_TRANSITIONS[post.status] ?? [];
+
+  // 판매 완료된 글은 서버가 수정을 막으므로(400) 수정 버튼을 보여주지 않는다.
+  const editLink =
+    post.status !== "SOLD"
+      ? el("a", { className: "button", href: `/static/post-form.html?id=${encodeURIComponent(post.id)}`, text: "수정" })
+      : null;
 
   const statusButtons = nextStatuses.map((status) => {
     const button = el("button", { type: "button", className: "button", text: STATUS_BUTTON_LABELS[status] });
@@ -131,7 +130,9 @@ function renderOwnerActions(post) {
       : null;
 
   ownerActions.replaceChildren(
-    ...[soldNotice, el("div", { className: "owner-actions__buttons" }, ...statusButtons, deleteButton)].filter(Boolean),
+    ...[soldNotice, el("div", { className: "owner-actions__buttons" }, editLink, ...statusButtons, deleteButton)].filter(
+      Boolean,
+    ),
   );
 }
 
@@ -170,7 +171,7 @@ async function runAction(task) {
   } catch (error) {
     if (error.status === 401) {
       // 토큰이 만료되었다. (api.js가 토큰을 이미 지웠다) 로그인 후 이 글로 돌아오게 한다.
-      window.location.assign(authPageUrl(LOGIN_PAGE));
+      redirectToLogin();
       return;
     }
     // 400(판매 완료된 글), 403(남의 글), 404(이미 삭제된 글)는 서버 메시지를 그대로 보여준다.
