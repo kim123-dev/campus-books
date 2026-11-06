@@ -21,8 +21,23 @@
   --color-header-text: #f7e9d4;
   --color-header-link: #f5b971;
   --shadow-hover: 0 6px 16px rgba(74, 50, 34, 0.14);
-  --radius: 10px;
+  --radius: 14px;          /* 카드 */
+  --radius-control: 10px;  /* 버튼·입력칸 */
   --gap: 16px;
+  /* 제목용 명조. 폰트 파일을 못 불러오면 PC에 있는 명조, 그것도 없으면 기본 serif로 대체된다. */
+  --font-heading: "Gowun Batang", "Nanum Myeongjo", "AppleMyungjo", "Batang", "바탕", serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+/* 고운바탕 Bold (OFL-1.1, static/fonts/OFL.txt). 제목은 모두 굵은 글씨라 Bold만 둔다.
+   용량을 줄이려고 영문·문장부호와 자주 쓰는 한글 2,350자(KS X 1001)만 남긴 서브셋이다.
+   그 밖의 글자는 --font-heading의 다음 명조로 보인다. swap은 폰트를 받는 동안에도 글자를 먼저 보여준다. */
+@font-face {
+  font-family: "Gowun Batang";
+  src: url("../fonts/GowunBatang-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 *,
@@ -35,8 +50,16 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  line-height: 1.5;
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+
+/* 페이지 제목, 카드 제목, 상세 글 제목은 모두 h1·h2다. 본문과 버튼·입력칸은 고딕을 유지한다. */
+h1,
+h2 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 a {
@@ -75,6 +98,7 @@ a {
 }
 
 .site-logo {
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: 1.15rem;
   color: var(--color-header-text);
@@ -127,7 +151,7 @@ a {
   min-height: 40px;
   padding: 0 16px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
@@ -187,7 +211,7 @@ a {
   min-height: 40px;
   padding: 0 10px;
   border: 1px solid var(--color-input-border);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
@@ -438,7 +462,7 @@ a {
 .form-notice {
   margin: 0 0 16px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: #e6f0e3;
   color: var(--color-on-sale);
   font-size: 0.9rem;
@@ -605,7 +629,7 @@ a.button {
   min-height: 160px;
   padding: 8px 10px;
   border: 1px solid var(--color-input-border);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
