@@ -148,12 +148,17 @@ flowchart LR
 | 회원가입 | `/static/signup.html` | | 필드별 오류 메시지 표시 |
 | 내 글 | `/static/my-posts.html` | 🔒 | 내 정보, 판매 완료를 포함한 내 글 목록 |
 
-<!-- 스크린샷: docs/screenshots/ 에 이미지를 추가한 뒤 아래 줄의 주석을 푸세요 -->
-<!-- ![목록 화면](docs/screenshots/list.png) -->
+<!-- 스크린샷: 상세·내 글 화면은 docs/screenshots/ 에 이미지를 추가한 뒤 해당 줄의 주석을 푸세요 -->
+![목록 화면](docs/screenshots/list.png)
+
 <!-- ![상세 화면](docs/screenshots/detail.png) -->
-<!-- ![작성·수정 화면](docs/screenshots/form.png) -->
-<!-- ![로그인 화면](docs/screenshots/login.png) -->
-<!-- ![회원가입 화면](docs/screenshots/signup.png) -->
+
+![작성·수정 화면](docs/screenshots/form.png)
+
+![로그인 화면](docs/screenshots/login.png)
+
+![회원가입 화면](docs/screenshots/signup.png)
+
 <!-- ![내 글 화면](docs/screenshots/my-posts.png) -->
 
 ### 구조
