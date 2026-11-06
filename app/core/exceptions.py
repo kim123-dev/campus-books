@@ -21,6 +21,14 @@ class DuplicateNicknameError(ConflictError):
     message = "이미 사용 중인 닉네임입니다."
 
 
+class NotFoundError(DomainError):
+    """요청한 데이터가 없음. main.py에서 404로 변환한다."""
+
+
+class PostNotFoundError(NotFoundError):
+    message = "게시글을 찾을 수 없습니다."
+
+
 class AuthenticationError(DomainError):
     """인증 실패. main.py에서 401로 변환한다."""
 

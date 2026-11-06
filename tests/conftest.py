@@ -5,7 +5,7 @@ import os
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 
-from collections.abc import Iterator  # noqa: E402
+from collections.abc import Callable, Iterator  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -43,3 +43,50 @@ def client(db_session: Session) -> Iterator[TestClient]:
     app.dependency_overrides[get_db] = lambda: db_session
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+TEST_PASSWORD = "password123"
+
+
+# 가입 + 로그인을 거쳐 Authorization 헤더를 만든다. 여러 사용자가 필요한 테스트를 위해 팩토리로 둔다.
+@pytest.fixture
+def make_auth_headers(client: TestClient) -> Callable[..., dict[str, str]]:
+    def _make(email: str = "seller@campus.ac.kr", nickname: str = "판매자") -> dict[str, str]:
+        signup = client.post(
+            "/auth/signup",
+            json={"email": email, "password": TEST_PASSWORD, "nickname": nickname},
+        )
+        assert signup.status_code == 201, signup.text
+        login = client.post("/auth/login", data={"username": email, "password": TEST_PASSWORD})
+        return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    return _make
+
+
+@pytest.fixture
+def auth_headers(make_auth_headers: Callable[..., dict[str, str]]) -> dict[str, str]:
+    return make_auth_headers()
+
+
+# 검증 테스트에서 필드 하나만 바꿔 쓰도록, 통과하는 기본 요청 본문을 제공한다.
+@pytest.fixture
+def post_payload() -> dict:
+    return {
+        "title": "자료구조 교재 팝니다",
+        "book_title": "C언어로 쉽게 풀어쓴 자료구조",
+        "course_name": "자료구조",
+        "condition": "GOOD",
+        "price": 15000,
+        "description": "필기 거의 없어요.",
+    }
+
+
+# 글 작성 API를 호출하고 성공을 확인한 뒤 응답 본문을 돌려준다.
+@pytest.fixture
+def create_post(client: TestClient, post_payload: dict) -> Callable[..., dict]:
+    def _create(headers: dict[str, str], **overrides) -> dict:
+        response = client.post("/posts", json={**post_payload, **overrides}, headers=headers)
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    return _create
