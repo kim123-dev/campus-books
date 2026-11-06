@@ -12,8 +12,9 @@ BCRYPT_MAX_BYTES = 72
 ALGORITHM = "HS256"
 
 # Swagger의 Authorize 버튼이 이 주소로 username/password를 보내 토큰을 받아온다.
-# 3단계에서 보호가 필요한 API의 의존성으로 사용한다.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# auto_error=False: 토큰이 없을 때 FastAPI 기본 영어 메시지 대신
+# deps.get_current_user에서 우리 예외(한국어 메시지)로 처리하기 위해서다.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 # 솔트를 매번 새로 만들어, 같은 비밀번호라도 해시가 달라지게 한다.

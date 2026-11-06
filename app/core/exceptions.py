@@ -31,5 +31,10 @@ class InvalidCredentialsError(AuthenticationError):
     message = "이메일 또는 비밀번호가 올바르지 않습니다."
 
 
+class NotAuthenticatedError(AuthenticationError):
+    # 토큰 자체가 없는 경우. 토큰 오류와 메시지를 나눠 프론트가 안내를 구분할 수 있게 한다.
+    message = "로그인이 필요합니다."
+
+
 class InvalidTokenError(AuthenticationError):
     message = "인증 정보가 유효하지 않거나 만료되었습니다."

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 import app.models  # noqa: F401  모델을 등록해야 create_all이 테이블을 만든다.
 from app.core.database import Base, engine
 from app.core.exceptions import AuthenticationError, ConflictError
-from app.routers import auth
+from app.routers import auth, users
 
 
 # MVP에서는 마이그레이션 도구 없이 서버 시작 시 없는 테이블만 생성한다.
@@ -23,6 +23,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(auth.router)
+app.include_router(users.router)
 
 
 # 서비스의 업무 예외를 HTTP 응답으로 바꾸는 곳을 한 군데로 모은다.
