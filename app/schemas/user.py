@@ -1,10 +1,9 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-# bcrypt는 72바이트를 넘는 비밀번호를 처리하지 못한다. (한글은 1자 = 3바이트)
-BCRYPT_MAX_BYTES = 72
+from app.core.security import BCRYPT_MAX_BYTES
 
 
 class UserCreate(BaseModel):
@@ -44,3 +43,24 @@ class UserResponse(BaseModel):
     email: str
     nickname: str
     created_at: datetime
+
+
+class LoginForm(BaseModel):
+    """로그인 요청(form). OAuth2 규격상 필드 이름은 username이지만 이메일을 받는다."""
+
+    username: EmailStr = Field(description="가입한 이메일")
+    # 로그인에서는 길이 규칙을 알려줄 필요가 없으므로 빈 값만 막는다.
+    password: str = Field(min_length=1)
+
+    # 가입 때와 같은 규칙으로 소문자로 바꿔야 대소문자와 상관없이 로그인된다.
+    @field_validator("username")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.lower()
+
+
+class TokenResponse(BaseModel):
+    """토큰 응답. Swagger Authorize가 이 형식(access_token, token_type)을 기대한다."""
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"

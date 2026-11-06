@@ -2,10 +2,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import DuplicateEmailError, DuplicateNicknameError
-from app.core.security import hash_password
+from app.core.exceptions import (
+    DuplicateEmailError,
+    DuplicateNicknameError,
+    InvalidCredentialsError,
+)
+from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
-from app.schemas.user import UserCreate
+from app.schemas.user import LoginForm, UserCreate
 
 
 # 미리 중복을 확인해 어떤 값이 겹쳤는지 구분된 에러를 돌려준다.
@@ -37,3 +41,12 @@ def signup(db: Session, data: UserCreate) -> User:
     # created_at은 DB가 채우므로 다시 읽어와야 응답에 담을 수 있다.
     db.refresh(user)
     return user
+
+
+def login(db: Session, data: LoginForm) -> str:
+    """로그인. 성공하면 액세스 토큰을, 실패하면 InvalidCredentialsError를 던진다."""
+    user = db.scalar(select(User).where(User.email == data.username))
+    # 이메일이 없는 경우와 비밀번호가 틀린 경우를 같은 에러로 처리한다.
+    if user is None or not verify_password(data.password, user.password_hash):
+        raise InvalidCredentialsError()
+    return create_access_token(user.id)

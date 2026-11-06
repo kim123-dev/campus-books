@@ -19,3 +19,17 @@ class DuplicateEmailError(ConflictError):
 
 class DuplicateNicknameError(ConflictError):
     message = "이미 사용 중인 닉네임입니다."
+
+
+class AuthenticationError(DomainError):
+    """인증 실패. main.py에서 401로 변환한다."""
+
+
+class InvalidCredentialsError(AuthenticationError):
+    # 이메일이 없는 경우와 비밀번호가 틀린 경우를 같은 메시지로 처리해,
+    # 어떤 이메일이 가입되어 있는지 알아낼 수 없게 한다.
+    message = "이메일 또는 비밀번호가 올바르지 않습니다."
+
+
+class InvalidTokenError(AuthenticationError):
+    message = "인증 정보가 유효하지 않거나 만료되었습니다."
