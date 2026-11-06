@@ -1,0 +1,93 @@
+// 화면 요소를 만드는 공통 함수와 표시 형식.
+// HTML 문자열을 해석해 요소를 만드는 API는 쓰지 않고, 값은 항상 textContent로 넣는다.
+// 글 제목처럼 사용자가 입력한 값에 <script>가 들어 있어도 글자로만 보이고 실행되지 않기 때문이다.
+// (tests/test_static.py가 이 규칙을 검사한다)
+
+/**
+ * DOM 요소를 만든다.
+ * - props.text: textContent로 넣는다.
+ * - props.attrs: setAttribute로 넣는다.
+ * - 그 밖의 props(className, href, type, disabled 등): 요소의 속성으로 넣는다.
+ * - children: Node 또는 문자열. 문자열은 append가 텍스트 노드로 만든다.
+ */
+export function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  const { text, attrs, ...rest } = props;
+  Object.assign(node, rest);
+  if (attrs) {
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+  }
+  if (text !== undefined && text !== null) node.textContent = String(text);
+  node.append(...children.filter((child) => child !== null && child !== undefined && child !== false));
+  return node;
+}
+
+export const STATUS_LABELS = {
+  ON_SALE: "판매 중",
+  RESERVED: "예약 중",
+  SOLD: "판매 완료",
+};
+
+export const CONDITION_LABELS = {
+  GOOD: "상",
+  FAIR: "중",
+  POOR: "하",
+};
+
+export function formatPrice(price) {
+  return price === 0 ? "무료 나눔" : `${price.toLocaleString("ko-KR")}원`;
+}
+
+// 서버(SQLite)는 UTC 시간을 시간대 표시 없이 돌려준다.
+// 그대로 Date에 넣으면 브라우저가 현지 시간으로 오해하므로, 시간대가 없으면 UTC(Z)로 본다.
+export function formatDate(isoText) {
+  const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(isoText);
+  const date = new Date(hasZone ? isoText : `${isoText}Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function statusBadge(status) {
+  return el("span", {
+    className: `badge badge--${status.toLowerCase()}`,
+    text: STATUS_LABELS[status] ?? status,
+  });
+}
+
+/** 폼 안의 모든 필드 에러와 공통 에러를 지운다. */
+export function clearFormErrors(form, generalErrorEl) {
+  for (const node of form.querySelectorAll("[data-error-for]")) {
+    node.textContent = "";
+    node.hidden = true;
+  }
+  for (const input of form.querySelectorAll("[aria-invalid]")) input.removeAttribute("aria-invalid");
+  if (generalErrorEl) {
+    generalErrorEl.textContent = "";
+    generalErrorEl.hidden = true;
+  }
+}
+
+/**
+ * ApiError를 폼에 표시한다.
+ * 해당 입력칸이 있는 필드 에러는 칸 아래에, 나머지는 공통 에러 영역에 보여준다.
+ */
+export function showFormErrors(form, generalErrorEl, error) {
+  const leftover = [];
+  for (const [field, message] of Object.entries(error.fieldErrors ?? {})) {
+    const slot = form.querySelector(`[data-error-for="${CSS.escape(field)}"]`);
+    if (slot) {
+      slot.textContent = message;
+      slot.hidden = false;
+      form.elements.namedItem(field)?.setAttribute("aria-invalid", "true");
+    } else {
+      leftover.push(message);
+    }
+  }
+  const hasFieldErrors = Object.keys(error.fieldErrors ?? {}).length > 0;
+  const general = leftover.length > 0 ? leftover.join(" ") : hasFieldErrors ? "" : error.message;
+  if (generalErrorEl && general) {
+    generalErrorEl.textContent = general;
+    generalErrorEl.hidden = false;
+  }
+}

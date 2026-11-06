@@ -1,8 +1,11 @@
+import mimetypes
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  모델을 등록해야 create_all이 테이블을 만든다.
 from app.core.database import Base, engine
@@ -14,6 +17,14 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.routers import auth, posts, users
+
+# 실행 위치와 상관없이 프로젝트 루트의 static/ 폴더를 가리키도록 이 파일 기준으로 잡는다.
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
+# Windows는 레지스트리 설정에 따라 .js를 text/plain으로 알려주는 경우가 있다.
+# 그러면 브라우저가 ES 모듈 실행을 거부하므로 MIME 타입을 직접 지정한다.
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
 
 
 # MVP에서는 마이그레이션 도구 없이 서버 시작 시 없는 테이블만 생성한다.
@@ -31,6 +42,16 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(posts.router)
+
+# 프론트 화면은 API와 같은 서버(같은 출처)에서 제공해 CORS 설정 없이 API를 호출한다.
+# API 경로와 섞이지 않도록 /static 아래에만 둔다.
+app.mount("/static", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+
+
+# 주소창에 서버 주소만 입력해도 목록 화면이 열리게 한다. API 문서에는 노출하지 않는다.
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse("/static/index.html")
 
 
 # 서비스의 업무 예외를 HTTP 응답으로 바꾸는 곳을 한 군데로 모은다.

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>교재 목록 | Campus Books</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <script type="module" src="/static/js/pages/index.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <main class="container">
+      <h1 class="page-title">중고 교재 목록</h1>
+
+      <form id="filter-form" class="card filter-form" novalidate>
+        <div class="field field--wide">
+          <label for="q">검색어</label>
+          <input id="q" name="q" type="search" maxlength="100" placeholder="제목, 교재명, 과목명" />
+          <p class="field-error" data-error-for="q" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="status">판매 상태</label>
+          <select id="status" name="status">
+            <option value="">전체</option>
+            <option value="ON_SALE">판매 중</option>
+            <option value="RESERVED">예약 중</option>
+            <option value="SOLD">판매 완료</option>
+          </select>
+          <p class="field-error" data-error-for="status" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="course_name">과목명 (정확히 일치)</label>
+          <input id="course_name" name="course_name" type="text" maxlength="100" placeholder="예: 자료구조" />
+          <p class="field-error" data-error-for="course_name" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="min_price">최소 가격 (원)</label>
+          <input id="min_price" name="min_price" type="number" min="0" step="1" inputmode="numeric" />
+          <p class="field-error" data-error-for="min_price" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="max_price">최대 가격 (원)</label>
+          <input id="max_price" name="max_price" type="number" min="0" step="1" inputmode="numeric" />
+          <p class="field-error" data-error-for="max_price" hidden></p>
+        </div>
+
+        <p id="filter-error" class="form-error field--wide" role="alert" hidden></p>
+
+        <div class="form-actions field--wide">
+          <button type="submit" class="button button--primary">검색</button>
+          <button type="button" id="filter-reset" class="button">초기화</button>
+        </div>
+      </form>
+
+      <p id="result-summary" class="result-summary" aria-live="polite"></p>
+      <ul id="post-list" class="post-list"></ul>
+      <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
+    </main>
+  </body>
+</html>
