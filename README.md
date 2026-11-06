@@ -158,7 +158,7 @@ erDiagram
 ### 1. 설치
 
 ```bash
-git clone <저장소 주소>
+git clone https://github.com/kim123-dev/campus-books.git
 cd campus-books
 
 python -m venv venv
