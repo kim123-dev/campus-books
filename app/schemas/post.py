@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import BookCondition, PostStatus
 
@@ -92,6 +92,37 @@ class PostStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: PostStatus
+
+
+class PostSearchParams(BaseModel):
+    """목록 검색 조건(쿼리 파라미터). 보낸 조건끼리는 모두 AND로 묶인다."""
+
+    q: str | None = Field(
+        default=None, max_length=100, description="제목·교재명·과목명 부분 일치 (대소문자 무시)"
+    )
+    status: PostStatus | None = Field(default=None, description="판매 상태")
+    course_name: str | None = Field(
+        default=None, max_length=100, description="과목명 정확히 일치 (대소문자 무시)"
+    )
+    min_price: int | None = Field(default=None, ge=0, le=MAX_PRICE, description="최소 가격 (포함)")
+    max_price: int | None = Field(default=None, ge=0, le=MAX_PRICE, description="최대 가격 (포함)")
+
+    # ?q= 처럼 빈 값이나 공백만 보내면 조건을 걸지 않은 것으로 본다.
+    @field_validator("q", "course_name", mode="before")
+    @classmethod
+    def clean_text(cls, value: Any) -> Any:
+        return _blank_to_none(value)
+
+    # 두 필드를 함께 봐야 하는 검사라 모델 단위로 한다. 실패하면 FastAPI가 422로 바꾼다.
+    @model_validator(mode="after")
+    def check_price_range(self) -> "PostSearchParams":
+        if (
+            self.min_price is not None
+            and self.max_price is not None
+            and self.min_price > self.max_price
+        ):
+            raise ValueError("min_price는 max_price보다 클 수 없습니다.")
+        return self
 
 
 class SellerResponse(BaseModel):

@@ -1,4 +1,4 @@
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import (
@@ -8,7 +8,10 @@ from app.core.exceptions import (
     SoldPostNotEditableError,
 )
 from app.models import Post, PostStatus, User
-from app.schemas.post import PostCreate, PostUpdate
+from app.schemas.post import PostCreate, PostSearchParams, PostUpdate
+
+# LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
+LIKE_ESCAPE = "\\"
 
 # 현재 상태에서 바꿀 수 있는 상태 목록. 판매 완료(SOLD)는 되돌릴 수 없는 마지막 상태다.
 # 같은 상태로의 변경은 이 표와 상관없이 항상 허용한다(멱등).
@@ -71,9 +74,12 @@ def delete_post(db: Session, post_id: int, user: User) -> None:
     db.commit()
 
 
-def list_posts(db: Session, page: int, size: int) -> tuple[list[Post], int]:
-    """전체 글 목록(최신순). (현재 페이지 글, 전체 글 수)를 돌려준다."""
-    return _paginate(db, page, size)
+def list_posts(
+    db: Session, page: int, size: int, search: PostSearchParams | None = None
+) -> tuple[list[Post], int]:
+    """글 목록(최신순). (현재 페이지 글, 검색 조건에 맞는 전체 글 수)를 돌려준다."""
+    conditions = _search_conditions(search) if search is not None else []
+    return _paginate(db, page, size, *conditions)
 
 
 def list_posts_by_seller(
@@ -81,6 +87,42 @@ def list_posts_by_seller(
 ) -> tuple[list[Post], int]:
     """특정 판매자의 글 목록(최신순). 상태와 상관없이 모두 포함한다."""
     return _paginate(db, page, size, Post.seller_id == seller_id)
+
+
+def _search_conditions(search: PostSearchParams) -> list[ColumnElement[bool]]:
+    """검색 조건을 WHERE 절 조건 목록으로 바꾼다. 보내지 않은 조건은 건너뛴다."""
+    conditions: list[ColumnElement[bool]] = []
+
+    if search.q is not None:
+        pattern = f"%{_escape_like(search.q)}%"
+        # 대소문자를 무시해 SQLite와 MySQL의 결과를 같게 맞춘다.
+        conditions.append(
+            or_(
+                Post.title.ilike(pattern, escape=LIKE_ESCAPE),
+                Post.book_title.ilike(pattern, escape=LIKE_ESCAPE),
+                Post.course_name.ilike(pattern, escape=LIKE_ESCAPE),
+            )
+        )
+    if search.status is not None:
+        conditions.append(Post.status == search.status)
+    if search.course_name is not None:
+        # 부분 검색은 q가 담당하므로, 과목 필터는 정확히 일치하는 글만 고른다.
+        conditions.append(func.lower(Post.course_name) == search.course_name.lower())
+    if search.min_price is not None:
+        conditions.append(Post.price >= search.min_price)
+    if search.max_price is not None:
+        conditions.append(Post.price <= search.max_price)
+    return conditions
+
+
+# 사용자가 입력한 %, _ 가 와일드카드로 동작하지 않게 한다.
+# 이스케이프 문자 자체도 먼저 바꿔야 "\%" 같은 입력이 잘못 해석되지 않는다.
+def _escape_like(text: str) -> str:
+    return (
+        text.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
+        .replace("%", LIKE_ESCAPE + "%")
+        .replace("_", LIKE_ESCAPE + "_")
+    )
 
 
 # 목록 조회 규칙(정렬, 페이지 계산, 판매자 함께 불러오기)을 한곳에서 관리한다.

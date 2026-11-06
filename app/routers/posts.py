@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -11,6 +11,7 @@ from app.schemas.post import (
     PostCreate,
     PostListResponse,
     PostResponse,
+    PostSearchParams,
     PostStatusUpdate,
     PostUpdate,
     SizeQuery,
@@ -34,11 +35,14 @@ def create_post(
 
 
 # 목록은 로그인 없이도 볼 수 있다. (구매자가 둘러보는 화면)
-@router.get("", response_model=PostListResponse, summary="판매글 목록 (최신순)")
+@router.get("", response_model=PostListResponse, summary="판매글 목록 (검색·필터, 최신순)")
 def list_posts(
-    db: Annotated[Session, Depends(get_db)], page: PageQuery = 1, size: SizeQuery = 20
+    db: Annotated[Session, Depends(get_db)],
+    search: Annotated[PostSearchParams, Query()],
+    page: PageQuery = 1,
+    size: SizeQuery = 20,
 ) -> PostListResponse:
-    posts, total = post_service.list_posts(db, page, size)
+    posts, total = post_service.list_posts(db, page, size, search)
     return PostListResponse(items=posts, total=total, page=page, size=size)
 
 
