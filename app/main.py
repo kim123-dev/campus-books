@@ -6,7 +6,13 @@ from fastapi.responses import JSONResponse
 
 import app.models  # noqa: F401  모델을 등록해야 create_all이 테이블을 만든다.
 from app.core.database import Base, engine
-from app.core.exceptions import AuthenticationError, ConflictError, NotFoundError
+from app.core.exceptions import (
+    AuthenticationError,
+    BadRequestError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+)
 from app.routers import auth, posts, users
 
 
@@ -37,6 +43,16 @@ async def conflict_error_handler(_: Request, exc: ConflictError) -> JSONResponse
 @app.exception_handler(NotFoundError)
 async def not_found_error_handler(_: Request, exc: NotFoundError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": exc.message})
+
+
+@app.exception_handler(ForbiddenError)
+async def forbidden_error_handler(_: Request, exc: ForbiddenError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": exc.message})
+
+
+@app.exception_handler(BadRequestError)
+async def bad_request_error_handler(_: Request, exc: BadRequestError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": exc.message})
 
 
 # 401 응답에는 어떤 방식으로 인증해야 하는지 알려주는 WWW-Authenticate 헤더가 표준이다.

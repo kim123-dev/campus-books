@@ -29,6 +29,26 @@ class PostNotFoundError(NotFoundError):
     message = "게시글을 찾을 수 없습니다."
 
 
+class ForbiddenError(DomainError):
+    """로그인은 했지만 권한이 없음. main.py에서 403으로 변환한다."""
+
+
+class NotPostOwnerError(ForbiddenError):
+    message = "본인이 작성한 글만 수정·삭제할 수 있습니다."
+
+
+class BadRequestError(DomainError):
+    """형식은 맞지만 현재 상태에서 허용되지 않는 요청. main.py에서 400으로 변환한다."""
+
+
+class SoldPostNotEditableError(BadRequestError):
+    message = "판매 완료된 글은 수정할 수 없습니다."
+
+
+class InvalidStatusTransitionError(BadRequestError):
+    message = "판매 완료된 글은 상태를 변경할 수 없습니다."
+
+
 class AuthenticationError(DomainError):
     """인증 실패. main.py에서 401로 변환한다."""
 

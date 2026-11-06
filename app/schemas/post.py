@@ -15,6 +15,19 @@ PageQuery = Annotated[int, Query(ge=1, description="페이지 번호 (1부터 �
 SizeQuery = Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE, description="페이지당 글 수")]
 
 
+# 작성과 수정이 같은 규칙으로 입력을 정리하도록 공용 함수로 둔다.
+def _strip(value: Any) -> Any:
+    """공백만 있는 필수 값을 막기 위해 길이 검사 전에 앞뒤 공백을 제거한다."""
+    return value.strip() if isinstance(value, str) else value
+
+
+def _blank_to_none(value: Any) -> Any:
+    """선택 값은 빈 문자열과 '없음'을 구분할 이유가 없으므로 None으로 통일한다."""
+    if isinstance(value, str):
+        return value.strip() or None
+    return value
+
+
 class PostCreate(BaseModel):
     """판매글 작성 요청. status는 서버가 정하므로 받지 않는다."""
 
@@ -29,20 +42,56 @@ class PostCreate(BaseModel):
     price: int = Field(ge=0, le=MAX_PRICE, strict=True, description="가격 (원)")
     description: str | None = Field(default=None, max_length=2000)
 
-    # 공백만 있는 필수 값을 막기 위해 길이 검사 전에 앞뒤 공백을 제거한다.
     @field_validator("title", "book_title", mode="before")
     @classmethod
     def strip_required(cls, value: Any) -> Any:
-        return value.strip() if isinstance(value, str) else value
+        return _strip(value)
 
-    # 선택 값은 빈 문자열과 '없음'을 구분할 이유가 없으므로 None으로 통일한다.
     @field_validator("course_name", "description", mode="before")
     @classmethod
-    def blank_to_none(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            value = value.strip()
-            return value or None
+    def clean_optional(cls, value: Any) -> Any:
+        return _blank_to_none(value)
+
+
+class PostUpdate(BaseModel):
+    """판매글 수정 요청. 보낸 필드만 바뀐다. status는 상태 변경 API로만 바꾼다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # 기본값 None은 '보내지 않음'을 뜻한다. 서비스에서 exclude_unset으로 보낸 필드만 반영한다.
+    title: str | None = Field(default=None, min_length=1, max_length=100)
+    book_title: str | None = Field(default=None, min_length=1, max_length=200)
+    course_name: str | None = Field(default=None, max_length=100)
+    condition: BookCondition | None = None
+    price: int | None = Field(default=None, ge=0, le=MAX_PRICE, strict=True)
+    description: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("title", "book_title", mode="before")
+    @classmethod
+    def strip_required(cls, value: Any) -> Any:
+        return _strip(value)
+
+    @field_validator("course_name", "description", mode="before")
+    @classmethod
+    def clean_optional(cls, value: Any) -> Any:
+        return _blank_to_none(value)
+
+    # 필수 컬럼에 null을 명시적으로 보내면 DB 제약 위반(500)이 되기 전에 422로 막는다.
+    # (검증기는 직접 보낸 값에만 실행되므로, 생략한 필드는 여기에 걸리지 않는다)
+    @field_validator("title", "book_title", "condition", "price")
+    @classmethod
+    def reject_null_for_required(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("필수 항목은 null로 바꿀 수 없습니다.")
         return value
+
+
+class PostStatusUpdate(BaseModel):
+    """판매 상태 변경 요청."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: PostStatus
 
 
 class SellerResponse(BaseModel):

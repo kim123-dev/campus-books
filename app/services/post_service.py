@@ -1,9 +1,22 @@
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.exceptions import PostNotFoundError
-from app.models import Post, User
-from app.schemas.post import PostCreate
+from app.core.exceptions import (
+    InvalidStatusTransitionError,
+    NotPostOwnerError,
+    PostNotFoundError,
+    SoldPostNotEditableError,
+)
+from app.models import Post, PostStatus, User
+from app.schemas.post import PostCreate, PostUpdate
+
+# 현재 상태에서 바꿀 수 있는 상태 목록. 판매 완료(SOLD)는 되돌릴 수 없는 마지막 상태다.
+# 같은 상태로의 변경은 이 표와 상관없이 항상 허용한다(멱등).
+ALLOWED_TRANSITIONS: dict[PostStatus, set[PostStatus]] = {
+    PostStatus.ON_SALE: {PostStatus.RESERVED, PostStatus.SOLD},
+    PostStatus.RESERVED: {PostStatus.ON_SALE, PostStatus.SOLD},
+    PostStatus.SOLD: set(),
+}
 
 
 def create_post(db: Session, seller: User, data: PostCreate) -> Post:
@@ -24,6 +37,38 @@ def get_post(db: Session, post_id: int) -> Post:
     if post is None:
         raise PostNotFoundError()
     return post
+
+
+def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post:
+    """글 내용 수정. 보낸 필드만 바꾸고, 판매 완료된 글은 SoldPostNotEditableError(400)."""
+    post = _get_own_post(db, post_id, user)
+    if post.status == PostStatus.SOLD:
+        raise SoldPostNotEditableError()
+
+    # exclude_unset: 요청에 없던 필드를 None으로 덮어쓰지 않게 한다. 빈 본문이면 아무것도 바뀌지 않는다.
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(post, field, value)
+    return _commit_and_refresh(db, post)
+
+
+def change_status(db: Session, post_id: int, user: User, new_status: PostStatus) -> Post:
+    """판매 상태 변경. 허용되지 않은 전이는 InvalidStatusTransitionError(400)."""
+    post = _get_own_post(db, post_id, user)
+    # 같은 상태 요청은 재시도해도 안전하도록 에러 없이 그대로 돌려준다(SOLD → SOLD 포함).
+    if post.status == new_status:
+        return post
+    if new_status not in ALLOWED_TRANSITIONS[post.status]:
+        raise InvalidStatusTransitionError()
+
+    post.status = new_status
+    return _commit_and_refresh(db, post)
+
+
+def delete_post(db: Session, post_id: int, user: User) -> None:
+    """글 삭제(hard delete). 판매 완료된 글도 삭제할 수 있다."""
+    post = _get_own_post(db, post_id, user)
+    db.delete(post)
+    db.commit()
 
 
 def list_posts(db: Session, page: int, size: int) -> tuple[list[Post], int]:
@@ -55,3 +100,19 @@ def _paginate(
         .limit(size)
     ).all()
     return list(posts), total
+
+
+# 수정·삭제 API의 공통 순서: 글이 없으면 404, 작성자가 아니면 403.
+def _get_own_post(db: Session, post_id: int, user: User) -> Post:
+    post = get_post(db, post_id)
+    if post.seller_id != user.id:
+        raise NotPostOwnerError()
+    return post
+
+
+def _commit_and_refresh(db: Session, post: Post) -> Post:
+    # 값이 실제로 바뀐 경우에만 UPDATE가 나가므로, 변경이 없으면 updated_at도 그대로다.
+    db.commit()
+    # updated_at은 DB가 갱신하므로 다시 읽어와야 응답에 최신 값이 담긴다.
+    db.refresh(post)
+    return post
