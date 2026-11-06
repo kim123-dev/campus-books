@@ -65,6 +65,21 @@ export function listPosts(params) {
   return request("/posts", { query: params });
 }
 
+/** 판매글 상세. 로그인하지 않아도 볼 수 있다. */
+export function getPost(postId) {
+  return request(`/posts/${encodeURIComponent(postId)}`);
+}
+
+/** 판매 상태 변경. 바뀐 글 전체를 돌려받아 화면을 다시 그리는 데 쓴다. */
+export function changePostStatus(postId, status) {
+  return request(`/posts/${encodeURIComponent(postId)}/status`, { method: "PATCH", json: { status } });
+}
+
+/** 판매글 삭제. 성공하면 본문 없이 204가 오므로 null을 돌려준다. */
+export function deletePost(postId) {
+  return request(`/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
+}
+
 /** 로그인. 서버 규격(OAuth2)상 이메일을 username이라는 이름의 form 값으로 보낸다. */
 export function login(username, password) {
   return request("/auth/login", { method: "POST", form: { username, password } });
