@@ -2,7 +2,7 @@
 
 같은 학교 학생끼리 전공 교재를 사고파는 **중고 교재 거래 게시판(API + 웹 화면)**입니다.
 
-회원가입과 JWT 로그인, 판매글 작성·조회·수정·삭제, 판매 상태 관리, 교재 검색·필터를 제공합니다.
+회원가입과 JWT 로그인, 판매글 작성·조회·수정·삭제, 판매 상태 관리, 교재 검색·필터, 구매자와 판매자의 1:1 쪽지를 제공합니다.
 순수 HTML/CSS/JS로 만든 웹 화면 6개가 함께 들어 있어, 서버만 켜면 브라우저에서 바로 사용할 수 있습니다.
 포트폴리오 프로젝트로, 기능 수보다 **계층 분리, 입력 검증, 권한 처리, 테스트**를 꼼꼼하게 다루는 데 집중했습니다.
 
@@ -65,6 +65,7 @@
 | 판매글 관리 | 일부 필드 수정, 판매 상태 변경, 삭제 (모두 작성자만 가능) |
 | 검색·필터 | 검색어(제목·교재명·과목명), 상태, 과목명, 가격대 |
 | 연락 방법 | 판매글에 카카오 오픈채팅 링크(선택) 등록, 상세 화면에서 로그인한 사용자에게만 표시 |
+| 1:1 쪽지 (API) | 판매글 문의 시작, 내 대화방 목록(최신 메시지순, 안 읽은 개수), 메시지 조회(읽음 처리)·전송, 도배 방지 |
 | 웹 화면 | 목록·검색, 상세(상태 변경·삭제), 작성·수정, 로그인, 회원가입, 내 글 |
 
 ## 기술 스택
@@ -94,9 +95,9 @@ campus-books/
 │   │   ├── security.py    # 비밀번호 해시, JWT 발급·검증
 │   │   ├── deps.py        # 현재 로그인 사용자 의존성 (CurrentUser)
 │   │   └── exceptions.py  # 업무 예외 (DomainError 계층)
-│   ├── models/            # SQLAlchemy 모델 (User, Post)
+│   ├── models/            # SQLAlchemy 모델 (User, Post, Conversation, Message)
 │   ├── schemas/           # Pydantic 요청·응답 스키마
-│   ├── routers/           # auth, users, posts
+│   ├── routers/           # auth, users, posts, conversations
 │   └── services/          # 업무 로직
 ├── static/                # 프론트엔드 (아래 "프론트엔드" 참고)
 │   ├── index.html, post.html, post-form.html, login.html, signup.html, my-posts.html
@@ -121,7 +122,7 @@ flowchart LR
     Service --> Model
     Model --> DB[(SQLite / MySQL)]
     Service -.->|DomainError| Handler[main.py 예외 핸들러]
-    Handler -.->|400/401/403/404/409| Client
+    Handler -.->|400/401/403/404/409/429| Client
 ```
 
 - **Router**: 요청을 받아 서비스에 넘기고 응답 형식(`response_model`)만 정합니다.
@@ -135,6 +136,7 @@ flowchart LR
 | `ForbiddenError` | 403 |
 | `NotFoundError` | 404 |
 | `ConflictError` | 409 |
+| `TooManyRequestsError` | 429 (`Retry-After` 헤더 포함) |
 
 ## 프론트엔드
 
@@ -177,6 +179,10 @@ flowchart LR
 ```mermaid
 erDiagram
     users ||--o{ posts : "판매"
+    posts |o--o{ conversations : "문의 (글 삭제 시 NULL)"
+    users ||--o{ conversations : "구매자 / 판매자"
+    conversations ||--o{ messages : "포함"
+    users ||--o{ messages : "보냄"
 
     users {
         int id PK
@@ -199,6 +205,25 @@ erDiagram
         string status "ON_SALE / RESERVED / SOLD"
         datetime created_at "index, 최신순 정렬용"
         datetime updated_at "수정 시 자동 갱신"
+    }
+
+    conversations {
+        int id PK
+        int post_id FK "NULL 가능, (post_id, buyer_id) unique"
+        int buyer_id FK "index"
+        int seller_id FK "index, 글이 지워져도 권한 검사용"
+        datetime created_at "DB 시간"
+        datetime last_message_at "index, 최신 메시지순 정렬"
+        int last_message_id "같은 초 정렬 보조, 마지막 메시지 조회"
+    }
+
+    messages {
+        int id PK
+        int conversation_id FK "(conversation_id, id) index"
+        int sender_id FK "(sender_id, created_at) index, 도배 검사"
+        text content "1~1000자"
+        datetime created_at "DB 시간"
+        datetime read_at "NULL이면 안 읽음"
     }
 ```
 
@@ -249,6 +274,7 @@ uvicorn app.main:app --reload
 ```
 
 - 서버가 시작될 때 테이블이 없으면 자동으로 만듭니다(`create_all`). 이미 있는 테이블에 컬럼을 추가하지는 않습니다(아래 참고).
+  - 쪽지 기능의 `conversations`, `messages`는 새 테이블이라 기존 `dev.db`에서도 서버를 켜면 자동으로 생깁니다. 별도 작업이 필요 없습니다.
 - 웹 화면: http://127.0.0.1:8000/
 - API 문서: http://127.0.0.1:8000/docs
 - `/docs` 오른쪽 위의 **Authorize** 버튼에 가입한 이메일(username 칸)과 비밀번호를 넣으면, 로그인이 필요한 API를 바로 호출할 수 있습니다.
@@ -274,7 +300,7 @@ python -c "import sqlite3; c = sqlite3.connect('dev.db'); c.execute('ALTER TABLE
 
 ## API 목록
 
-총 11개입니다. 🔒 표시는 `Authorization: Bearer <토큰>` 헤더가 필요한 API입니다.
+총 16개입니다. 🔒 표시는 `Authorization: Bearer <토큰>` 헤더가 필요한 API입니다.
 
 | 메서드 | 경로 | 인증 | 설명 | 성공 | 주요 실패 |
 |---|---|---|---|---|---|
@@ -288,7 +314,12 @@ python -c "import sqlite3; c = sqlite3.connect('dev.db'); c.execute('ALTER TABLE
 | GET | `/posts/{post_id}` | 선택 | 판매글 상세 (`open_chat_url`은 로그인 시에만) | 200 | 404 |
 | PATCH | `/posts/{post_id}` | 🔒 | 판매글 수정 (보낸 필드만) | 200 | 400 판매 완료, 401, 403, 404, 422 |
 | PATCH | `/posts/{post_id}/status` | 🔒 | 판매 상태 변경 | 200 | 400 전이 불가, 401, 403, 404, 422 |
-| DELETE | `/posts/{post_id}` | 🔒 | 판매글 삭제 | 204 | 401, 403, 404 |
+| DELETE | `/posts/{post_id}` | 🔒 | 판매글 삭제 (쪽지 대화방은 남음) | 204 | 401, 403, 404 |
+| POST | `/posts/{post_id}/conversations` | 🔒 | 문의 시작 (이미 있으면 기존 대화방) | 201 / 200 | 400 본인 글·판매 완료, 401, 404 |
+| GET | `/conversations` | 🔒 | 내 대화방 목록 (최신 메시지순) | 200 | 401, 422 |
+| GET | `/conversations/{conversation_id}` | 🔒 | 대화방 정보 | 200 | 401, 403, 404 |
+| GET | `/conversations/{conversation_id}/messages` | 🔒 | 메시지 목록 (조회 시 상대 메시지 읽음 처리) | 200 | 401, 403, 404, 422 |
+| POST | `/conversations/{conversation_id}/messages` | 🔒 | 메시지 전송 | 201 | 401, 403, 404, 422, 429 도배 |
 
 ### 목록 쿼리 파라미터 (`GET /posts`)
 
@@ -350,6 +381,46 @@ GET /posts?q=자료구조&status=ON_SALE&min_price=10000&max_price=20000&page=1&
 | 응답 범위 | 상세·작성·수정·상태 변경 응답에만 포함. 목록과 내 글 목록 응답에는 없습니다 |
 | 공개 범위 | `GET /posts/{post_id}`는 로그인 없이도 볼 수 있지만, 토큰이 없거나 잘못·만료되었으면 `open_chat_url`을 `null`로 응답합니다 (401이 아님) |
 
+### 1:1 쪽지
+
+구매자가 판매글에서 문의를 시작하면 대화방이 생기고, 그 방의 구매자와 판매자만 조회·전송할 수 있습니다.
+
+| 규칙 | 내용 |
+|---|---|
+| 대화방 수 | 같은 글·같은 구매자의 대화방은 하나. 다시 요청하면 기존 방을 200으로 돌려줍니다 (DB unique 제약 + 동시 요청 시 기존 방 반환) |
+| 문의 불가 | 본인 글(400), 판매 완료된 글에 **새** 문의(400). 판매 완료 전에 만든 방은 계속 쓸 수 있고, 예약 중인 글은 문의할 수 있습니다 |
+| 권한 | 방이 없으면 404, 구매자·판매자가 아니면 403. 글이 삭제되어도 그대로 적용됩니다 |
+| 메시지 내용 | 앞뒤 공백을 지운 뒤 1~1000자. 공백만 있으면 422. 문장 사이 줄바꿈은 유지 |
+| 읽음 처리 | 메시지 목록을 조회하면, 그 방에서 상대가 보낸 안 읽은 메시지 **전체**의 `read_at`을 채웁니다 |
+| 도배 방지 | 같은 사용자가 최근 **10초 안에 5개**를 보냈으면 429 (`Retry-After: 10`). 대화방과 상관없이 셉니다 |
+| 개인정보 | 상대 정보는 `id`와 `nickname`만. 이메일은 어떤 응답에도 없습니다 |
+
+대화방 응답 (목록 항목과 대화방 정보가 같은 형식, `post`는 글이 삭제되면 `null`):
+
+```json
+{
+  "id": 7,
+  "post": { "id": 1, "title": "자료구조 교재 팝니다", "status": "ON_SALE" },
+  "partner": { "id": 3, "nickname": "책벌레" },
+  "my_role": "BUYER",
+  "last_message": { "content": "네, 아직 있어요", "is_mine": false, "created_at": "2026-11-09T10:05:00" },
+  "unread_count": 1,
+  "created_at": "2026-11-09T10:00:00",
+  "last_message_at": "2026-11-09T10:05:00"
+}
+```
+
+메시지 목록은 페이지 번호 대신 **메시지 id 커서**를 씁니다. 응답은 `{"items": [...], "has_more": true}`이고, `items`는 오래된 것부터 정렬됩니다.
+
+| 파라미터 | 설명 |
+|---|---|
+| (없음) | 최근 `limit`개 |
+| `before_id` | 이 id보다 오래된 메시지 `limit`개 (위로 스크롤해 이전 대화 보기) |
+| `after_id` | 이 id보다 새 메시지 `limit`개 (새 메시지 확인) |
+| `limit` | 1 ~ 100, 기본 50 |
+
+`before_id`와 `after_id`를 함께 보내면 422입니다.
+
 ### 에러 응답
 
 모든 에러는 `{"detail": ...}` 형식입니다. 422는 FastAPI 기본 형식(필드별 오류 목록)을 따릅니다.
@@ -359,6 +430,8 @@ GET /posts?q=자료구조&status=ON_SALE&min_price=10000&max_price=20000&page=1&
 ```
 401 로그인 안 됨 → 422 요청 형식 오류 → 404 글 없음 → 403 작성자 아님 → 400 상태 규칙 위반
 ```
+
+쪽지 API도 같은 순서입니다: 401 → 422 → 404 대화방 없음 → 403 참여자 아님 → 429 도배.
 
 ## 상태 전이 규칙
 
@@ -447,6 +520,23 @@ stateDiagram-v2
 
 링크 형식은 서버가 1차로 검사하고(422), 화면도 `https://open.kakao.com/`으로 시작할 때만 링크를 만들어 `javascript:` 같은 주소가 `href`에 들어가지 않게 한 번 더 막습니다. 링크는 `target="_blank"`와 `rel="noopener noreferrer"`로 열어, 열린 페이지가 원래 탭을 조작하지 못하게 합니다.
 
+### 8. 쪽지: 글이 삭제되어도 대화방은 남긴다
+
+| | |
+|---|---|
+| **결정** | 글을 삭제하면 대화방의 `post_id`만 `NULL`로 바꾸고 대화방과 메시지는 남깁니다. 목록에서는 `post: null`로 보입니다. 대화방에 `seller_id`를 따로 저장해, 글이 없어도 권한 검사가 됩니다. |
+| **이유** | 함께 지우면 구매자가 예고 없이 대화를 잃고, 판매자가 글을 지워 대화 기록을 없앨 수 있습니다. 거래 분쟁 때 기록이 필요합니다. |
+| **트레이드오프** | FK에 `ondelete="SET NULL"`을 두었지만 SQLite는 FK를 검사하지 않아서, 글 삭제 서비스에서 직접 `NULL`로 바꿉니다. 글 제목은 남지 않으므로, 삭제된 글의 대화방은 상대 닉네임으로만 구분됩니다. |
+
+### 9. 쪽지: 커서 페이지네이션, 조회 시 읽음 처리, DB 기준 도배 방지
+
+| | |
+|---|---|
+| **커서** | 쪽지는 새 메시지가 계속 추가되므로, 페이지 번호 방식이면 페이지 경계가 밀려 중복·누락이 생깁니다. 메시지 id를 기준으로 이전(`before_id`)이나 이후(`after_id`)를 가져옵니다. |
+| **읽음 처리** | 메시지 목록 GET이 읽음 처리까지 합니다. GET에 부수 효과가 생기는 대신, 화면이 별도 요청 없이 "열면 읽음"을 구현할 수 있습니다. 응답 페이지 밖의 안 읽은 메시지도 함께 읽음 처리해 규칙을 단순하게 했습니다. |
+| **도배 방지** | 최근 10초 동안 보낸 메시지 수를 DB에서 셉니다. 새 라이브러리가 필요 없고, 서버를 재시작하거나 여러 대로 늘려도 같은 기준으로 동작합니다. 앱 서버 시간 대신 DB 시간을 기준으로 비교합니다. 기준은 `conversation_service.MESSAGE_RATE_LIMIT` 하나로 바꿀 수 있습니다. 메시지마다 쿼리가 한 번 늘어나며, 트래픽이 커지면 Redis 같은 저장소로 옮기는 것을 검토합니다. |
+| **목록 정렬** | 대화방에 `last_message_at`과 `last_message_id`를 따로 저장해, 하위 쿼리 없이 인덱스로 최신 메시지순 정렬을 합니다. SQLite는 시간을 초 단위로 저장하므로 같은 초의 메시지는 `last_message_id`로 순서를 정합니다. 목록 요청 하나에 쿼리는 방 수와 상관없이 5번입니다(로그인 사용자, 개수, 방·글·상대 JOIN, 마지막 메시지, 안 읽은 개수). |
+
 ### 그 밖의 결정
 
 | 결정 | 이유 |
@@ -473,7 +563,7 @@ python -m pytest -q
 - `dependency_overrides`로 앱의 DB 세션을 테스트 세션으로 바꾸고, 테스트마다 테이블을 새로 만들어 테스트끼리 데이터가 섞이지 않습니다.
 - 실제 회원가입·로그인 API로 토큰을 받아 사용하므로, 인증 흐름 전체가 함께 검증됩니다.
 
-**13개 파일, 336개 테스트 케이스** (`pytest.mark.parametrize`로 펼쳐진 개수 기준)
+**15개 파일, 415개 테스트 케이스** (`pytest.mark.parametrize`로 펼쳐진 개수 기준)
 
 | 파일 | 케이스 수 | 범위 |
 |---|---|---|
@@ -489,6 +579,8 @@ python -m pytest -q
 | `test_posts_delete.py` | 11 | 204, 실제 행 삭제, 목록에서 제거, SOLD 글 삭제, 401/403/404 |
 | `test_posts_search.py` | 52 | 필터별·조합 검색, 특수문자, 가격 경계값, 결과 없음, 필터 + 페이지네이션의 `total` |
 | `test_posts_open_chat.py` | 71 | 오픈채팅 링크 허용·거절 주소(`javascript:`, 다른 도메인, 따옴표 등), 길이 경계값, 수정·삭제, 토큰 없음·만료·변조·정상 로그인별 상세 응답, 목록 미포함, XSS 시도 문자열 |
+| `test_conversations.py` | 30 | 문의 시작 201·중복 시 200, 동시 요청 시 기존 방 반환, DB unique 제약, 본인 글·판매 완료 글 400, 401/403/404, 상대 정보만 노출(이메일 없음), 최신 메시지순 정렬, 페이지네이션, 글 삭제 후 대화방 보존, 목록 쿼리 수 |
+| `test_messages.py` | 49 | 전송·조회 권한(제3자 403, 비로그인 401), 공백만·길이 경계값(1, 1000, 1001), 읽음 처리와 안 읽은 개수, 커서 페이지네이션(`before_id`·`after_id`·`has_more`), 도배 방지 429와 시간 경과 후 해제 |
 | `test_static.py` | 27 | 정적 파일 서빙과 MIME 타입, `/` 리다이렉트, API와의 공존, JS 파일별 `innerHTML` 계열 사용 금지, 프론트·서버 전이표 일치, 오픈채팅 링크의 `rel`·`target`과 허용 접두사 일치 |
 
 ## 향후 개선 계획
@@ -499,7 +591,8 @@ python -m pytest -q
 4. **내 글 상태별 필터와 개수**: 내 글 화면에 "판매 중 3 · 예약 중 1 · 판매 완료 5" 같은 탭을 넣습니다. 서버의 `/users/me/posts`에 `status` 파라미터와 상태별 개수 응답도 함께 추가해야 합니다.
 5. **보안 강화**: 로그인·회원가입 요청 횟수 제한, 리프레시 토큰으로 로그아웃 한계 보완([설계 결정 5번](#5-로그아웃은-토큰-삭제만))
 6. **DB 운영 준비**: Alembic 마이그레이션 도입(지금은 `create_all`이라 컬럼 변경이 반영되지 않음), MySQL 실제 연동, Docker Compose 구성
-7. **기능 확장**: 교재 사진 업로드, 댓글 또는 사이트 안 거래 문의(지금은 외부 오픈채팅 링크로만 연락)
+7. **기능 확장**: 교재 사진 업로드, 쪽지 화면(9-2단계 예정, API는 완성), 새 쪽지 실시간 알림(WebSocket)
 8. **검색 성능**: `%검색어%` 검색은 인덱스를 쓰지 못하므로, 데이터가 늘면 MySQL FULLTEXT 인덱스를 검토합니다.
 9. **삭제 정책 재검토**: 거래 후기나 신고 기능을 추가할 때 soft delete를 다시 검토합니다.
 10. **CI**: GitHub Actions에서 push마다 테스트를 자동 실행합니다.
+11. **신고·차단 기능**: 쪽지가 생기면서 원치 않는 연락을 막을 방법이 필요합니다. 사용자 차단(차단한 상대는 문의 시작·메시지 전송 불가)과 글·쪽지 신고를 추가하고, 신고된 쪽지를 확인할 수 있도록 관리자 권한도 함께 검토합니다.

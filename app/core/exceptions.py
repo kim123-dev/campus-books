@@ -29,12 +29,20 @@ class PostNotFoundError(NotFoundError):
     message = "게시글을 찾을 수 없습니다."
 
 
+class ConversationNotFoundError(NotFoundError):
+    message = "대화방을 찾을 수 없습니다."
+
+
 class ForbiddenError(DomainError):
     """로그인은 했지만 권한이 없음. main.py에서 403으로 변환한다."""
 
 
 class NotPostOwnerError(ForbiddenError):
     message = "본인이 작성한 글만 수정·삭제할 수 있습니다."
+
+
+class NotConversationParticipantError(ForbiddenError):
+    message = "대화에 참여한 사용자만 볼 수 있습니다."
 
 
 class BadRequestError(DomainError):
@@ -47,6 +55,30 @@ class SoldPostNotEditableError(BadRequestError):
 
 class InvalidStatusTransitionError(BadRequestError):
     message = "판매 완료된 글은 상태를 변경할 수 없습니다."
+
+
+class CannotContactOwnPostError(BadRequestError):
+    message = "본인 글에는 문의할 수 없습니다."
+
+
+class SoldPostNotContactableError(BadRequestError):
+    message = "판매 완료된 글에는 새로 문의할 수 없습니다."
+
+
+class TooManyRequestsError(DomainError):
+    """짧은 시간에 요청이 너무 많음. main.py에서 429로 변환한다."""
+
+    # 다시 시도해도 되는 시점(초). 429 응답의 Retry-After 헤더로 알려준다.
+    retry_after: int = 1
+
+    def __init__(self, retry_after: int | None = None, message: str | None = None) -> None:
+        if retry_after is not None:
+            self.retry_after = retry_after
+        super().__init__(message)
+
+
+class MessageRateLimitError(TooManyRequestsError):
+    message = "메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요."
 
 
 class AuthenticationError(DomainError):

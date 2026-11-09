@@ -1,4 +1,4 @@
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import (
@@ -7,7 +7,7 @@ from app.core.exceptions import (
     PostNotFoundError,
     SoldPostNotEditableError,
 )
-from app.models import Post, PostStatus, User
+from app.models import Conversation, Post, PostStatus, User
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
@@ -78,8 +78,11 @@ def change_status(db: Session, post_id: int, user: User, new_status: PostStatus)
 
 
 def delete_post(db: Session, post_id: int, user: User) -> None:
-    """글 삭제(hard delete). 판매 완료된 글도 삭제할 수 있다."""
+    """글 삭제(hard delete). 판매 완료된 글도 삭제할 수 있다. 쪽지 대화방은 남긴다."""
     post = _get_own_post(db, post_id, user)
+    # 대화 기록은 거래 분쟁 때 필요하므로 지우지 않고 글 연결만 끊는다.
+    # FK의 ondelete="SET NULL"은 SQLite가 FK를 검사하지 않아 동작하지 않으므로 직접 바꾼다.
+    db.execute(update(Conversation).where(Conversation.post_id == post.id).values(post_id=None))
     db.delete(post)
     db.commit()
 

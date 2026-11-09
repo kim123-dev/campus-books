@@ -15,8 +15,9 @@ from app.core.exceptions import (
     ConflictError,
     ForbiddenError,
     NotFoundError,
+    TooManyRequestsError,
 )
-from app.routers import auth, posts, users
+from app.routers import auth, conversations, posts, users
 
 # 실행 위치와 상관없이 프로젝트 루트의 static/ 폴더를 가리키도록 이 파일 기준으로 잡는다.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -42,6 +43,7 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(posts.router)
+app.include_router(conversations.router)
 
 # 프론트 화면은 API와 같은 서버(같은 출처)에서 제공해 CORS 설정 없이 API를 호출한다.
 # API 경로와 섞이지 않도록 /static 아래에만 둔다.
@@ -74,6 +76,16 @@ async def forbidden_error_handler(_: Request, exc: ForbiddenError) -> JSONRespon
 @app.exception_handler(BadRequestError)
 async def bad_request_error_handler(_: Request, exc: BadRequestError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": exc.message})
+
+
+# 429 응답에는 언제 다시 시도하면 되는지 알려주는 Retry-After 헤더(초)를 함께 보낸다.
+@app.exception_handler(TooManyRequestsError)
+async def too_many_requests_error_handler(_: Request, exc: TooManyRequestsError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"detail": exc.message},
+        headers={"Retry-After": str(exc.retry_after)},
+    )
 
 
 # 401 응답에는 어떤 방식으로 인증해야 하는지 알려주는 WWW-Authenticate 헤더가 표준이다.
