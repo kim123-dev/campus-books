@@ -2,9 +2,13 @@
 // - 새 메시지는 몇 초마다 after_id로 확인한다(폴링). 탭이 숨겨지면 멈춘다.
 // - 맨 위로 스크롤하면 before_id로 이전 메시지를 불러온다.
 // - 메시지 목록을 조회하면 서버가 상대 메시지를 읽음 처리하므로, 화면은 헤더 배지만 다시 불러온다.
+// - 처음 불러오기·폴링·전송·이전 메시지가 모두 addMessages → renderMessage 한 경로로 그리고,
+//   내 메시지인지는 서버 응답의 is_mine을 그대로 쓴다.
+// - 토큰은 탭끼리 공유된다. 다른 탭에서 계정이 바뀌면 이 화면이 새 계정 토큰으로 폴링·전송하게 되어
+//   상대 메시지가 내 말풍선으로 그려지거나 다른 계정 이름으로 전송되므로, 계정이 바뀌면 멈춘다.
 import { getConversation, listMessages, sendMessage } from "../api.js";
 import { redirectToLogin, refreshUnreadBadge, renderHeader } from "../auth.js";
-import { getToken } from "../token.js";
+import { getToken, onTokenChangedInOtherTab } from "../token.js";
 import { clearFormErrors, el, formatShortDate, readPostIdFromUrl, showFormErrors, statusBadge } from "../ui.js";
 
 const POLL_INTERVAL_MS = 5000; // 새 메시지 확인 간격
@@ -47,6 +51,10 @@ let stopped = false; // 방을 더 볼 수 없게 되면(401·403·404) 폴링�
 let sending = false;
 let cooldownTimer = null;
 
+// 이 화면을 연 계정의 토큰. 요청 전후로 비교해, 다른 탭에서 계정이 바뀌었는지 확인한다.
+let sessionToken = null;
+let accountChanged = false;
+
 init();
 
 // ---------- 화면 준비 ----------
@@ -56,6 +64,8 @@ async function init() {
     redirectToLogin();
     return;
   }
+  sessionToken = getToken();
+  onTokenChangedInOtherTab(checkSameAccount);
 
   const me = await renderHeader(document.getElementById("site-header"));
   if (me === null) {
@@ -86,6 +96,7 @@ async function init() {
     showPageError(error.message);
     return;
   }
+  if (!checkSameAccount()) return;
 
   renderChatHeader(conversation);
   addMessages(first.items);
@@ -119,9 +130,16 @@ function bindEvents() {
     { root: scrollBox },
   ).observe(olderSentinel);
 
+  // 맨 아래를 보고 있었는지 기억해 두었다가, 메시지 영역 크기가 바뀌면(429 안내가 생기거나 화면 높이가 바뀜)
+  // 다시 맨 아래로 맞춘다. 그대로 두면 영역이 줄어든 만큼 마지막 메시지가 아래에서 잘린다.
+  let stickToBottom = true;
   scrollBox.addEventListener("scroll", () => {
-    if (isNearBottom()) newMessageButton.hidden = true;
+    stickToBottom = isNearBottom();
+    if (stickToBottom) newMessageButton.hidden = true;
   });
+  new ResizeObserver(() => {
+    if (stickToBottom) scrollToBottom();
+  }).observe(scrollBox);
   newMessageButton.addEventListener("click", () => {
     scrollToBottom();
     newMessageButton.hidden = true;
@@ -154,6 +172,20 @@ function renderChatHeader(conversation) {
       el("span", { className: "chat__post-deleted", text: "삭제된 글" }),
     );
   }
+}
+
+/**
+ * 화면을 연 뒤 다른 탭에서 로그인·로그아웃해 토큰이 바뀌었으면 폴링과 전송을 멈추고 안내한다. 같으면 true.
+ * 바뀐 토큰으로 계속 요청하면 서버가 새 계정 기준으로 is_mine을 계산해, 상대 메시지가 내 말풍선으로 그려진다.
+ */
+function checkSameAccount() {
+  if (accountChanged) return false;
+  if (getToken() === sessionToken) return true;
+
+  accountChanged = true;
+  if (cooldownTimer !== null) window.clearInterval(cooldownTimer);
+  showPageError("다른 탭에서 로그인 상태가 바뀌어 이 대화를 멈췄습니다. 새로고침하면 지금 로그인한 계정으로 다시 열립니다.");
+  return false;
 }
 
 function showPageError(message) {
@@ -238,7 +270,9 @@ async function loadOlder() {
   const previousHeight = scrollBox.scrollHeight;
   const previousTop = scrollBox.scrollTop;
   try {
+    if (!checkSameAccount()) return;
     const data = await listMessages(conversationId, { before_id: oldestId, limit: PAGE_LIMIT });
+    if (!checkSameAccount()) return;
     addMessages(data.items);
     hasOlder = data.has_more;
     scrollBox.scrollTop = previousTop + (scrollBox.scrollHeight - previousHeight);
@@ -277,13 +311,15 @@ function stopPolling() {
 
 async function poll() {
   pollTimer = null;
-  if (stopped || document.hidden) return;
+  if (stopped || document.hidden || !checkSameAccount()) return;
 
   pollInFlight = true;
   const afterId = newestId; // 메시지가 하나도 없으면 null이고, 그때는 최근 메시지를 받는다.
   let nextDelay = POLL_INTERVAL_MS;
   try {
     const data = await listMessages(conversationId, { after_id: afterId, limit: PAGE_LIMIT });
+    // 요청하는 사이에 계정이 바뀌었으면 응답의 is_mine이 다른 계정 기준일 수 있어 그리지 않는다.
+    if (!checkSameAccount()) return;
     hideConnection();
     const added = addNewerMessages(data.items);
     // 상대 메시지를 받았으면 서버가 방금 읽음 처리했으므로 헤더 숫자를 맞춘다.
@@ -345,11 +381,14 @@ function onTextareaKeydown(event) {
 async function onSubmit(event) {
   event.preventDefault();
   if (sending || cooldownTimer !== null) return;
+  // 다른 계정의 토큰으로 보내면 그 계정 이름으로 전송되므로 보내기 전에 확인한다.
+  if (!checkSameAccount()) return;
 
   clearFormErrors(form, sendError);
   setSending(true);
   try {
     const message = await sendMessage(conversationId, textarea.value);
+    if (!checkSameAccount()) return;
     textarea.value = "";
     updateCounter();
     addNewerMessages([message]);

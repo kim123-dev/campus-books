@@ -924,7 +924,41 @@ a.button {
   font-style: italic;
 }
 
-/* 메시지 영역만 스크롤된다. dvh는 모바일 주소창이 접히고 펴져도 높이가 맞게 한다. */
+/* 대화 화면은 화면 높이에 맞춰 페이지 대신 메시지 영역만 스크롤되게 한다.
+   페이지가 길면 입력창을 누를 때 페이지가 내려가 "← 쪽지함"이 고정 헤더 밑으로 들어가기 때문이다.
+   dvh는 모바일 주소창이 접히고 펴져도 높이가 맞게 한다. 아주 낮은 화면에서는 min-height 때문에 페이지가 스크롤된다. */
+.chat-body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.chat-body .site-header {
+  flex: none;
+}
+
+.chat-body main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 16px;
+}
+
+.chat-body .chat {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.chat-body .chat__scroll {
+  flex: 1;
+  height: auto;
+  min-height: 140px;
+}
+
+/* 메시지 영역만 스크롤된다. (대화 화면 밖에서 쓰일 때를 대비한 기본 높이) */
 .chat__scroll {
   height: 58vh;
   height: 58dvh;

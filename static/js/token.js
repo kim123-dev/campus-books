@@ -23,6 +23,18 @@ export function setToken(token) {
   }
 }
 
+/**
+ * 다른 탭에서 로그인·로그아웃해 토큰이 바뀌면 callback을 부른다.
+ * 토큰은 탭끼리 공유되므로, 열려 있던 화면이 모르는 사이에 다른 계정의 토큰으로 요청하게 된다.
+ * (storage 이벤트는 값을 바꾼 탭이 아닌 다른 탭에서만 온다)
+ */
+export function onTokenChangedInOtherTab(callback) {
+  window.addEventListener("storage", (event) => {
+    // key가 null이면 다른 탭이 localStorage 전체를 비웠다.
+    if (event.key === TOKEN_KEY || event.key === null) callback();
+  });
+}
+
 export function clearToken() {
   try {
     localStorage.removeItem(TOKEN_KEY);
