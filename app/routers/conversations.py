@@ -12,6 +12,7 @@ from app.schemas.conversation import (
     MessageListParams,
     MessageListResponse,
     MessageResponse,
+    UnreadCountResponse,
 )
 from app.schemas.post import PageQuery, SizeQuery
 from app.services import conversation_service
@@ -66,6 +67,19 @@ def list_conversations(
 ) -> ConversationListResponse:
     items, total = conversation_service.list_conversations(db, current_user, page, size)
     return ConversationListResponse(items=items, total=total, page=page, size=size)
+
+
+# /conversations/{conversation_id}보다 먼저 등록해야 한다. 나중에 두면 "unread-count"를 대화방 id로 읽어 422가 난다.
+@router.get(
+    "/conversations/unread-count",
+    response_model=UnreadCountResponse,
+    summary="안 읽은 쪽지 수 (헤더 배지용)",
+    responses={401: {"description": "로그인 필요"}},
+)
+def count_unread(
+    current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> UnreadCountResponse:
+    return UnreadCountResponse(unread_count=conversation_service.count_unread(db, current_user))
 
 
 @router.get(

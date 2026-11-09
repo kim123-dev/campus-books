@@ -102,6 +102,12 @@ class ConversationListResponse(BaseModel):
     size: int
 
 
+class UnreadCountResponse(BaseModel):
+    """헤더 배지용. 내가 참여한 모든 대화방에서 상대가 보낸 안 읽은 메시지 수."""
+
+    unread_count: int
+
+
 class MessageResponse(BaseModel):
     id: int
     sender_id: int

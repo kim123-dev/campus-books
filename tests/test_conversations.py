@@ -387,3 +387,49 @@ def test_list_query_count_does_not_grow_with_conversations(
     assert all(item["last_message"] and item["unread_count"] == 1 for item in items)
     # 로그인 사용자 1 + 개수 1 + 방·글·상대 JOIN 1 + 마지막 메시지 1 + 안 읽은 개수 1. 방이 늘어도 그대로여야 한다.
     assert len(statements) == 5
+
+
+# ---------- 안 읽은 개수 (헤더 배지) ----------
+
+
+def unread_total(client: TestClient, headers: dict | None):
+    return client.get("/conversations/unread-count", headers=headers or {})
+
+
+def test_unread_count_without_login_is_401(client: TestClient) -> None:
+    assert unread_total(client, None).status_code == 401
+
+
+def test_unread_count_is_zero_without_conversations(client: TestClient, buyer: dict) -> None:
+    # /conversations/{conversation_id}와 경로가 겹치지 않는지도 함께 확인한다. (겹치면 422)
+    response = unread_total(client, buyer)
+
+    assert response.status_code == 200
+    assert response.json() == {"unread_count": 0}
+
+
+def test_unread_count_sums_all_conversations(
+    client: TestClient, buyer: dict, seller: dict, stranger: dict, post: dict, conversation: dict
+) -> None:
+    other = start(client, post["id"], stranger).json()
+    send(client, conversation["id"], buyer, "1")
+    send(client, other["id"], stranger, "1")
+    send(client, other["id"], stranger, "2")
+
+    assert unread_total(client, seller).json() == {"unread_count": 3}
+    # 내가 보낸 메시지는 세지 않는다.
+    assert unread_total(client, buyer).json() == {"unread_count": 0}
+    # 남의 대화방 메시지는 세지 않는다.
+    assert unread_total(client, stranger).json() == {"unread_count": 0}
+
+
+def test_unread_count_drops_after_reading(
+    client: TestClient, buyer: dict, seller: dict, stranger: dict, post: dict, conversation: dict
+) -> None:
+    other = start(client, post["id"], stranger).json()
+    send(client, conversation["id"], buyer, "1")
+    send(client, other["id"], stranger, "1")
+
+    client.get(f"/conversations/{conversation['id']}/messages", headers=seller)
+
+    assert unread_total(client, seller).json() == {"unread_count": 1}

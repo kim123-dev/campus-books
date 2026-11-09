@@ -14,6 +14,8 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
     this.fieldErrors = fieldErrors;
+    /** 429일 때 서버가 알려준 재시도 대기 시간(초). 그 밖에는 null. */
+    this.retryAfter = null;
   }
 }
 
@@ -53,7 +55,10 @@ export async function request(path, { method = "GET", query, json, form } = {}) 
   if (!response.ok) {
     // 토큰이 만료되었거나 잘못되었으면 지워서, 다음 요청부터는 로그인하지 않은 상태로 동작하게 한다.
     if (response.status === 401) clearToken();
-    throw toApiError(response.status, data);
+    const error = toApiError(response.status, data);
+    // 쪽지 도배 제한(429)은 몇 초 뒤에 다시 보낼 수 있는지 헤더로 알려준다.
+    if (response.status === 429) error.retryAfter = Number(response.headers.get("Retry-After")) || null;
+    throw error;
   }
   return data;
 }
@@ -93,6 +98,44 @@ export function changePostStatus(postId, status) {
 /** 판매글 삭제. 성공하면 본문 없이 204가 오므로 null을 돌려준다. */
 export function deletePost(postId) {
   return request(`/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
+}
+
+// ---------- 쪽지 ----------
+
+/** 판매글 문의 시작. 이미 대화방이 있으면 그 방을 돌려준다. (새 방 201, 기존 방 200) */
+export function startConversation(postId) {
+  return request(`/posts/${encodeURIComponent(postId)}/conversations`, { method: "POST" });
+}
+
+/** 내 대화방 목록(최신 메시지순). params: page, size */
+export function listConversations(params) {
+  return request("/conversations", { query: params });
+}
+
+/** 대화방 정보 하나 (상대 닉네임, 글 제목 등). */
+export function getConversation(conversationId) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}`);
+}
+
+/** 헤더 배지용 안 읽은 쪽지 수. */
+export function getUnreadCount() {
+  return request("/conversations/unread-count");
+}
+
+/**
+ * 메시지 목록. 서버가 이 조회로 상대 메시지를 읽음 처리한다.
+ * params: after_id(새 메시지) 또는 before_id(이전 메시지), limit. 응답 items는 오래된 것부터.
+ */
+export function listMessages(conversationId, params) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/messages`, { query: params });
+}
+
+/** 메시지 전송. 짧은 시간에 많이 보내면 429(error.retryAfter초 뒤 재시도). */
+export function sendMessage(conversationId, content) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    method: "POST",
+    json: { content },
+  });
 }
 
 /** 로그인. 서버 규격(OAuth2)상 이메일을 username이라는 이름의 form 값으로 보낸다. */

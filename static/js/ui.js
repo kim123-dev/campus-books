@@ -41,11 +41,34 @@ export function formatPrice(price) {
 // 서버(SQLite)는 UTC 시간을 시간대 표시 없이 돌려준다.
 // 그대로 Date에 넣으면 브라우저가 현지 시간으로 오해하므로, 시간대가 없으면 UTC(Z)로 본다.
 export function formatDate(isoText) {
+  const date = parseServerDate(isoText);
+  if (date === null) return "";
+  return `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+/**
+ * 쪽지처럼 시각이 자주 보이는 곳에 쓰는 짧은 형식.
+ * 오늘이면 "14:20", 올해면 "11.08 14:20", 그 밖에는 formatDate와 같다.
+ */
+export function formatShortDate(isoText) {
+  const date = parseServerDate(isoText);
+  if (date === null) return "";
+  const now = new Date();
+  const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  if (date.toDateString() === now.toDateString()) return time;
+  if (date.getFullYear() === now.getFullYear()) return `${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} ${time}`;
+  return formatDate(isoText);
+}
+
+function parseServerDate(isoText) {
+  if (typeof isoText !== "string") return null;
   const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(isoText);
   const date = new Date(hasZone ? isoText : `${isoText}Z`);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
 }
 
 export function statusBadge(status) {

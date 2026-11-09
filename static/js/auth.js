@@ -1,6 +1,6 @@
 // 로그인 상태 처리: 공통 헤더, 로그인 후 돌아갈 주소, 로그아웃.
 // 토큰 보관 자체는 token.js가 맡는다.
-import { getMe } from "./api.js";
+import { getMe, getUnreadCount } from "./api.js";
 import { clearToken, getToken } from "./token.js";
 import { el } from "./ui.js";
 
@@ -9,6 +9,8 @@ export const SIGNUP_PAGE = "/static/signup.html";
 const HOME_PAGE = "/static/index.html";
 const POST_FORM_PAGE = "/static/post-form.html";
 const MY_POSTS_PAGE = "/static/my-posts.html";
+const CONVERSATIONS_PAGE = "/static/conversations.html";
+const MAX_BADGE_COUNT = 99;
 
 // ---------- 돌아갈 주소 (next) ----------
 
@@ -84,6 +86,8 @@ export async function renderHeader(container) {
   try {
     const me = await getMe();
     nav.replaceChildren(...loggedInItems(me));
+    // 배지는 헤더를 그린 뒤 따로 채운다. 기다리지 않아서, 배지 요청이 늦어도 화면이 먼저 뜬다.
+    refreshUnreadBadge();
     return me;
   } catch {
     // 401이면 api.js가 이미 토큰을 지웠다.
@@ -107,8 +111,35 @@ function loggedInItems(me) {
     el("span", { className: "site-nav__user", text: `${me.nickname}님` }),
     el("a", { href: POST_FORM_PAGE, text: "글쓰기" }),
     el("a", { href: MY_POSTS_PAGE, text: "내 글" }),
+    el(
+      "a",
+      { href: CONVERSATIONS_PAGE, className: "site-nav__messages", attrs: { id: "nav-messages" } },
+      "쪽지",
+      el("span", { className: "nav-badge", attrs: { id: "nav-unread", "aria-hidden": "true" }, hidden: true }),
+    ),
     logoutButton,
   ];
+}
+
+/**
+ * 헤더의 안 읽은 쪽지 배지를 다시 채운다. 대화 화면이 메시지를 읽은 뒤에도 부른다.
+ * 배지는 보조 정보라 실패해도 화면에 에러를 띄우지 않고 배지만 숨긴다.
+ */
+export async function refreshUnreadBadge() {
+  const link = document.getElementById("nav-messages");
+  const badge = document.getElementById("nav-unread");
+  if (!link || !badge) return;
+
+  let count = 0;
+  try {
+    ({ unread_count: count } = await getUnreadCount());
+  } catch {
+    count = 0;
+  }
+  badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
+  badge.hidden = count === 0;
+  // 배지 숫자는 화면 낭독기에서 숨기고, 링크 이름에 뜻을 담아 읽어 준다.
+  link.setAttribute("aria-label", count > 0 ? `쪽지, 안 읽은 메시지 ${count}개` : "쪽지");
 }
 
 /**

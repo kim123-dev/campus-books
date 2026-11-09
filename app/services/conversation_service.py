@@ -102,6 +102,23 @@ def list_conversations(
     return _to_responses(db, conversations, user), total
 
 
+def count_unread(db: Session, user: User) -> int:
+    """내가 참여한 모든 대화방에서 상대가 보낸 안 읽은 메시지 수. 화면마다 헤더가 부르므로 쿼리 1번으로 끝낸다."""
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(Message)
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(
+                or_(Conversation.buyer_id == user.id, Conversation.seller_id == user.id),
+                Message.sender_id != user.id,
+                Message.read_at.is_(None),
+            )
+        )
+        or 0
+    )
+
+
 # ---------- 메시지 ----------
 
 

@@ -1,6 +1,6 @@
 // 상세 화면: 글 정보를 보여주고, 내 글이면 상태 변경과 삭제를 할 수 있게 한다.
 // 권한과 상태 규칙의 최종 판단은 서버가 한다. 화면은 누를 수 없는 버튼을 미리 숨기는 정도만 한다.
-import { changePostStatus, deletePost, getPost } from "../api.js";
+import { changePostStatus, deletePost, getPost, startConversation } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, redirectToLogin, renderHeader } from "../auth.js";
 import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, statusBadge } from "../ui.js";
 
@@ -119,19 +119,24 @@ function renderDetail(post) {
 
 /**
  * 연락 방법 영역. 보여줄 것이 없으면 null을 돌려준다.
- * - 판매 완료: 더 연락할 이유가 없으므로 아무것도 보여주지 않는다.
- * - 링크가 있음: 새 탭으로 여는 버튼. noopener noreferrer로 열린 페이지가 이 창(window.opener)과 주소를 알 수 없게 한다.
- * - 링크가 없고 로그인하지 않음: 서버가 링크를 비워 보냈을 수 있으므로 로그인을 안내한다.
- * - 링크가 없고 로그인함: 판매자가 링크를 등록하지 않은 글이다.
+ * - 판매 완료: 더 연락할 이유가 없으므로 아무것도 보여주지 않는다. (이미 시작한 대화는 쪽지함에서 이어 간다)
+ * - 로그인한 구매자: "문의하기"(쪽지). 내 글에는 보여주지 않는다. 서버도 400으로 막는다.
+ * - 오픈채팅 링크가 있음: 새 탭으로 여는 버튼. noopener noreferrer로 열린 페이지가 이 창(window.opener)과 주소를 알 수 없게 한다.
+ * - 로그인하지 않음: 서버가 링크를 비워 보냈을 수 있고 쪽지도 로그인이 필요하므로 로그인을 안내한다.
  */
 function renderContact(post) {
   if (post.status === "SOLD") return null;
 
+  const isOwner = currentUser !== null && currentUser.id === post.seller.id;
+  const actions = [];
+  if (currentUser !== null && !isOwner) actions.push(renderInquiryButton(post));
+
   const url = post.open_chat_url;
   if (typeof url === "string" && url.startsWith(OPEN_CHAT_PREFIX)) {
-    return contactSection(
+    actions.push(
       el("a", {
-        className: "button button--primary",
+        // 쪽지 버튼이 있으면 그쪽을 주 버튼으로 두고, 오픈채팅은 보조 버튼으로 보여준다.
+        className: actions.length > 0 ? "button" : "button button--primary",
         href: url,
         target: "_blank",
         rel: "noopener noreferrer",
@@ -139,25 +144,54 @@ function renderContact(post) {
       }),
     );
   }
+
   if (currentUser === null) {
     return contactSection(
       el(
         "p",
         { className: "post-detail__contact-login" },
-        "로그인하면 연락 방법을 볼 수 있어요. ",
+        "로그인하면 쪽지로 문의하거나 연락 방법을 볼 수 있어요. ",
         el("a", { href: authPageUrl(LOGIN_PAGE), text: "로그인" }),
       ),
     );
   }
-  return null;
+  if (actions.length === 0) return null;
+  return contactSection(
+    el("div", { className: "post-detail__contact-actions" }, ...actions),
+    el("p", { className: "form-error", attrs: { id: "contact-error", role: "alert" }, hidden: true }),
+  );
 }
 
-function contactSection(content) {
+// 누르면 대화방을 만들거나(201) 이미 있는 방(200)을 받아 대화 화면으로 이동한다.
+function renderInquiryButton(post) {
+  const button = el("button", { type: "button", className: "button button--primary", text: "쪽지로 문의하기" });
+  button.addEventListener("click", async () => {
+    const errorText = document.getElementById("contact-error");
+    errorText.hidden = true;
+    button.disabled = true;
+    try {
+      const conversation = await startConversation(post.id);
+      window.location.href = `/static/chat.html?id=${encodeURIComponent(conversation.id)}`;
+    } catch (error) {
+      if (error.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      // 400(내 글, 그사이 판매 완료됨), 404(그사이 삭제됨)는 서버 메시지를 그대로 보여준다.
+      errorText.textContent = error.message;
+      errorText.hidden = false;
+      button.disabled = false;
+    }
+  });
+  return button;
+}
+
+function contactSection(...content) {
   return el(
     "section",
     { className: "post-detail__contact", attrs: { "aria-label": "연락 방법" } },
     el("h2", { className: "post-detail__subtitle", text: "연락하기" }),
-    content,
+    ...content,
   );
 }
 

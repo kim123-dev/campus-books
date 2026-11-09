@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>쪽지 | Campus Books</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <script type="module" src="/static/js/pages/chat.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <main class="container">
+      <p class="back-link"><a href="/static/conversations.html">← 쪽지함</a></p>
+
+      <p id="page-status" class="result-summary" aria-live="polite">불러오는 중…</p>
+
+      <!-- 대화방을 열 수 없을 때(없는 방, 남의 방, 잘못된 주소, 서버 연결 실패) 대화 영역 대신 보여준다. -->
+      <div id="page-error" class="card page-error" hidden>
+        <p id="page-error-text" class="form-error" role="alert"></p>
+        <a class="button" href="/static/conversations.html">쪽지함으로</a>
+      </div>
+
+      <section id="chat" class="card chat" aria-labelledby="chat-partner" hidden>
+        <div class="chat__header">
+          <h1 id="chat-partner" class="chat__partner"></h1>
+          <p id="chat-post" class="chat__post"></p>
+        </div>
+
+        <!-- 메시지 영역만 스크롤된다. 맨 위에 닿으면 이전 메시지를 더 불러온다. -->
+        <div id="chat-scroll" class="chat__scroll" tabindex="0" aria-label="메시지 목록">
+          <div id="older-sentinel" class="chat__sentinel" aria-hidden="true"></div>
+          <p class="chat__older">
+            <button id="older-button" type="button" class="link-button" hidden>이전 메시지 보기</button>
+          </p>
+          <p id="chat-empty" class="chat__empty" hidden>아직 메시지가 없습니다. 첫 메시지를 보내 보세요.</p>
+          <ol id="message-list" class="message-list"></ol>
+        </div>
+
+        <div class="chat__float">
+          <button id="new-message-button" type="button" class="chat__new-messages" hidden>새 메시지 ↓</button>
+        </div>
+        <p id="connection-status" class="chat__connection" role="status" hidden></p>
+
+        <form id="message-form" class="chat__form" novalidate>
+          <p class="chat__privacy">
+            전화번호·계좌번호·집 주소 같은 개인정보는 거래가 확정된 뒤 신중하게 공유하세요.
+            직거래는 학교 안 사람이 많은 곳에서 하세요.
+          </p>
+          <label for="content" class="visually-hidden">보낼 메시지</label>
+          <!-- maxlength는 서버 규칙(1000자)과 같게 둔 입력 편의용이고, 실제 검사는 서버가 한다. -->
+          <textarea
+            id="content"
+            name="content"
+            rows="2"
+            maxlength="1000"
+            placeholder="메시지를 입력하세요"
+            aria-describedby="content-count"
+          ></textarea>
+          <p class="field-error" data-error-for="content" hidden></p>
+          <div class="chat__form-bottom">
+            <span id="content-count" class="chat__count">0 / 1000</span>
+            <button type="submit" class="button button--primary">보내기</button>
+          </div>
+          <p id="send-error" class="form-error" role="alert" hidden></p>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
