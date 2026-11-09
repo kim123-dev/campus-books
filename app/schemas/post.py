@@ -221,6 +221,9 @@ class PostDetailResponse(PostResponse):
     open_chat_url: str | None
     # 보여주는 순서(slot)대로. 최대 3장.
     images: list[PostImageResponse]
+    # 로그인한 사용자가 이 글의 판매자를 차단했는지. 로그인하지 않았으면 null.
+    # "판매자가 나를 차단했는지"는 알려주지 않는다.
+    is_seller_blocked: bool | None = None
 
 
 class WishlistStatusResponse(BaseModel):

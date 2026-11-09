@@ -1388,6 +1388,237 @@ a.button {
   margin: 0;
 }
 
+/* ---------- 신고·차단 ---------- */
+
+/* 화면 제목 아래 짧은 설명 (차단 목록) */
+.page-description {
+  margin: -8px 0 20px;
+  color: var(--color-sub);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* 신고 창의 "신고하기"처럼 되돌리기 어려운 동작에 쓰는 진한 빨강 버튼 */
+.button--danger-solid {
+  background: var(--color-danger);
+  color: #ffffff;
+}
+
+.button--danger-solid:hover:not(:disabled) {
+  background: #a51d31;
+}
+
+.link-button--danger:hover {
+  color: var(--color-danger);
+}
+
+/* 상세 화면 맨 아래 "이 글 신고 · 판매자 차단". 거래 버튼보다 눈에 덜 띄게 작은 글자로 둔다. */
+.post-detail__safety {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-divider);
+}
+
+.post-detail__safety-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 0.875rem;
+}
+
+/* 신고 접수·차단 완료 안내. 줄마다 나눠 보여준다. */
+.safety-notice {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-primary-soft);
+  color: var(--color-sub);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.safety-notice__line {
+  display: block;
+}
+
+.safety-notice a {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.chat__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 8px;
+  font-size: 0.875rem;
+}
+
+.chat__actions:empty {
+  display: none;
+}
+
+/* 차단 관계라 쪽지를 보낼 수 없을 때 입력창 위에 보이는 안내 */
+.chat__blocked {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.chat__form textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 신고 창. 브라우저 기본 <dialog>를 화면 가운데 띄우고, 좁은 화면에서는 좌우 16px만 남긴다. */
+.report-dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-width: none; /* 브라우저 기본 max-width가 좌우 여백을 더 넓히지 않게 한다. */
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-card-hover);
+  overflow-y: auto;
+}
+
+.report-dialog::backdrop {
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.report-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--gap);
+}
+
+.report-dialog__title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.report-dialog__target {
+  margin: -6px 0 0;
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.report-dialog__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.report-dialog__reasons legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-weight: 600;
+}
+
+/* 손가락으로 누르기 쉽게 줄 전체를 누를 수 있게 하고 높이를 44px 이상으로 둔다. */
+.report-dialog__reason {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.report-dialog__reason:hover {
+  background: var(--color-fill);
+}
+
+.report-dialog__reason input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.report-dialog__count {
+  align-self: flex-end;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.report-dialog .field-hint,
+.report-dialog .form-error {
+  margin: 0;
+}
+
+.report-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- 차단 목록 ---------- */
+
+.block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.block-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 16px 20px;
+}
+
+.block-item__info {
+  min-width: 0;
+}
+
+.block-item__name {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.block-item__meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.block-item__done {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.block-item .form-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* 내 글 화면: "차단 목록"과 "글쓰기"를 나란히, 좁으면 줄을 바꾼다. */
+.profile-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* ---------- 좁은 화면 ---------- */
 
 @media (max-width: 400px) {

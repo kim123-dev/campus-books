@@ -25,6 +25,9 @@
         <div class="chat__header">
           <h1 id="chat-partner" class="chat__partner"></h1>
           <p id="chat-post" class="chat__post"></p>
+          <!-- 신고·차단. 버튼은 chat.js가 대화방 정보를 받은 뒤 그린다. -->
+          <div id="chat-actions" class="chat__actions"></div>
+          <p id="chat-safety-notice" class="safety-notice" role="status" hidden></p>
         </div>
 
         <!-- 메시지 영역만 스크롤된다. 맨 위에 닿으면 이전 메시지를 더 불러온다. -->
@@ -47,6 +50,8 @@
             전화번호·계좌번호·집 주소 같은 개인정보는 거래가 확정된 뒤 신중하게 공유하세요.
             직거래는 학교 안 사람이 많은 곳에서 하세요.
           </p>
+          <!-- 차단 관계라 보낼 수 없을 때 입력창 대신 보이는 안내 -->
+          <p id="chat-blocked" class="chat__blocked" hidden></p>
           <label for="content" class="visually-hidden">보낼 메시지</label>
           <!-- maxlength는 서버 규칙(1000자)과 같게 둔 입력 편의용이고, 실제 검사는 서버가 한다. -->
           <textarea

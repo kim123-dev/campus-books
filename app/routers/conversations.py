@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser
 from app.schemas.conversation import (
     ConversationListResponse,
-    ConversationResponse,
+    ConversationDetailResponse,
     MessageCreate,
     MessageListParams,
     MessageListResponse,
@@ -31,7 +31,7 @@ PARTICIPANT_ONLY_RESPONSES: dict[int | str, dict] = {
 # 이미 방이 있으면 새로 만들지 않고 200으로 기존 방을 돌려준다. (버튼을 여러 번 눌러도 안전)
 @router.post(
     "/posts/{post_id}/conversations",
-    response_model=ConversationResponse,
+    response_model=ConversationDetailResponse,
     status_code=status.HTTP_201_CREATED,
     summary="판매글 문의 시작 (이미 있으면 기존 대화방)",
     responses={
@@ -46,7 +46,7 @@ def start_conversation(
     response: Response,
     current_user: CurrentUser,
     db: Annotated[Session, Depends(get_db)],
-) -> ConversationResponse:
+) -> ConversationDetailResponse:
     conversation, created = conversation_service.start_conversation(db, post_id, current_user)
     if not created:
         response.status_code = status.HTTP_200_OK
@@ -84,13 +84,13 @@ def count_unread(
 
 @router.get(
     "/conversations/{conversation_id}",
-    response_model=ConversationResponse,
+    response_model=ConversationDetailResponse,
     summary="대화방 정보",
     responses=PARTICIPANT_ONLY_RESPONSES,
 )
 def read_conversation(
     conversation_id: int, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
-) -> ConversationResponse:
+) -> ConversationDetailResponse:
     return conversation_service.get_conversation(db, conversation_id, current_user)
 
 

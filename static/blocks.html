@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>차단 목록 | Campus Books</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <script type="module" src="/static/js/pages/blocks.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <main class="container">
+      <p class="back-link"><a href="/static/my-posts.html">← 내 글</a></p>
+      <h1 class="page-title">차단 목록</h1>
+      <p class="page-description">
+        차단한 사용자와는 서로 쪽지를 보낼 수 없고, 그 사용자의 글은 목록에 보이지 않습니다.
+        상대에게는 차단했다는 사실이 알려지지 않습니다.
+      </p>
+
+      <p id="result-summary" class="result-summary" aria-live="polite">불러오는 중…</p>
+      <p id="list-error" class="form-error" role="alert" hidden></p>
+
+      <!-- 해제한 줄은 새로고침 전까지 "해제됨"으로 남는다. (찜 목록과 같은 방식) -->
+      <ul id="block-list" class="block-list"></ul>
+      <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
+    </main>
+  </body>
+</html>

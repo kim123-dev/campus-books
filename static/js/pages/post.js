@@ -1,7 +1,15 @@
 // 상세 화면: 글 정보를 보여주고, 내 글이면 상태 변경과 삭제를 할 수 있게 한다.
 // 권한과 상태 규칙의 최종 판단은 서버가 한다. 화면은 누를 수 없는 버튼을 미리 숨기는 정도만 한다.
-import { changePostStatus, deletePost, getPost, startConversation } from "../api.js";
+import { blockUser, changePostStatus, deletePost, getPost, reportPost, startConversation, unblockUser } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, redirectToLogin, renderHeader } from "../auth.js";
+import {
+  REPORT_DONE_TEXT,
+  UNBLOCK_DONE_TEXT,
+  blockDoneContent,
+  confirmBlock,
+  confirmUnblock,
+  openReportDialog,
+} from "../safety.js";
 import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, safeImageUrl, statusBadge } from "../ui.js";
 import { createWishlistButton } from "../wishlist-button.js";
 
@@ -115,8 +123,81 @@ function renderDetail(post) {
       renderContact(post),
       el("h2", { className: "post-detail__subtitle", text: "설명" }),
       description,
+      renderSafety(post),
     ].filter(Boolean),
   );
+}
+
+// ---------- 신고·차단 ----------
+
+/**
+ * "이 글 신고"·"판매자 차단(또는 차단 해제)" 버튼과 결과 안내. 로그인한 사용자에게만, 내 글에는 없다.
+ * 실제 권한 검사(본인 글·자기 자신 400)는 서버가 한다.
+ */
+function renderSafety(post) {
+  if (currentUser === null || currentUser.id === post.seller.id) return null;
+  const nickname = post.seller.nickname;
+
+  const reportButton = el("button", { type: "button", className: "link-button", text: "이 글 신고" });
+  reportButton.addEventListener("click", async () => {
+    const reported = await openReportDialog({
+      heading: "이 글 신고",
+      targetText: `${post.title} (판매자 ${nickname})`,
+      send: (data) => reportPost(post.id, data),
+    });
+    if (reported) showSafetyNotice(REPORT_DONE_TEXT);
+  });
+
+  const blockButton = post.is_seller_blocked
+    ? el("button", { type: "button", className: "link-button", text: "판매자 차단 해제" })
+    : el("button", { type: "button", className: "link-button link-button--danger", text: "판매자 차단" });
+  blockButton.addEventListener("click", () => (post.is_seller_blocked ? onUnblock(post) : onBlock(post)));
+
+  return el(
+    "section",
+    { className: "post-detail__safety", attrs: { "aria-label": "신고·차단" } },
+    el("div", { className: "post-detail__safety-actions" }, reportButton, blockButton),
+    el("p", { className: "safety-notice", attrs: { id: "safety-notice", role: "status" }, hidden: true }),
+  );
+}
+
+async function onBlock(post) {
+  if (!confirmBlock(post.seller.nickname)) return;
+  await runSafetyAction(async () => {
+    await blockUser(post.seller.id);
+    // 서버 기준으로 다시 그려 문의·찜 버튼을 숨기고 "차단 해제"로 바꾼다.
+    render(await getPost(post.id));
+    showSafetyNotice(...blockDoneContent());
+  });
+}
+
+async function onUnblock(post) {
+  if (!confirmUnblock(post.seller.nickname)) return;
+  await runSafetyAction(async () => {
+    await unblockUser(post.seller.id);
+    render(await getPost(post.id));
+    showSafetyNotice(UNBLOCK_DONE_TEXT);
+  });
+}
+
+async function runSafetyAction(task) {
+  try {
+    await task();
+  } catch (error) {
+    if (error.status === 401) {
+      redirectToLogin();
+      return;
+    }
+    // 404(그사이 탈퇴·삭제) 등은 서버 메시지를 그대로 보여준다.
+    showSafetyNotice(error.message);
+  }
+}
+
+function showSafetyNotice(...content) {
+  const notice = document.getElementById("safety-notice");
+  if (notice === null) return;
+  notice.replaceChildren(...content);
+  notice.hidden = false;
 }
 
 /**
@@ -125,6 +206,8 @@ function renderDetail(post) {
  */
 function renderWishlistButton(post) {
   if (currentUser !== null && currentUser.id === post.seller.id) return null;
+  // 차단한 판매자의 글은 찜도 쪽지도 하지 않도록 하트를 숨긴다. (해제하면 다시 보인다)
+  if (post.is_seller_blocked === true) return null;
   if (post.status === "SOLD" && post.is_wishlisted !== true) return null;
   return createWishlistButton(post, { className: "wish-button--detail" });
 }
@@ -177,6 +260,15 @@ function renderGallery(post) {
  */
 function renderContact(post) {
   if (post.status === "SOLD") return null;
+  // 차단한 판매자에게는 서버도 문의를 막으므로(400) 버튼 대신 이유를 보여준다.
+  if (post.is_seller_blocked === true) {
+    return contactSection(
+      el("p", {
+        className: "post-detail__contact-login",
+        text: "차단한 사용자의 글입니다. 차단을 해제하기 전까지 쪽지를 보낼 수 없어요.",
+      }),
+    );
+  }
 
   const isOwner = currentUser !== null && currentUser.id === post.seller.id;
   const actions = [];

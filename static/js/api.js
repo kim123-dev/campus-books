@@ -134,6 +134,33 @@ export function listWishlist(params) {
   return request("/users/me/wishlist", { query: params });
 }
 
+// ---------- 차단·신고 ----------
+
+/** 사용자 차단. 새로 차단하면 201, 이미 차단했으면 200. 자기 자신은 400. */
+export function blockUser(userId) {
+  return request(`/users/${encodeURIComponent(userId)}/block`, { method: "POST" });
+}
+
+/** 차단 해제. 차단하지 않은 사람이어도 성공(204)한다. */
+export function unblockUser(userId) {
+  return request(`/users/${encodeURIComponent(userId)}/block`, { method: "DELETE" });
+}
+
+/** 내 차단 목록(차단한 순서 최신순). params: page, size */
+export function listBlocks(params) {
+  return request("/users/me/blocks", { query: params });
+}
+
+/** 글 신고. data: {reason, description}. 409(이미 신고), 429(횟수 제한) */
+export function reportPost(postId, data) {
+  return request(`/posts/${encodeURIComponent(postId)}/reports`, { method: "POST", json: data });
+}
+
+/** 사용자 신고. data: {reason, description}. 409(이미 신고), 429(횟수 제한) */
+export function reportUser(userId, data) {
+  return request(`/users/${encodeURIComponent(userId)}/reports`, { method: "POST", json: data });
+}
+
 // ---------- 쪽지 ----------
 
 /** 판매글 문의 시작. 이미 대화방이 있으면 그 방을 돌려준다. (새 방 201, 기존 방 200) */

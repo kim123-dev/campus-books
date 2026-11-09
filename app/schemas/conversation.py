@@ -95,6 +95,16 @@ class ConversationResponse(BaseModel):
     last_message_at: datetime
 
 
+class ConversationDetailResponse(ConversationResponse):
+    """대화방 하나(대화 화면용). 목록에는 넣지 않아, 목록 요청의 쿼리 수를 늘리지 않는다."""
+
+    # 둘 중 한 명이라도 상대를 차단했으면 false. 대화 화면은 입력창을 잠근다.
+    can_send: bool
+    # 내가 상대를 차단했는지. true면 화면에 "차단 해제"를 보여준다.
+    # 상대가 나를 차단했는지는 따로 알려주지 않는다. (can_send만 false)
+    blocked_by_me: bool
+
+
 class ConversationListResponse(BaseModel):
     items: list[ConversationResponse]
     total: int

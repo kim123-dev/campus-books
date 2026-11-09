@@ -9,7 +9,7 @@ from app.core.exceptions import (
 )
 from app.models import Conversation, Post, PostStatus, User, Wishlist
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
-from app.services import image_storage
+from app.services import block_service, image_storage
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
@@ -44,12 +44,17 @@ def get_post(db: Session, post_id: int) -> Post:
 
 
 def to_detail_response(
-    post: Post, show_contact: bool, is_wishlisted: bool | None = None
+    post: Post,
+    show_contact: bool,
+    is_wishlisted: bool | None = None,
+    is_seller_blocked: bool | None = None,
 ) -> PostDetailResponse:
     """상세 응답을 만든다. show_contact가 False면 오픈채팅 링크를 null로 비운다."""
     # 링크를 모아 스팸을 보내는 수집을 막기 위해, 연락 방법은 로그인한 사용자에게만 보여준다.
     # ORM 객체를 직접 고치면 같은 세션의 다음 commit에 null이 저장될 수 있어 응답 객체에서만 바꾼다.
-    detail = PostDetailResponse.model_validate(post).model_copy(update={"is_wishlisted": is_wishlisted})
+    detail = PostDetailResponse.model_validate(post).model_copy(
+        update={"is_wishlisted": is_wishlisted, "is_seller_blocked": is_seller_blocked}
+    )
     if not show_contact:
         detail = detail.model_copy(update={"open_chat_url": None})
     return detail
@@ -102,10 +107,19 @@ def delete_post(db: Session, post_id: int, user: User) -> None:
 
 
 def list_posts(
-    db: Session, page: int, size: int, search: PostSearchParams | None = None
+    db: Session,
+    page: int,
+    size: int,
+    search: PostSearchParams | None = None,
+    viewer: User | None = None,
 ) -> tuple[list[Post], int]:
-    """글 목록(최신순). (현재 페이지 글, 검색 조건에 맞는 전체 글 수)를 돌려준다."""
+    """글 목록(최신순). (현재 페이지 글, 검색 조건에 맞는 전체 글 수)를 돌려준다.
+    viewer가 있으면 그 사람이 차단한 사용자의 글을 뺀다. (전체 글 수도 같은 조건)
+    """
     conditions = _search_conditions(search) if search is not None else []
+    if viewer is not None:
+        # 하위 쿼리로 같은 SELECT 안에 넣어, 차단 목록을 따로 조회하는 쿼리가 늘지 않게 한다.
+        conditions.append(Post.seller_id.not_in(block_service.blocked_ids_query(viewer.id)))
     return _paginate(db, page, size, *conditions)
 
 

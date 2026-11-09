@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import (
+    BlockedByUserMessageError,
+    BlockedUserMessageError,
     CannotContactOwnPostError,
     ConversationNotFoundError,
     MessageRateLimitError,
@@ -15,6 +17,7 @@ from app.core.exceptions import (
 )
 from app.models import Conversation, Message, PostStatus, User
 from app.schemas.conversation import (
+    ConversationDetailResponse,
     ConversationPostResponse,
     ConversationResponse,
     ConversationRole,
@@ -25,7 +28,7 @@ from app.schemas.conversation import (
     MessageResponse,
     PartnerResponse,
 )
-from app.services import post_service
+from app.services import block_service, post_service
 
 
 @dataclass(frozen=True)
@@ -43,7 +46,9 @@ MESSAGE_RATE_LIMIT = RateLimit(max_messages=5, window_seconds=10)
 # ---------- 대화방 ----------
 
 
-def start_conversation(db: Session, post_id: int, buyer: User) -> tuple[ConversationResponse, bool]:
+def start_conversation(
+    db: Session, post_id: int, buyer: User
+) -> tuple[ConversationDetailResponse, bool]:
     """글에 대한 문의를 시작한다. (대화방, 새로 만들었는지)를 돌려준다.
 
     이미 방이 있으면 글 상태와 상관없이 그 방을 돌려준다. 거래 마무리 연락이 끊기지 않게 하기 위해서다.
@@ -54,10 +59,12 @@ def start_conversation(db: Session, post_id: int, buyer: User) -> tuple[Conversa
 
     existing = _find_conversation(db, post.id, buyer.id)
     if existing is not None:
-        return _to_responses(db, [existing], buyer)[0], False
+        # 차단했어도 이미 있는 방은 돌려준다. 지난 대화는 거래 분쟁 때 필요해 읽을 수 있게 둔다.
+        return _to_detail(db, existing, buyer), False
 
     if post.status == PostStatus.SOLD:
         raise SoldPostNotContactableError()
+    _check_not_blocked(db, buyer, post.seller_id)
 
     conversation = Conversation(post_id=post.id, buyer_id=buyer.id, seller_id=post.seller_id)
     db.add(conversation)
@@ -69,15 +76,15 @@ def start_conversation(db: Session, post_id: int, buyer: User) -> tuple[Conversa
         existing = _find_conversation(db, post.id, buyer.id)
         if existing is None:
             raise
-        return _to_responses(db, [existing], buyer)[0], False
+        return _to_detail(db, existing, buyer), False
 
-    return _to_responses(db, [_load_conversation(db, conversation.id)], buyer)[0], True
+    return _to_detail(db, _load_conversation(db, conversation.id), buyer), True
 
 
-def get_conversation(db: Session, conversation_id: int, user: User) -> ConversationResponse:
+def get_conversation(db: Session, conversation_id: int, user: User) -> ConversationDetailResponse:
     """대화방 정보 하나. 없으면 404, 참여자가 아니면 403."""
     conversation = _get_participating_conversation(db, conversation_id, user)
-    return _to_responses(db, [conversation], user)[0]
+    return _to_detail(db, conversation, user)
 
 
 def list_conversations(
@@ -154,8 +161,9 @@ def list_messages(
 def send_message(
     db: Session, conversation_id: int, sender: User, data: MessageCreate
 ) -> MessageResponse:
-    """메시지 전송. 짧은 시간에 너무 많이 보내면 MessageRateLimitError(429)."""
+    """메시지 전송. 차단 관계면 400, 짧은 시간에 너무 많이 보내면 MessageRateLimitError(429)."""
     conversation = _get_participating_conversation(db, conversation_id, sender)
+    _check_not_blocked(db, sender, _partner_id(conversation, sender))
     _check_rate_limit(db, sender)
 
     message = Message(conversation_id=conversation.id, sender_id=sender.id, content=data.content)
@@ -171,6 +179,28 @@ def send_message(
 
 
 # ---------- 내부 함수 ----------
+
+
+def _partner_id(conversation: Conversation, user: User) -> int:
+    return conversation.seller_id if conversation.buyer_id == user.id else conversation.buyer_id
+
+
+def _check_not_blocked(db: Session, me: User, other_id: int) -> None:
+    """둘 중 한 명이라도 상대를 차단했으면 400. 내가 차단한 경우와 상대가 차단한 경우의 문구를 나눈다."""
+    i_blocked, they_blocked = block_service.block_state(db, me.id, other_id)
+    if i_blocked:
+        raise BlockedUserMessageError()
+    if they_blocked:
+        raise BlockedByUserMessageError()
+
+
+def _to_detail(db: Session, conversation: Conversation, viewer: User) -> ConversationDetailResponse:
+    """대화 화면용 응답. 목록 응답에 차단 상태(쿼리 1번)를 더한다."""
+    base = _to_responses(db, [conversation], viewer)[0]
+    i_blocked, they_blocked = block_service.block_state(db, viewer.id, _partner_id(conversation, viewer))
+    return ConversationDetailResponse(
+        **base.model_dump(), can_send=not (i_blocked or they_blocked), blocked_by_me=i_blocked
+    )
 
 
 def _conversation_query():

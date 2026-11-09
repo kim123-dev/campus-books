@@ -13,6 +13,10 @@ class ConflictError(DomainError):
     """이미 존재하는 데이터와 충돌. main.py에서 409로 변환한다."""
 
 
+class DuplicateReportError(ConflictError):
+    message = "이미 신고한 대상입니다."
+
+
 class DuplicateEmailError(ConflictError):
     message = "이미 사용 중인 이메일입니다."
 
@@ -27,6 +31,10 @@ class NotFoundError(DomainError):
 
 class PostNotFoundError(NotFoundError):
     message = "게시글을 찾을 수 없습니다."
+
+
+class UserNotFoundError(NotFoundError):
+    message = "사용자를 찾을 수 없습니다."
 
 
 class ImageNotFoundError(NotFoundError):
@@ -81,6 +89,30 @@ class SoldPostNotWishlistableError(BadRequestError):
     message = "판매 완료된 글은 새로 찜할 수 없습니다."
 
 
+class CannotBlockSelfError(BadRequestError):
+    message = "자기 자신은 차단할 수 없습니다."
+
+
+class BlockedUserMessageError(BadRequestError):
+    """내가 상대를 차단한 경우. 해제하면 다시 보낼 수 있다는 것까지 알려준다."""
+
+    message = "차단한 사용자에게는 쪽지를 보낼 수 없습니다. 차단을 해제하면 다시 보낼 수 있어요."
+
+
+class BlockedByUserMessageError(BadRequestError):
+    """상대가 나를 차단한 경우. "차단당했다"고 직접 알리지 않는다."""
+
+    message = "이 사용자에게는 쪽지를 보낼 수 없습니다."
+
+
+class CannotReportOwnPostError(BadRequestError):
+    message = "본인 글은 신고할 수 없습니다."
+
+
+class CannotReportSelfError(BadRequestError):
+    message = "자기 자신은 신고할 수 없습니다."
+
+
 class PayloadTooLargeError(DomainError):
     """요청 본문(업로드 파일)이 너무 큼. main.py에서 413으로 변환한다."""
 
@@ -111,6 +143,10 @@ class TooManyRequestsError(DomainError):
 
 class MessageRateLimitError(TooManyRequestsError):
     message = "메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요."
+
+
+class ReportRateLimitError(TooManyRequestsError):
+    message = "신고를 너무 많이 하고 있습니다. 잠시 후 다시 시도해 주세요."
 
 
 class ImageUploadRateLimitError(TooManyRequestsError):

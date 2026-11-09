@@ -6,8 +6,16 @@
 //   내 메시지인지는 서버 응답의 is_mine을 그대로 쓴다.
 // - 토큰은 탭끼리 공유된다. 다른 탭에서 계정이 바뀌면 이 화면이 새 계정 토큰으로 폴링·전송하게 되어
 //   상대 메시지가 내 말풍선으로 그려지거나 다른 계정 이름으로 전송되므로, 계정이 바뀌면 멈춘다.
-import { getConversation, listMessages, sendMessage } from "../api.js";
+import { blockUser, getConversation, listMessages, reportUser, sendMessage, unblockUser } from "../api.js";
 import { redirectToLogin, refreshUnreadBadge, renderHeader } from "../auth.js";
+import {
+  REPORT_DONE_TEXT,
+  UNBLOCK_DONE_TEXT,
+  blockDoneContent,
+  confirmBlock,
+  confirmUnblock,
+  openReportDialog,
+} from "../safety.js";
 import { getToken, onTokenChangedInOtherTab } from "../token.js";
 import { clearFormErrors, el, formatShortDate, readPostIdFromUrl, showFormErrors, statusBadge } from "../ui.js";
 
@@ -34,6 +42,12 @@ const textarea = form.elements.content;
 const counter = document.getElementById("content-count");
 const submitButton = form.querySelector('button[type="submit"]');
 const sendError = document.getElementById("send-error");
+const chatActions = document.getElementById("chat-actions");
+const safetyNotice = document.getElementById("chat-safety-notice");
+const blockedNotice = document.getElementById("chat-blocked");
+
+// 차단 관계면 false. 서버도 전송을 400으로 막지만, 화면은 입력창을 미리 잠근다.
+let canSend = true;
 
 const conversationId = readPostIdFromUrl(); // ?id=를 1 이상의 정수로 읽는다. (글 번호와 같은 규칙)
 
@@ -99,6 +113,7 @@ async function init() {
   if (!checkSameAccount()) return;
 
   renderChatHeader(conversation);
+  applyBlockState(conversation);
   addMessages(first.items);
   hasOlder = first.has_more;
   updateOlderButton();
@@ -172,6 +187,73 @@ function renderChatHeader(conversation) {
       el("span", { className: "chat__post-deleted", text: "삭제된 글" }),
     );
   }
+}
+
+// ---------- 신고·차단 ----------
+
+/**
+ * 대화방의 차단 상태(can_send, blocked_by_me)에 맞춰 입력창과 버튼을 바꾼다.
+ * 상대가 나를 차단한 경우에는 "차단당했다"고 알리지 않고 보낼 수 없다는 것만 보여준다.
+ */
+function applyBlockState(conversation) {
+  canSend = conversation.can_send;
+  const { partner } = conversation;
+
+  if (canSend) {
+    blockedNotice.hidden = true;
+  } else {
+    blockedNotice.textContent = conversation.blocked_by_me
+      ? "차단한 사용자입니다. 차단을 해제하면 다시 쪽지를 보낼 수 있어요."
+      : "이 사용자에게는 쪽지를 보낼 수 없습니다.";
+    blockedNotice.hidden = false;
+  }
+  textarea.disabled = !canSend;
+  submitButton.disabled = sending || cooldownTimer !== null || !canSend;
+
+  const reportButton = el("button", { type: "button", className: "link-button", text: "신고" });
+  reportButton.addEventListener("click", async () => {
+    const reported = await openReportDialog({
+      heading: "사용자 신고",
+      targetText: `${partner.nickname}님`,
+      send: (data) => reportUser(partner.id, data),
+    });
+    if (reported) showSafetyNotice(REPORT_DONE_TEXT);
+  });
+  const blockButton = conversation.blocked_by_me
+    ? el("button", { type: "button", className: "link-button", text: "차단 해제" })
+    : el("button", { type: "button", className: "link-button link-button--danger", text: "차단" });
+  blockButton.addEventListener("click", () => onToggleBlock(conversation));
+  chatActions.replaceChildren(reportButton, blockButton);
+}
+
+async function onToggleBlock(conversation) {
+  const { partner, blocked_by_me: blockedByMe } = conversation;
+  if (!(blockedByMe ? confirmUnblock(partner.nickname) : confirmBlock(partner.nickname))) return;
+  try {
+    if (blockedByMe) await unblockUser(partner.id);
+    else await blockUser(partner.id);
+    // 서버 기준 상태로 입력창·버튼을 다시 맞춘다.
+    applyBlockState(await getConversation(conversationId));
+    if (blockedByMe) showSafetyNotice(UNBLOCK_DONE_TEXT);
+    else showSafetyNotice(...blockDoneContent());
+  } catch (error) {
+    if (handleFatalError(error)) return;
+    showSafetyNotice(error.message);
+  }
+}
+
+// 전송이 400으로 막혔을 때(그사이 상대가 차단함 등) 대화방 상태를 다시 받아 입력창을 맞춘다.
+async function refreshBlockState() {
+  try {
+    applyBlockState(await getConversation(conversationId));
+  } catch {
+    // 상태를 못 받아도 전송 에러 문구는 이미 보이므로 그대로 둔다.
+  }
+}
+
+function showSafetyNotice(...content) {
+  safetyNotice.replaceChildren(...content);
+  safetyNotice.hidden = false;
 }
 
 /**
@@ -380,7 +462,7 @@ function onTextareaKeydown(event) {
 
 async function onSubmit(event) {
   event.preventDefault();
-  if (sending || cooldownTimer !== null) return;
+  if (sending || cooldownTimer !== null || !canSend) return;
   // 다른 계정의 토큰으로 보내면 그 계정 이름으로 전송되므로 보내기 전에 확인한다.
   if (!checkSameAccount()) return;
 
@@ -400,6 +482,8 @@ async function onSubmit(event) {
     } else {
       // 422(빈 내용, 1000자 초과)는 입력칸 아래에, 그 밖에는 폼 아래에 보여준다.
       showFormErrors(form, sendError, error);
+      // 400은 차단 관계일 수 있으므로 상태를 다시 받아 입력창을 잠근다.
+      if (error.status === 400) refreshBlockState();
     }
   } finally {
     setSending(false);
@@ -409,7 +493,7 @@ async function onSubmit(event) {
 
 function setSending(isSending) {
   sending = isSending;
-  submitButton.disabled = isSending || cooldownTimer !== null;
+  submitButton.disabled = isSending || cooldownTimer !== null || !canSend;
   submitButton.textContent = isSending ? "보내는 중…" : "보내기";
 }
 
@@ -431,6 +515,6 @@ function startCooldown(seconds, message) {
     window.clearInterval(cooldownTimer);
     cooldownTimer = null;
     sendError.hidden = true;
-    submitButton.disabled = sending;
+    submitButton.disabled = sending || !canSend;
   }, 1000);
 }

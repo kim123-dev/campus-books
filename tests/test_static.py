@@ -230,3 +230,35 @@ def test_front_photo_limits_match_server() -> None:
 
     assert int(photos.group(1)) == MAX_IMAGES_PER_POST
     assert int(size.group(1)) * 1024 * 1024 == MAX_IMAGE_BYTES
+
+
+# ---------- 신고·차단 ----------
+
+SAFETY_JS = STATIC_DIR / "js" / "safety.js"
+
+
+def test_blocks_page_is_served(client: TestClient) -> None:
+    response = client.get("/static/blocks.html")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "/static/js/pages/blocks.js" in response.text
+
+
+def test_my_posts_links_to_blocks(client: TestClient) -> None:
+    # 차단 완료 안내가 "내 글 화면에서 확인·해제"라고 알려주므로 그 화면에 링크가 있어야 한다.
+    assert 'href="/static/blocks.html"' in client.get("/static/my-posts.html").text
+
+
+def test_front_report_rules_match_server() -> None:
+    # 신고 창의 사유 목록·글자 수가 서버와 어긋나면 고를 수 있는 사유를 서버가 422로 거절한다.
+    from app.models import ReportReason
+    from app.schemas.report import MAX_REPORT_DESCRIPTION_LENGTH
+
+    source = SAFETY_JS.read_text(encoding="utf-8")
+    reasons = re.findall(r'\["(\w+)", "[^"]+"\]', source)
+    length = re.search(r"const MAX_DESCRIPTION = (\d+);", source)
+    assert reasons and length, "safety.js에서 REPORT_REASONS / MAX_DESCRIPTION을 찾지 못했습니다."
+
+    assert reasons == [reason.value for reason in ReportReason]
+    assert int(length.group(1)) == MAX_REPORT_DESCRIPTION_LENGTH

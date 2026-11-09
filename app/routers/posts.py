@@ -16,7 +16,7 @@ from app.schemas.post import (
     PostUpdate,
     SizeQuery,
 )
-from app.services import post_service, wishlist_service
+from app.services import block_service, post_service, wishlist_service
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -35,7 +35,7 @@ def create_post(
 
 
 # 목록은 로그인 없이도 볼 수 있다. (구매자가 둘러보는 화면)
-# 로그인했으면 글마다 찜 여부(is_wishlisted)를 채우고, 아니면 null로 둔다.
+# 로그인했으면 글마다 찜 여부(is_wishlisted)를 채우고, 내가 차단한 사용자의 글은 뺀다.
 @router.get("", response_model=PostListResponse, summary="판매글 목록 (검색·필터, 최신순)")
 def list_posts(
     db: Annotated[Session, Depends(get_db)],
@@ -44,7 +44,7 @@ def list_posts(
     page: PageQuery = 1,
     size: SizeQuery = 20,
 ) -> PostListResponse:
-    posts, total = post_service.list_posts(db, page, size, search)
+    posts, total = post_service.list_posts(db, page, size, search, viewer=current_user)
     items = wishlist_service.with_wishlist_flags(db, posts, current_user)
     return PostListResponse(items=items, total=total, page=page, size=size)
 
@@ -65,6 +65,8 @@ def read_post(
         post,
         show_contact=current_user is not None,
         is_wishlisted=wishlist_service.is_wishlisted(db, post.id, current_user),
+        # 차단한 판매자의 글도 주소로 직접 들어오면 보여주되, 화면이 안내를 띄울 수 있게 표시한다.
+        is_seller_blocked=block_service.has_blocked(db, current_user, post.seller_id),
     )
 
 
