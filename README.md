@@ -210,6 +210,12 @@ flowchart LR
 | 대화: 키보드 | 키보드가 올라와도 입력창과 마지막 메시지가 보이게, 대화 화면 높이를 실제로 보이는 높이(`visualViewport.height`)에 맞춤. 안드로이드 Chrome용으로 `interactive-widget=resizes-content`도 둠. 입력 중에는 헤더·"← 쪽지함"·신고/차단 줄을 접고 개인정보 안내를 한 줄로 줄임. 보내기 버튼은 입력창 오른쪽 |
 | 대화: 보내기 | 보내기 버튼이 `pointerdown`·`mousedown` 기본 동작을 막아 포커스를 가져가지 않음. 눌러도 키보드가 내려갔다 올라오지 않음 |
 
+아이폰 Safari에서 찍은 화면 (긴 변 1200px로 줄임):
+
+| 목록 | 필터 펼침 | 글쓰기 | 찜 목록 |
+|---|---|---|---|
+| <img src="docs/screenshots/mobile-list.png" alt="모바일 목록 화면: 한 줄 검색창, 가로형 카드, 하단 탭 바" width="200" /> | <img src="docs/screenshots/mobile-filter.png" alt="모바일 목록 화면에서 필터를 펼친 모습" width="200" /> | <img src="docs/screenshots/mobile-form.png" alt="모바일 글쓰기 화면" width="200" /> | <img src="docs/screenshots/mobile-wishlist.png" alt="모바일 찜 목록 화면" width="200" /> |
+
 - 모바일 기준 폭은 CSS와 JS(`ui.js`의 `MOBILE_QUERY`)에 같은 값으로 두고, 테스트로 같은지 확인합니다. 화면별 스크립트는 폭을 직접 적지 않고 `MOBILE_QUERY`만 씁니다.
 - 연락 바의 하트와 문의 버튼은 새로 만들지 않고 글 영역에서 **옮겨 옵니다.** 같은 버튼이 두 벌이면 찜 상태·에러 문구를 두 곳에서 맞춰야 하기 때문입니다. 폭이 768px을 넘나들면(`matchMedia`) 원래 자리로 되돌립니다. 그래서 이 버튼을 찾는 코드는 위치 대신 id(`#inquiry-button`)로 찾습니다.
 - 사진은 PC와 모바일이 같은 구조(사진을 가로로 이어 붙인 줄)이고, PC만 그 줄의 스크롤을 막아 작은 사진 버튼으로 넘깁니다. 대신 PC도 사진을 처음에 모두 받습니다.
