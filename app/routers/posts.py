@@ -16,7 +16,7 @@ from app.schemas.post import (
     PostUpdate,
     SizeQuery,
 )
-from app.services import post_service
+from app.services import post_service, wishlist_service
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -35,15 +35,18 @@ def create_post(
 
 
 # 목록은 로그인 없이도 볼 수 있다. (구매자가 둘러보는 화면)
+# 로그인했으면 글마다 찜 여부(is_wishlisted)를 채우고, 아니면 null로 둔다.
 @router.get("", response_model=PostListResponse, summary="판매글 목록 (검색·필터, 최신순)")
 def list_posts(
     db: Annotated[Session, Depends(get_db)],
+    current_user: OptionalCurrentUser,
     search: Annotated[PostSearchParams, Query()],
     page: PageQuery = 1,
     size: SizeQuery = 20,
 ) -> PostListResponse:
     posts, total = post_service.list_posts(db, page, size, search)
-    return PostListResponse(items=posts, total=total, page=page, size=size)
+    items = wishlist_service.with_wishlist_flags(db, posts, current_user)
+    return PostListResponse(items=items, total=total, page=page, size=size)
 
 
 # 상세는 로그인 없이도 볼 수 있지만, 연락 방법(오픈채팅 링크)은 로그인한 사용자에게만 준다.
@@ -58,7 +61,11 @@ def read_post(
     post_id: int, current_user: OptionalCurrentUser, db: Annotated[Session, Depends(get_db)]
 ) -> PostDetailResponse:
     post = post_service.get_post(db, post_id)
-    return post_service.to_detail_response(post, show_contact=current_user is not None)
+    return post_service.to_detail_response(
+        post,
+        show_contact=current_user is not None,
+        is_wishlisted=wishlist_service.is_wishlisted(db, post.id, current_user),
+    )
 
 
 # 수정·삭제 API의 공통 에러 응답. Swagger 문서에 보이도록 정리해 둔다.

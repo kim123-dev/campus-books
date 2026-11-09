@@ -97,7 +97,8 @@ function render({ items, total, page, size }) {
     items.length === 0
       ? `이 페이지에는 글이 없습니다. (전체 ${total}개, ${totalPages}페이지까지)`
       : `총 ${total}개`;
-  list.replaceChildren(...items.map(renderPostCard));
+  // 모두 내 글이라 찜 하트를 두지 않는다. (서버도 내 글 찜을 400으로 막는다)
+  list.replaceChildren(...items.map((post) => renderPostCard(post)));
   renderPagination(pagination, page, totalPages, goToPage);
 }
 

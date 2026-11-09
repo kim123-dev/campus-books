@@ -3,6 +3,7 @@
 import { changePostStatus, deletePost, getPost, startConversation } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, redirectToLogin, renderHeader } from "../auth.js";
 import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, safeImageUrl, statusBadge } from "../ui.js";
+import { createWishlistButton } from "../wishlist-button.js";
 
 const HOME_PAGE = "/static/index.html";
 
@@ -107,7 +108,7 @@ function renderDetail(post) {
   detail.replaceChildren(
     ...[
       renderGallery(post),
-      el("div", { className: "post-detail__top" }, statusBadge(post.status)),
+      el("div", { className: "post-detail__top" }, statusBadge(post.status), renderWishlistButton(post)),
       el("h1", { className: "post-detail__title", text: post.title }),
       el("p", { className: "post-detail__price", text: formatPrice(post.price) }),
       info,
@@ -116,6 +117,16 @@ function renderDetail(post) {
       description,
     ].filter(Boolean),
   );
+}
+
+/**
+ * 찜 하트. 내 글에는 없다. 판매 완료된 글은 찜해 둔 경우에만 (해제할 수 있게) 보여준다.
+ * 로그인하지 않았으면 하트를 보여주고, 누르면 로그인 화면으로 보낸다.
+ */
+function renderWishlistButton(post) {
+  if (currentUser !== null && currentUser.id === post.seller.id) return null;
+  if (post.status === "SOLD" && post.is_wishlisted !== true) return null;
+  return createWishlistButton(post, { className: "wish-button--detail" });
 }
 
 /**

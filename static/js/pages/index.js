@@ -3,6 +3,7 @@
 import { listPosts } from "../api.js";
 import { renderHeader } from "../auth.js";
 import { clearFormErrors, renderPagination, renderPostCard, showFormErrors } from "../ui.js";
+import { createWishlistButton } from "../wishlist-button.js";
 
 const PAGE_SIZE = 10;
 const FILTER_KEYS = ["q", "status", "course_name", "min_price", "max_price"];
@@ -16,7 +17,8 @@ const pagination = document.getElementById("pagination");
 // 응답이 늦게 도착한 이전 요청이 최신 결과를 덮어쓰지 않도록 요청마다 번호를 붙인다.
 let latestRequestId = 0;
 
-renderHeader(document.getElementById("site-header"));
+// 로그인한 사용자(없으면 null). 내 글에는 하트를 그리지 않으려고 쓴다.
+const mePromise = renderHeader(document.getElementById("site-header"));
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -80,9 +82,10 @@ async function load() {
   pagination.replaceChildren();
 
   try {
-    const data = await listPosts({ ...filters, page, size: PAGE_SIZE });
+    // 헤더의 로그인 확인은 실패해도 null을 돌려주므로 함께 기다려도 목록이 막히지 않는다.
+    const [data, me] = await Promise.all([listPosts({ ...filters, page, size: PAGE_SIZE }), mePromise]);
     if (requestId !== latestRequestId) return;
-    render(data, filters);
+    render(data, filters, me);
   } catch (error) {
     if (requestId !== latestRequestId) return;
     summary.textContent = "";
@@ -90,7 +93,7 @@ async function load() {
   }
 }
 
-function render(data, filters) {
+function render(data, filters, me) {
   const { items, total, page, size } = data;
   const totalPages = Math.max(1, Math.ceil(total / size));
   const hasFilters = Object.keys(filters).length > 0;
@@ -104,8 +107,18 @@ function render(data, filters) {
     items.length === 0
       ? `이 페이지에는 글이 없습니다. (전체 ${total}개, ${totalPages}페이지까지)`
       : `총 ${total}개`;
-  list.replaceChildren(...items.map(renderPostCard));
+  list.replaceChildren(...items.map((post) => renderPostCard(post, { action: wishlistAction(post, me) })));
   renderPagination(pagination, page, totalPages, (nextPage) => goToPage(filters, nextPage));
+}
+
+/**
+ * 카드 위 하트. 내 글에는 없고, 판매 완료된 글은 찜해 둔 경우에만(해제할 수 있게) 보여준다.
+ * 로그인하지 않았으면 하트를 보여주고, 누르면 로그인 화면으로 보낸다.
+ */
+function wishlistAction(post, me) {
+  if (me !== null && me.id === post.seller.id) return null;
+  if (post.status === "SOLD" && post.is_wishlisted !== true) return null;
+  return createWishlistButton(post, { className: "wish-button--card" });
 }
 
 function goToPage(filters, page) {

@@ -3,6 +3,7 @@ from app.models.conversation import Conversation, Message
 from app.models.post import BookCondition, Post, PostStatus
 from app.models.post_image import MAX_IMAGES_PER_POST, PostImage
 from app.models.user import User
+from app.models.wishlist import Wishlist
 
 __all__ = [
     "MAX_IMAGES_PER_POST",
@@ -13,4 +14,5 @@ __all__ = [
     "PostImage",
     "PostStatus",
     "User",
+    "Wishlist",
 ]

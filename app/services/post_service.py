@@ -1,4 +1,4 @@
-from sqlalchemy import ColumnElement, func, or_, select, update
+from sqlalchemy import ColumnElement, delete, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import (
@@ -7,7 +7,7 @@ from app.core.exceptions import (
     PostNotFoundError,
     SoldPostNotEditableError,
 )
-from app.models import Conversation, Post, PostStatus, User
+from app.models import Conversation, Post, PostStatus, User, Wishlist
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
 from app.services import image_storage
 
@@ -43,11 +43,13 @@ def get_post(db: Session, post_id: int) -> Post:
     return post
 
 
-def to_detail_response(post: Post, show_contact: bool) -> PostDetailResponse:
+def to_detail_response(
+    post: Post, show_contact: bool, is_wishlisted: bool | None = None
+) -> PostDetailResponse:
     """상세 응답을 만든다. show_contact가 False면 오픈채팅 링크를 null로 비운다."""
     # 링크를 모아 스팸을 보내는 수집을 막기 위해, 연락 방법은 로그인한 사용자에게만 보여준다.
     # ORM 객체를 직접 고치면 같은 세션의 다음 commit에 null이 저장될 수 있어 응답 객체에서만 바꾼다.
-    detail = PostDetailResponse.model_validate(post)
+    detail = PostDetailResponse.model_validate(post).model_copy(update={"is_wishlisted": is_wishlisted})
     if not show_contact:
         detail = detail.model_copy(update={"open_chat_url": None})
     return detail
@@ -90,6 +92,8 @@ def delete_post(db: Session, post_id: int, user: User) -> None:
     # 대화 기록은 거래 분쟁 때 필요하므로 지우지 않고 글 연결만 끊는다.
     # FK의 ondelete="SET NULL"은 SQLite가 FK를 검사하지 않아 동작하지 않으므로 직접 바꾼다.
     db.execute(update(Conversation).where(Conversation.post_id == post.id).values(post_id=None))
+    # 찜은 글이 없으면 의미가 없으므로 함께 지운다. (SQLite는 FK의 CASCADE를 실행하지 않는다)
+    db.execute(delete(Wishlist).where(Wishlist.post_id == post.id))
     image_names = [name for image in post.images for name in (image.filename, image.thumb_filename)]
     db.delete(post)  # 사진 행은 relationship cascade로 함께 지워진다.
     db.commit()

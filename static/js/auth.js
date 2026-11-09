@@ -9,6 +9,7 @@ export const SIGNUP_PAGE = "/static/signup.html";
 const HOME_PAGE = "/static/index.html";
 const POST_FORM_PAGE = "/static/post-form.html";
 const MY_POSTS_PAGE = "/static/my-posts.html";
+const WISHLIST_PAGE = "/static/wishlist.html";
 const CONVERSATIONS_PAGE = "/static/conversations.html";
 const MAX_BADGE_COUNT = 99;
 
@@ -111,6 +112,7 @@ function loggedInItems(me) {
     el("span", { className: "site-nav__user", text: `${me.nickname}님` }),
     el("a", { href: POST_FORM_PAGE, text: "글쓰기" }),
     el("a", { href: MY_POSTS_PAGE, text: "내 글" }),
+    el("a", { href: WISHLIST_PAGE, text: "찜" }),
     el(
       "a",
       { href: CONVERSATIONS_PAGE, className: "site-nav__messages", attrs: { id: "nav-messages" } },

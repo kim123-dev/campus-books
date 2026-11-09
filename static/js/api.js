@@ -117,6 +117,23 @@ export function deletePostImage(postId, imageId) {
   });
 }
 
+// ---------- 찜 ----------
+
+/** 찜하기. 새로 찜하면 201, 이미 찜했으면 200. 응답: {post_id, is_wishlisted} */
+export function addWishlist(postId) {
+  return request(`/posts/${encodeURIComponent(postId)}/wishlist`, { method: "POST" });
+}
+
+/** 찜 해제. 찜하지 않은 글이어도 성공(204)한다. */
+export function removeWishlist(postId) {
+  return request(`/posts/${encodeURIComponent(postId)}/wishlist`, { method: "DELETE" });
+}
+
+/** 내 찜 목록(찜한 순서 최신순, 판매 완료 포함). params: page, size */
+export function listWishlist(params) {
+  return request("/users/me/wishlist", { query: params });
+}
+
 // ---------- 쪽지 ----------
 
 /** 판매글 문의 시작. 이미 대화방이 있으면 그 방을 돌려준다. (새 방 201, 기존 방 200) */

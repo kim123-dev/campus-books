@@ -138,8 +138,12 @@ export function safeImageUrl(url) {
   return typeof url === "string" && /^\/images\/[0-9a-f]{32}(_thumb)?\.webp$/.test(url) ? url : PLACEHOLDER_IMAGE;
 }
 
-/** 판매글 카드 하나(li). 누르면 상세 화면으로 간다. */
-export function renderPostCard(post) {
+/**
+ * 판매글 카드 하나(li). 누르면 상세 화면으로 간다.
+ * @param {{action?: Node|null}} options action: 카드 위에 겹쳐 놓을 버튼(찜 하트).
+ *   카드 전체가 링크라 그 안에 버튼을 넣을 수 없으므로(HTML 규칙), 링크 옆에 두고 CSS로 사진 위에 겹친다.
+ */
+export function renderPostCard(post, { action = null } = {}) {
   const courseText = post.course_name ? ` · ${post.course_name}` : "";
   // 카드 안의 제목이 링크 이름이 되므로, 사진은 꾸밈 요소로 두어(alt="") 화면 낭독기가 두 번 읽지 않게 한다.
   const thumbnail = el("img", {
@@ -153,7 +157,7 @@ export function renderPostCard(post) {
   });
   return el(
     "li",
-    {},
+    { className: "post-list__item" },
     el(
       "a",
       { className: "card post-card", href: `/static/post.html?id=${encodeURIComponent(post.id)}` },
@@ -169,6 +173,7 @@ export function renderPostCard(post) {
       el("p", { className: "post-card__price", text: formatPrice(post.price) }),
       el("p", { className: "post-card__meta", text: `${post.seller.nickname} · ${formatDate(post.created_at)}` }),
     ),
+    action,
   );
 }
 

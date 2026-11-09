@@ -75,6 +75,18 @@ def test_message_pages_are_served(client: TestClient, page: str, script: str) ->
     assert f"/static/js/pages/{script}" in response.text
 
 
+def test_wishlist_page_is_served(client: TestClient) -> None:
+    response = client.get("/static/wishlist.html")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "/static/js/pages/wishlist.js" in response.text
+
+
+def test_header_links_to_wishlist() -> None:
+    assert '"/static/wishlist.html"' in (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
+
+
 def test_chat_page_has_privacy_notice(client: TestClient) -> None:
     # 쪽지로 전화번호·계좌번호를 주고받다 생기는 피해를 줄이기 위한 안내가 빠지지 않게 한다.
     assert "개인정보" in client.get("/static/chat.html").text

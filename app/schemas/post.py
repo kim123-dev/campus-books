@@ -203,6 +203,8 @@ class PostResponse(BaseModel):
     seller: SellerResponse
     # 목록 카드에 보여줄 첫 사진의 썸네일 주소. 사진이 없으면 null (화면은 기본 그림을 보여준다).
     thumbnail_url: str | None = Field(default=None, validation_alias="thumbnail_filename")
+    # 로그인한 사용자가 찜한 글인지. 로그인하지 않았거나 내 글 목록처럼 상관없는 응답에서는 null.
+    is_wishlisted: bool | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -219,6 +221,13 @@ class PostDetailResponse(PostResponse):
     open_chat_url: str | None
     # 보여주는 순서(slot)대로. 최대 3장.
     images: list[PostImageResponse]
+
+
+class WishlistStatusResponse(BaseModel):
+    """찜 추가 응답. 화면이 하트 상태를 서버 기준으로 맞출 수 있게 결과를 돌려준다."""
+
+    post_id: int
+    is_wishlisted: bool
 
 
 class PostListResponse(BaseModel):

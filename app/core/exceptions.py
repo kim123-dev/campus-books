@@ -73,6 +73,14 @@ class SoldPostNotContactableError(BadRequestError):
     message = "판매 완료된 글에는 새로 문의할 수 없습니다."
 
 
+class CannotWishlistOwnPostError(BadRequestError):
+    message = "본인 글은 찜할 수 없습니다."
+
+
+class SoldPostNotWishlistableError(BadRequestError):
+    message = "판매 완료된 글은 새로 찜할 수 없습니다."
+
+
 class PayloadTooLargeError(DomainError):
     """요청 본문(업로드 파일)이 너무 큼. main.py에서 413으로 변환한다."""
 

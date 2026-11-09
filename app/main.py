@@ -20,7 +20,7 @@ from app.core.exceptions import (
     TooManyRequestsError,
     UnprocessableError,
 )
-from app.routers import auth, conversations, images, posts, users
+from app.routers import auth, conversations, images, posts, users, wishlist
 from app.services.image_service import MAX_IMAGE_BYTES
 
 # 실행 위치와 상관없이 프로젝트 루트의 static/ 폴더를 가리키도록 이 파일 기준으로 잡는다.
@@ -49,6 +49,7 @@ app.include_router(users.router)
 app.include_router(posts.router)
 app.include_router(conversations.router)
 app.include_router(images.router)
+app.include_router(wishlist.router)
 
 # multipart 본문에는 파일 말고도 경계 문자열·헤더가 붙으므로 그만큼 여유를 둔다.
 MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024
