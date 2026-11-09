@@ -1,9 +1,9 @@
 // 내 글 화면: 내 정보와 내 판매글 목록(판매 완료 포함)을 보여준다. 로그인이 필요하다.
 // 페이지 번호는 주소창(?page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 페이지가 나오게 하기 위해서다.
 import { listMyPosts } from "../api.js";
-import { redirectToLogin, renderHeader } from "../auth.js";
+import { logout, redirectToLogin, renderHeader } from "../auth.js";
 import { getToken } from "../token.js";
-import { formatDate, renderPagination, renderPostCard } from "../ui.js";
+import { el, formatDate, renderPagination, renderPostCard } from "../ui.js";
 
 const PAGE_SIZE = 10; // 목록 화면과 같게 맞춘다. (서버 기본값은 20)
 
@@ -48,6 +48,15 @@ function renderProfile(me) {
   document.getElementById("profile-nickname").textContent = `${me.nickname}님`;
   // 가입일은 날짜만 보여준다. (formatDate는 "2026.11.06 14:20" 형식)
   document.getElementById("profile-meta").textContent = `${me.email} · ${formatDate(me.created_at).slice(0, 10)} 가입`;
+  // 모바일에서는 헤더 메뉴 대신 하단 탭 바를 쓰므로, 헤더에 있던 "관리"·"로그아웃"을 이 화면(내 정보)에 둔다.
+  // PC에서는 헤더에 그대로 있으므로 CSS(mobile-only)가 숨긴다.
+  const actions = profile.querySelector(".profile-card__actions");
+  if (me.role === "ADMIN") {
+    actions.append(el("a", { className: "button mobile-only", href: "/static/admin.html", text: "관리" }));
+  }
+  const logoutButton = el("button", { type: "button", className: "button mobile-only", text: "로그아웃" });
+  logoutButton.addEventListener("click", logout);
+  actions.append(logoutButton);
   profile.hidden = false;
 }
 

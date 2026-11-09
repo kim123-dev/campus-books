@@ -277,3 +277,55 @@ def test_front_report_rules_match_server() -> None:
 
     assert reasons == [reason.value for reason in ReportReason]
     assert int(length.group(1)) == MAX_REPORT_DESCRIPTION_LENGTH
+
+
+# ---------- 모바일 화면 ----------
+
+STYLE_CSS = STATIC_DIR / "css" / "style.css"
+UI_JS = STATIC_DIR / "js" / "ui.js"
+HTML_FILES = sorted(STATIC_DIR.glob("*.html"))
+# 화면 아래를 따로 쓰는 화면(상세의 연락 바, 대화 입력창, 긴 글쓰기 폼)과 로그인·회원가입은 탭 바를 끈다.
+NO_TAB_BAR_PAGES = {"post.html", "chat.html", "post-form.html", "login.html", "signup.html"}
+
+
+def test_mobile_breakpoint_matches_between_js_and_css() -> None:
+    # JS(matchMedia)와 CSS가 다른 폭을 기준으로 하면, 그 사이 폭에서 화면과 동작이 어긋난다.
+    css = STYLE_CSS.read_text(encoding="utf-8")
+    query = re.search(r'export const MOBILE_QUERY = "\(max-width: ([\d.]+)px\)";', UI_JS.read_text(encoding="utf-8"))
+    assert query, "ui.js에서 MOBILE_QUERY를 찾지 못했습니다."
+
+    mobile_max = float(query.group(1))
+    assert f"@media (max-width: {query.group(1)}px)" in css
+    # PC 쪽 기준(mobile-only를 숨기는 폭)이 모바일 기준 바로 다음 픽셀이어야 빈틈·겹침이 없다.
+    pc_min = re.search(r"@media \(min-width: (\d+)px\) \{\s*\.mobile-only", css)
+    assert pc_min and int(pc_min.group(1)) == round(mobile_max + 0.02)
+
+
+@pytest.mark.parametrize("html", HTML_FILES, ids=lambda path: path.name)
+def test_pages_allow_safe_area(html: Path) -> None:
+    # iPhone 아래쪽 홈 막대 영역(env(safe-area-inset-bottom))을 쓰려면 viewport-fit=cover가 필요하다.
+    assert 'content="width=device-width, initial-scale=1, viewport-fit=cover' in html.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("html", HTML_FILES, ids=lambda path: path.name)
+def test_tab_bar_is_off_only_on_expected_pages(html: Path) -> None:
+    has_off = 'data-tab-bar="off"' in html.read_text(encoding="utf-8")
+    assert has_off == (html.name in NO_TAB_BAR_PAGES)
+
+
+def test_tab_bar_links_to_main_pages() -> None:
+    source = (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
+    tabs = re.search(r"const TABS = \[(.*?)\n\];", source, re.S)
+    assert tabs, "auth.js에서 TABS를 찾지 못했습니다."
+
+    labels = re.findall(r'label: "([^"]+)"', tabs.group(1))
+    assert labels == ["홈", "찜", "글쓰기", "쪽지", "내 정보"]
+    for page in ["HOME_PAGE", "WISHLIST_PAGE", "POST_FORM_PAGE", "CONVERSATIONS_PAGE", "MY_POSTS_PAGE"]:
+        assert f"href: {page}" in tabs.group(1)
+
+
+def test_mobile_inputs_are_at_least_16px() -> None:
+    # iOS Safari는 16px보다 작은 입력칸에 포커스하면 화면을 확대한다.
+    css = STYLE_CSS.read_text(encoding="utf-8")
+    mobile = css.split("@media (max-width: 767.98px) {", 1)[1]
+    assert re.search(r"input,\s*select,\s*textarea \{\s*font-size: max\(16px, 1em\);", mobile)

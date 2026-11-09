@@ -504,6 +504,24 @@ a.button {
   font-weight: 600;
 }
 
+/* 모바일에서 검색창 줄과 접히는 필터 칸을 묶는 요소. PC에서는 상자를 만들지 않아(contents) 원래 격자 그대로다. */
+.filter-form__search-row,
+.filter-form__more {
+  display: contents;
+}
+
+/* 하단 탭 바는 모바일에서만 보인다. (아래 "모바일" 구역) */
+.tab-bar {
+  display: none;
+}
+
+/* 모바일 전용 버튼(검색 아이콘, 필터, 내 정보의 관리·로그아웃). PC에서는 헤더·필터 칸이 같은 일을 한다. */
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
 @media (min-width: 640px) {
   .filter-form {
     grid-template-columns: repeat(2, 1fr);
@@ -582,6 +600,14 @@ a.button {
   border-radius: var(--radius-control);
   background: var(--color-fill);
   object-fit: cover;
+}
+
+/* 카드의 글자 묶음. 카드와 같은 간격으로 쌓아, 묶음이 생기기 전과 PC 모양이 같다. (모바일에서는 사진 오른쪽) */
+.post-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 /* 카드 링크와 찜 버튼을 나란히 담는 칸. 버튼을 사진 오른쪽 위에 겹치기 위한 기준점이다. */
@@ -1905,6 +1931,376 @@ a.button {
 
   .conversation-card {
     padding: 16px;
+  }
+}
+
+/* ---------- 모바일 (768px 미만) ---------- */
+/* 휴대폰에서 쓰기 편하도록 바꾸는 규칙은 모두 여기에 모은다. 768px 이상(PC)은 위의 규칙 그대로다.
+   기준값은 ui.js의 MOBILE_QUERY와 같아야 한다. (tests/test_static.py가 확인)
+   - 누르는 곳은 44px 이상, 본문 글자는 16px 이상 (배지·날짜·글자 수·탭 이름만 작게)
+   - 입력칸은 16px 이상: iOS Safari는 16px보다 작은 입력칸에 포커스하면 화면을 확대한다. */
+@media (max-width: 767.98px) {
+  /* ----- 헤더와 하단 탭 바 ----- */
+
+  /* 로그인한 사용자의 메뉴는 하단 탭 바가 대신한다. 로그인·회원가입 링크는 헤더에 남긴다. */
+  .site-nav--member {
+    display: none;
+  }
+
+  .site-header__inner {
+    min-height: 52px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .site-logo,
+  .site-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .tab-bar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 15;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -1px 0 rgba(17, 24, 39, 0.08);
+  }
+
+  .tab-bar__item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    border-radius: 12px;
+    color: var(--color-muted);
+    font-weight: 600;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tab-bar__item:active {
+    background: var(--color-fill);
+  }
+
+  .tab-bar__item[aria-current="page"] {
+    color: var(--color-primary);
+  }
+
+  .tab-bar__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+  }
+
+  .tab-bar .icon {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .tab-bar__item[aria-current="page"] .icon--home,
+  .tab-bar__item[aria-current="page"] .icon--heart {
+    fill: var(--color-primary-soft);
+  }
+
+  /* 글쓰기는 가운데에서 눈에 띄게: 포인트 색 동그라미 */
+  .tab-bar__item--write .tab-bar__icon {
+    border-radius: 999px;
+    background: var(--color-primary);
+    color: #ffffff;
+  }
+
+  .tab-bar__item--write .icon {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2.5;
+  }
+
+  /* 탭 이름은 작은 글자 예외 (12px) */
+  .tab-bar__label {
+    font-size: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .tab-bar__badge {
+    position: absolute;
+    top: 4px;
+    left: calc(50% + 6px);
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 0.75rem;
+  }
+
+  /* 탭 바에 가려지지 않도록 화면 아래를 비운다. */
+  .has-tab-bar {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .has-tab-bar .toast {
+    bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  /* ----- 목록 검색: 한 줄 검색창 + 접히는 필터 ----- */
+
+  .filter-form {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  /* 검색창 위 "검색어" 라벨은 화면에서 숨기고 화면 낭독기에는 남긴다. (자리표시 글자가 같은 뜻) */
+  .filter-form__search > label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .filter-form__search-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .filter-form__search-row input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .filter-form__icon-button {
+    flex: none;
+    width: 52px;
+    min-height: 52px;
+    padding: 0;
+  }
+
+  .filter-form__toggle {
+    flex: none;
+    gap: 6px;
+    min-height: 52px;
+    padding: 0 14px;
+  }
+
+  .filter-form__toggle[aria-expanded="true"] {
+    background: var(--color-primary-soft);
+    color: var(--color-primary-hover);
+  }
+
+  .filter-form .icon {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .filter-form__count {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+  }
+
+  .filter-form:not(.is-open) .filter-form__more {
+    display: none;
+  }
+
+  .result-summary {
+    margin: 18px 0 10px;
+  }
+
+  /* ----- 카드: 사진을 왼쪽에 작게 둔 가로형. 한 화면에 더 많은 글이 보인다. ----- */
+
+  .post-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .post-card {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .post-card__thumb {
+    flex: none;
+    width: 96px;
+    height: 96px;
+    aspect-ratio: 1;
+    margin: 0;
+    border-radius: 12px;
+  }
+
+  /* 글자는 4줄 격자로 줄인다: 제목(최대 2줄) / 교재·과목 / 상태 배지 + 가격 / 책 상태 + 판매자·날짜 */
+  .post-card__body {
+    display: grid;
+    flex: 1;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "title title"
+      "book book"
+      "badge price"
+      "condition meta";
+    align-items: center;
+    gap: 2px 8px;
+  }
+
+  /* 배지와 책 상태를 격자 칸으로 직접 놓기 위해 묶음 상자를 없앤다. */
+  .post-card__top {
+    display: contents;
+  }
+
+  .post-card__top .badge {
+    grid-area: badge;
+    justify-self: start;
+    padding: 2px 8px;
+  }
+
+  /* 하트가 오른쪽 아래에 겹치므로 아래 두 줄은 그만큼 비켜 둔다. */
+  .post-list__item:has(.wish-button--card) .post-card__price,
+  .post-list__item:has(.wish-button--card) .post-card__meta {
+    margin-right: 40px;
+  }
+
+  .post-card__title {
+    display: -webkit-box;
+    grid-area: title;
+    margin: 0;
+    overflow: hidden;
+    font-size: 1rem;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .post-card__book {
+    grid-area: book;
+    overflow: hidden;
+    font-size: 1rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .post-card__price {
+    grid-area: price;
+    margin: 0;
+    font-size: 1.0625rem;
+    line-height: 1.35;
+  }
+
+  .post-card__condition {
+    grid-area: condition;
+  }
+
+  .post-card__meta {
+    grid-area: meta;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .post-card__condition,
+  .post-card__meta {
+    font-size: 0.8125rem;
+    line-height: 1.35;
+  }
+
+  .page-title {
+    margin: 20px 0 14px;
+    font-size: 1.5rem;
+  }
+
+  .wish-button--card {
+    top: auto;
+    right: 6px;
+    bottom: 6px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .wish-button--card:hover:not(:disabled) {
+    background: var(--color-fill);
+  }
+
+  /* ----- 누르는 곳 44px 이상 ----- */
+
+  .link-button {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .back-link a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .tabs__item,
+  .photo-tile__button {
+    min-height: 44px;
+  }
+
+  /* 글 제목 링크(관리 카드의 신고된 글, 대화 화면 위의 글)도 손가락으로 누르기 쉽게 */
+  .report-card__snapshot-title a,
+  .chat__post a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* ----- 글자 16px 이상 ----- */
+
+  /* 입력칸: 상위 글자 크기(17px)를 따르되 16px보다 작아지지 않게 한다. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  .field label,
+  .field-label,
+  .field-error,
+  .form-error,
+  .field-hint,
+  .form-notice,
+  .photo-tile__button,
+  .safety-notice,
+  .site-notice,
+  .chat__blocked,
+  .chat__actions,
+  .post-detail__safety-actions,
+  .auth-switch,
+  .owner-panel__notice,
+  .page-description,
+  .conversation-card__post,
+  .report-card__snapshot-content,
+  .report-card__snapshot-hint,
+  .chat__post,
+  .chat__privacy {
+    font-size: 1rem;
   }
 }
 

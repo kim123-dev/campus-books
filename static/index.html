@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>교재 목록 | Campus Books</title>
     <link rel="stylesheet" href="/static/css/style.css" />
     <script type="module" src="/static/js/pages/index.js"></script>
@@ -14,12 +14,24 @@
       <h1 class="page-title">중고 교재 목록</h1>
 
       <form id="filter-form" class="card filter-form" novalidate>
-        <div class="field field--wide">
+        <div class="field field--wide filter-form__search">
           <label for="q">검색어</label>
-          <input id="q" name="q" type="search" maxlength="100" placeholder="제목, 교재명, 과목명" />
+          <!-- 모바일: 검색창 한 줄 + 검색·필터 버튼. 필터 버튼을 누르면 아래 칸이 펼쳐진다. (PC는 모든 칸이 항상 보임) -->
+          <div class="filter-form__search-row">
+            <input id="q" name="q" type="search" maxlength="100" placeholder="제목, 교재명, 과목명" enterkeyhint="search" />
+            <button type="submit" id="search-button" class="button button--primary filter-form__icon-button mobile-only" aria-label="검색"></button>
+            <button
+              type="button"
+              id="filter-toggle"
+              class="button filter-form__toggle mobile-only"
+              aria-expanded="false"
+              aria-controls="filter-more"
+            ></button>
+          </div>
           <p class="field-error" data-error-for="q" hidden></p>
         </div>
 
+        <div id="filter-more" class="filter-form__more">
         <div class="field">
           <label for="status">판매 상태</label>
           <select id="status" name="status">
@@ -54,6 +66,7 @@
         <div class="form-actions field--wide">
           <button type="submit" class="button button--primary">검색</button>
           <button type="button" id="filter-reset" class="button">초기화</button>
+        </div>
         </div>
       </form>
 

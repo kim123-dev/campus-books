@@ -2,7 +2,7 @@
 // 토큰 보관 자체는 token.js가 맡는다.
 import { getMe, getUnreadCount } from "./api.js";
 import { clearToken, getToken } from "./token.js";
-import { el, formatMonthDayTime } from "./ui.js";
+import { el, formatMonthDayTime, icon } from "./ui.js";
 
 export const LOGIN_PAGE = "/static/login.html";
 export const SIGNUP_PAGE = "/static/signup.html";
@@ -12,6 +12,7 @@ const MY_POSTS_PAGE = "/static/my-posts.html";
 const WISHLIST_PAGE = "/static/wishlist.html";
 const CONVERSATIONS_PAGE = "/static/conversations.html";
 const ADMIN_PAGE = "/static/admin.html";
+const BLOCKS_PAGE = "/static/blocks.html";
 const MAX_BADGE_COUNT = 99;
 
 // ---------- 돌아갈 주소 (next) ----------
@@ -78,6 +79,8 @@ export async function renderHeader(container) {
       nav,
     ),
   );
+  // 모바일 하단 탭 바는 로그인 확인을 기다리지 않고 바로 그려, 화면이 뜬 뒤 아래가 밀리지 않게 한다.
+  renderTabBar();
 
   // 토큰이 없으면 서버에 물어볼 필요가 없다.
   if (!getToken()) {
@@ -88,6 +91,8 @@ export async function renderHeader(container) {
   try {
     const me = await getMe();
     nav.replaceChildren(...loggedInItems(me));
+    // 로그인 메뉴는 모바일에서 하단 탭 바가 대신한다. (로그인·회원가입 링크는 모바일에서도 헤더에 남긴다)
+    nav.classList.add("site-nav--member");
     // 정지 중이면 모든 화면 위쪽에 언제까지인지 알려준다. 쓰기 버튼을 눌렀다가 403을 받고 나서야 알게 되지 않도록.
     const suspension = suspensionText(me);
     if (suspension !== null) {
@@ -133,6 +138,45 @@ function loggedInItems(me) {
   ];
 }
 
+// ---------- 모바일 하단 탭 바 ----------
+
+// also: 이 탭에서 들어가는 화면. 그 화면에서도 이 탭을 현재 탭으로 표시한다.
+const TABS = [
+  { href: HOME_PAGE, label: "홈", icon: "home" },
+  { href: WISHLIST_PAGE, label: "찜", icon: "heart" },
+  { href: POST_FORM_PAGE, label: "글쓰기", icon: "plus", modifier: "write" },
+  { href: CONVERSATIONS_PAGE, label: "쪽지", icon: "chat", id: "tab-messages", badgeId: "tab-unread" },
+  { href: MY_POSTS_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ADMIN_PAGE] },
+];
+
+/**
+ * 모바일(768px 미만) 하단 고정 탭 바. PC에서는 CSS가 숨기고 헤더 메뉴를 쓴다.
+ * 상세·대화·글쓰기·로그인·회원가입은 화면 아래를 따로 쓰므로 <body data-tab-bar="off">로 끈다.
+ * 로그인이 필요한 탭은 각 화면이 로그인 화면으로 보냈다가 돌아오게 한다. (헤더 메뉴와 같은 동작)
+ */
+function renderTabBar() {
+  if (document.body.dataset.tabBar === "off" || document.querySelector(".tab-bar")) return;
+  const here = window.location.pathname;
+  const items = TABS.map((tab) => {
+    const current = here === tab.href || (tab.also ?? []).includes(here);
+    const attrs = {};
+    if (tab.id) attrs.id = tab.id;
+    if (current) attrs["aria-current"] = "page";
+    return el(
+      "a",
+      { className: `tab-bar__item${tab.modifier ? ` tab-bar__item--${tab.modifier}` : ""}`, href: tab.href, attrs },
+      el("span", { className: "tab-bar__icon" }, icon(tab.icon)),
+      el("span", { className: "tab-bar__label", text: tab.label }),
+      tab.badgeId
+        ? el("span", { className: "nav-badge tab-bar__badge", attrs: { id: tab.badgeId, "aria-hidden": "true" }, hidden: true })
+        : null,
+    );
+  });
+  document.body.append(el("nav", { className: "tab-bar", attrs: { "aria-label": "하단 메뉴" } }, ...items));
+  // 탭 바 높이만큼 화면 아래 여백을 둔다. (CSS가 모바일에서만 적용)
+  document.body.classList.add("has-tab-bar");
+}
+
 /** 정지 중이면 안내 문구, 아니면 null. 서버는 기간이 지난 정지를 null로 보내므로 날짜만 확인한다. */
 export function suspensionText(me) {
   if (!me?.suspended_until) return null;
@@ -144,9 +188,15 @@ export function suspensionText(me) {
  * 배지는 보조 정보라 실패해도 화면에 에러를 띄우지 않고 배지만 숨긴다.
  */
 export async function refreshUnreadBadge() {
-  const link = document.getElementById("nav-messages");
-  const badge = document.getElementById("nav-unread");
-  if (!link || !badge) return;
+  // 헤더(PC)와 하단 탭 바(모바일)의 "쪽지"에 같은 숫자를 넣는다.
+  const pairs = [
+    ["nav-messages", "nav-unread"],
+    ["tab-messages", "tab-unread"],
+  ]
+    .map(([linkId, badgeId]) => [document.getElementById(linkId), document.getElementById(badgeId)])
+    .filter(([link, badge]) => link && badge);
+  // 로그인하지 않았으면 헤더에 쪽지 링크가 없다. 탭 바만 있어도 숫자를 물어보지 않는다.
+  if (!document.getElementById("nav-messages") || pairs.length === 0) return;
 
   let count = 0;
   try {
@@ -154,10 +204,12 @@ export async function refreshUnreadBadge() {
   } catch {
     count = 0;
   }
-  badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
-  badge.hidden = count === 0;
-  // 배지 숫자는 화면 낭독기에서 숨기고, 링크 이름에 뜻을 담아 읽어 준다.
-  link.setAttribute("aria-label", count > 0 ? `쪽지, 안 읽은 메시지 ${count}개` : "쪽지");
+  for (const [link, badge] of pairs) {
+    badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
+    badge.hidden = count === 0;
+    // 배지 숫자는 화면 낭독기에서 숨기고, 링크 이름에 뜻을 담아 읽어 준다.
+    link.setAttribute("aria-label", count > 0 ? `쪽지, 안 읽은 메시지 ${count}개` : "쪽지");
+  }
 }
 
 /**

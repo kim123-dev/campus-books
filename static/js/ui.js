@@ -22,6 +22,34 @@ export function el(tag, props = {}, ...children) {
   return node;
 }
 
+// 모바일 화면 기준. style.css의 @media (max-width: 767.98px)와 같은 값이어야 한다. (tests/test_static.py가 확인)
+export const MOBILE_QUERY = "(max-width: 767.98px)";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+// 하단 탭 바와 검색·필터 버튼 아이콘 (24×24 선 아이콘)
+const ICON_PATHS = {
+  home: "M3.5 10.5 12 3.5l8.5 7V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z",
+  heart: "M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z",
+  plus: "M12 5v14M5 12h14",
+  chat: "M4 5.5h16v11H9l-5 4z",
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5",
+  search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4",
+  filter: "M4 7h16M7 12h10M10 17h4",
+};
+
+/** 선 아이콘(svg). HTML 문자열 없이 createElementNS로 만든다. 꾸밈용이라 화면 낭독기에서는 숨긴다. */
+export function icon(name) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  svg.setAttribute("class", `icon icon--${name}`);
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", ICON_PATHS[name]);
+  svg.append(path);
+  return svg;
+}
+
 export const STATUS_LABELS = {
   ON_SALE: "판매 중",
   RESERVED: "예약 중",
@@ -170,16 +198,21 @@ export function renderPostCard(post, { action = null } = {}) {
       "a",
       { className: "card post-card", href: `/static/post.html?id=${encodeURIComponent(post.id)}` },
       thumbnail,
+      // 글자 묶음. 모바일에서는 사진 오른쪽에 두는 가로형 카드가 된다. (PC는 사진 아래에 그대로)
       el(
         "div",
-        { className: "post-card__top" },
-        statusBadge(post.status),
-        el("span", { className: "post-card__condition", text: `책 상태 ${CONDITION_LABELS[post.condition] ?? post.condition}` }),
+        { className: "post-card__body" },
+        el(
+          "div",
+          { className: "post-card__top" },
+          statusBadge(post.status),
+          el("span", { className: "post-card__condition", text: `책 상태 ${CONDITION_LABELS[post.condition] ?? post.condition}` }),
+        ),
+        el("h2", { className: "post-card__title", text: post.title }),
+        el("p", { className: "post-card__book", text: `${post.book_title}${courseText}` }),
+        el("p", { className: "post-card__price", text: formatPrice(post.price) }),
+        el("p", { className: "post-card__meta", text: `${post.seller.nickname} · ${formatDate(post.created_at)}` }),
       ),
-      el("h2", { className: "post-card__title", text: post.title }),
-      el("p", { className: "post-card__book", text: `${post.book_title}${courseText}` }),
-      el("p", { className: "post-card__price", text: formatPrice(post.price) }),
-      el("p", { className: "post-card__meta", text: `${post.seller.nickname} · ${formatDate(post.created_at)}` }),
     ),
     action,
   );
