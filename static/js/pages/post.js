@@ -2,7 +2,7 @@
 // 권한과 상태 규칙의 최종 판단은 서버가 한다. 화면은 누를 수 없는 버튼을 미리 숨기는 정도만 한다.
 import { changePostStatus, deletePost, getPost, startConversation } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, redirectToLogin, renderHeader } from "../auth.js";
-import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, statusBadge } from "../ui.js";
+import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, safeImageUrl, statusBadge } from "../ui.js";
 
 const HOME_PAGE = "/static/index.html";
 
@@ -106,6 +106,7 @@ function renderDetail(post) {
   // replaceChildren은 null을 건너뛰지 않으므로, 연락 영역이 없을 때를 대비해 걸러낸다.
   detail.replaceChildren(
     ...[
+      renderGallery(post),
       el("div", { className: "post-detail__top" }, statusBadge(post.status)),
       el("h1", { className: "post-detail__title", text: post.title }),
       el("p", { className: "post-detail__price", text: formatPrice(post.price) }),
@@ -115,6 +116,45 @@ function renderDetail(post) {
       description,
     ].filter(Boolean),
   );
+}
+
+/**
+ * 사진 영역. 사진이 없으면 null.
+ * 큰 사진 하나와, 2장 이상이면 아래에 작은 사진 버튼을 둔다. 버튼을 누르면 큰 사진이 바뀐다.
+ */
+function renderGallery(post) {
+  const images = Array.isArray(post.images) ? post.images : [];
+  if (images.length === 0) return null;
+
+  const altFor = (index) => `${post.book_title} 사진 ${index + 1}/${images.length}`;
+  const main = el("img", {
+    className: "gallery__main",
+    src: safeImageUrl(images[0].url),
+    alt: altFor(0),
+    decoding: "async",
+  });
+  const gallery = el("div", { className: "gallery" }, el("div", { className: "gallery__frame" }, main));
+  if (images.length === 1) return gallery;
+
+  const thumbs = images.map((image, index) => {
+    const button = el(
+      "button",
+      {
+        type: "button",
+        className: "gallery__thumb",
+        attrs: { "aria-label": `사진 ${index + 1} 크게 보기`, "aria-pressed": String(index === 0) },
+      },
+      el("img", { src: safeImageUrl(image.thumbnail_url), alt: "", loading: "lazy" }),
+    );
+    button.addEventListener("click", () => {
+      main.src = safeImageUrl(image.url);
+      main.alt = altFor(index);
+      for (const other of thumbs) other.setAttribute("aria-pressed", String(other === button));
+    });
+    return button;
+  });
+  gallery.append(el("div", { className: "gallery__thumbs" }, ...thumbs));
+  return gallery;
 }
 
 /**

@@ -6,6 +6,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 
 from collections.abc import Callable, Iterator  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -15,6 +16,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services import image_storage  # noqa: E402
 
 # 인메모리 SQLite는 연결마다 DB가 따로 생기므로, StaticPool로 연결 하나를 공유한다.
 test_engine = create_engine(
@@ -23,6 +25,15 @@ test_engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False)
+
+
+# 사진 업로드 테스트가 프로젝트의 uploads/ 폴더에 파일을 남기지 않도록, 모든 테스트에서
+# 사진 폴더를 테스트마다 새로 만든 임시 폴더로 바꿔 둔다.
+@pytest.fixture(autouse=True)
+def image_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    directory = tmp_path / "uploads" / "posts"
+    monkeypatch.setattr(image_storage, "get_image_dir", lambda: directory)
+    return directory
 
 
 # 테스트마다 빈 테이블에서 시작해, 테스트끼리 데이터가 섞이지 않게 한다.

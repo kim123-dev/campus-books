@@ -22,9 +22,9 @@ export class ApiError extends Error {
 /**
  * 공통 요청 함수.
  * @param {string} path 예: "/posts"
- * @param {{method?: string, query?: object, json?: object, form?: object}} options
+ * @param {{method?: string, query?: object, json?: object, form?: object, formData?: FormData}} options
  */
-export async function request(path, { method = "GET", query, json, form } = {}) {
+export async function request(path, { method = "GET", query, json, form, formData } = {}) {
   const url = new URL(path, window.location.origin);
   for (const [key, value] of Object.entries(query ?? {})) {
     // 빈 값은 보내지 않는다. 서버에서 "조건 없음"으로 처리되도록 하기 위해서다.
@@ -39,6 +39,9 @@ export async function request(path, { method = "GET", query, json, form } = {}) 
   } else if (form !== undefined) {
     // 로그인 API는 OAuth2 규격상 form 형식으로 받는다.
     body = new URLSearchParams(form);
+  } else if (formData !== undefined) {
+    // 파일 업로드. Content-Type은 브라우저가 경계(boundary) 값을 붙여 직접 정하므로 지정하지 않는다.
+    body = formData;
   }
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -100,6 +103,20 @@ export function deletePost(postId) {
   return request(`/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
 }
 
+/** 사진 한 장 올리기. 응답: {id, url, thumbnail_url}. 413(5MB 초과), 422(형식), 400(3장·판매 완료), 429 */
+export function uploadPostImage(postId, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(`/posts/${encodeURIComponent(postId)}/images`, { method: "POST", formData });
+}
+
+/** 사진 한 장 삭제. 서버가 파일도 함께 지운다. */
+export function deletePostImage(postId, imageId) {
+  return request(`/posts/${encodeURIComponent(postId)}/images/${encodeURIComponent(imageId)}`, {
+    method: "DELETE",
+  });
+}
+
 // ---------- 쪽지 ----------
 
 /** 판매글 문의 시작. 이미 대화방이 있으면 그 방을 돌려준다. (새 방 201, 기존 방 200) */
@@ -158,7 +175,7 @@ export function getMe() {
 function toApiError(status, data) {
   const detail = data?.detail;
 
-  // 400/401/403/404/409: 서버가 보낸 한국어 메시지를 그대로 보여준다.
+  // 400/401/403/404/409/413, 사진 형식 422: 서버가 보낸 한국어 메시지를 그대로 보여준다.
   if (typeof detail === "string") return new ApiError(status, detail);
 
   // 422: [{loc: ["query", "min_price"], msg, type, ctx}, ...]

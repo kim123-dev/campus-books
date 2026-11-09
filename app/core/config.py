@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     # 기본값을 두지 않아, 키 없이 실수로 서버가 뜨는 일을 막는다.
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    # 판매글 사진 저장 폴더. 누구나 받을 수 있는 static/ 밖에 두고, 이미지 전용 API로만 내려준다.
+    UPLOAD_DIR: str = "./uploads"
 
 
 # 매 요청마다 .env를 다시 읽지 않도록 한 번만 생성해 재사용한다.

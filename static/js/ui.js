@@ -127,15 +127,37 @@ export function readPostIdFromUrl() {
 
 // ---------- 판매글 카드와 페이지 이동 (목록 화면과 내 글 화면이 함께 쓴다) ----------
 
+/** 사진이 없는 글에 보여줄 기본 그림 */
+export const PLACEHOLDER_IMAGE = "/static/img/book-placeholder.svg";
+
+/**
+ * 서버가 준 사진 주소가 이미지 전용 경로(/images/...)일 때만 쓴다. 그 밖의 값이면 기본 그림.
+ * 서버가 만든 주소만 오지만, 화면도 img의 src에 엉뚱한 주소가 들어가지 않게 한 번 더 막는다.
+ */
+export function safeImageUrl(url) {
+  return typeof url === "string" && /^\/images\/[0-9a-f]{32}(_thumb)?\.webp$/.test(url) ? url : PLACEHOLDER_IMAGE;
+}
+
 /** 판매글 카드 하나(li). 누르면 상세 화면으로 간다. */
 export function renderPostCard(post) {
   const courseText = post.course_name ? ` · ${post.course_name}` : "";
+  // 카드 안의 제목이 링크 이름이 되므로, 사진은 꾸밈 요소로 두어(alt="") 화면 낭독기가 두 번 읽지 않게 한다.
+  const thumbnail = el("img", {
+    className: "post-card__thumb",
+    src: safeImageUrl(post.thumbnail_url),
+    alt: "",
+    loading: "lazy",
+    decoding: "async",
+    width: 400,
+    height: 300,
+  });
   return el(
     "li",
     {},
     el(
       "a",
       { className: "card post-card", href: `/static/post.html?id=${encodeURIComponent(post.id)}` },
+      thumbnail,
       el(
         "div",
         { className: "post-card__top" },

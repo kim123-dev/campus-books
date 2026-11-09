@@ -155,6 +155,31 @@ class PostSearchParams(BaseModel):
         return self
 
 
+# 사진은 static/이 아니라 이미지 전용 경로로만 내려준다. (app/routers/images.py)
+IMAGE_URL_PREFIX = "/images/"
+
+
+def _to_image_url(filename: Any) -> Any:
+    """DB에 저장된 파일 이름을 브라우저가 쓸 주소로 바꾼다. 사진이 없으면 None 그대로."""
+    return f"{IMAGE_URL_PREFIX}{filename}" if isinstance(filename, str) else filename
+
+
+class PostImageResponse(BaseModel):
+    """사진 한 장. 업로드 응답과 상세 응답의 images 목록이 같은 모양을 쓴다."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    # ORM의 filename/thumb_filename을 읽어 주소로 바꿔 담는다.
+    url: str = Field(validation_alias="filename")
+    thumbnail_url: str = Field(validation_alias="thumb_filename")
+
+    @field_validator("url", "thumbnail_url", mode="before")
+    @classmethod
+    def to_url(cls, value: Any) -> Any:
+        return _to_image_url(value)
+
+
 class SellerResponse(BaseModel):
     """글에 함께 보여줄 판매자 정보. 이메일은 노출하지 않는다."""
 
@@ -176,8 +201,15 @@ class PostResponse(BaseModel):
     description: str | None
     status: PostStatus
     seller: SellerResponse
+    # 목록 카드에 보여줄 첫 사진의 썸네일 주소. 사진이 없으면 null (화면은 기본 그림을 보여준다).
+    thumbnail_url: str | None = Field(default=None, validation_alias="thumbnail_filename")
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("thumbnail_url", mode="before")
+    @classmethod
+    def to_thumbnail_url(cls, value: Any) -> Any:
+        return _to_image_url(value)
 
 
 class PostDetailResponse(PostResponse):
@@ -185,6 +217,8 @@ class PostDetailResponse(PostResponse):
 
     # 로그인하지 않은 요청에는 라우터가 null로 바꿔 돌려준다.
     open_chat_url: str | None
+    # 보여주는 순서(slot)대로. 최대 3장.
+    images: list[PostImageResponse]
 
 
 class PostListResponse(BaseModel):

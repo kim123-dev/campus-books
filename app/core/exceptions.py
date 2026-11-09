@@ -29,6 +29,10 @@ class PostNotFoundError(NotFoundError):
     message = "게시글을 찾을 수 없습니다."
 
 
+class ImageNotFoundError(NotFoundError):
+    message = "사진을 찾을 수 없습니다."
+
+
 class ConversationNotFoundError(NotFoundError):
     message = "대화방을 찾을 수 없습니다."
 
@@ -49,6 +53,10 @@ class BadRequestError(DomainError):
     """형식은 맞지만 현재 상태에서 허용되지 않는 요청. main.py에서 400으로 변환한다."""
 
 
+class TooManyImagesError(BadRequestError):
+    message = "사진은 글 하나에 3장까지 올릴 수 있습니다."
+
+
 class SoldPostNotEditableError(BadRequestError):
     message = "판매 완료된 글은 수정할 수 없습니다."
 
@@ -65,6 +73,22 @@ class SoldPostNotContactableError(BadRequestError):
     message = "판매 완료된 글에는 새로 문의할 수 없습니다."
 
 
+class PayloadTooLargeError(DomainError):
+    """요청 본문(업로드 파일)이 너무 큼. main.py에서 413으로 변환한다."""
+
+
+class ImageTooLargeError(PayloadTooLargeError):
+    message = "사진은 한 장에 5MB까지 올릴 수 있습니다."
+
+
+class UnprocessableError(DomainError):
+    """형식은 받았지만 내용을 처리할 수 없음(예: 이미지가 아닌 파일). main.py에서 422로 변환한다."""
+
+
+class UnsupportedImageError(UnprocessableError):
+    message = "JPG, PNG, WebP 사진만 올릴 수 있습니다."
+
+
 class TooManyRequestsError(DomainError):
     """짧은 시간에 요청이 너무 많음. main.py에서 429로 변환한다."""
 
@@ -79,6 +103,10 @@ class TooManyRequestsError(DomainError):
 
 class MessageRateLimitError(TooManyRequestsError):
     message = "메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해 주세요."
+
+
+class ImageUploadRateLimitError(TooManyRequestsError):
+    message = "사진을 너무 많이 올리고 있습니다. 잠시 후 다시 시도해 주세요."
 
 
 class AuthenticationError(DomainError):

@@ -1,10 +1,10 @@
 import mimetypes
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  모델을 등록해야 create_all이 테이블을 만든다.
@@ -14,10 +14,14 @@ from app.core.exceptions import (
     BadRequestError,
     ConflictError,
     ForbiddenError,
+    ImageTooLargeError,
     NotFoundError,
+    PayloadTooLargeError,
     TooManyRequestsError,
+    UnprocessableError,
 )
-from app.routers import auth, conversations, posts, users
+from app.routers import auth, conversations, images, posts, users
+from app.services.image_service import MAX_IMAGE_BYTES
 
 # 실행 위치와 상관없이 프로젝트 루트의 static/ 폴더를 가리키도록 이 파일 기준으로 잡는다.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -44,6 +48,26 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(posts.router)
 app.include_router(conversations.router)
+app.include_router(images.router)
+
+# multipart 본문에는 파일 말고도 경계 문자열·헤더가 붙으므로 그만큼 여유를 둔다.
+MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024
+
+
+# 사진 크기 제한(5MB)은 서비스가 읽으면서 다시 확인한다. 여기서는 Content-Length만 보고
+# 너무 큰 요청을 본문을 받기 전에 바로 413으로 돌려보낸다. (임시 파일에 수십 MB를 쓰지 않도록)
+@app.middleware("http")
+async def reject_large_upload(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    if request.method == "POST" and request.url.path.endswith("/images"):
+        length = request.headers.get("content-length")
+        if length is not None and length.isdigit() and int(length) > MAX_UPLOAD_REQUEST_BYTES:
+            return JSONResponse(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                content={"detail": ImageTooLargeError().message},
+            )
+    return await call_next(request)
 
 # 프론트 화면은 API와 같은 서버(같은 출처)에서 제공해 CORS 설정 없이 API를 호출한다.
 # API 경로와 섞이지 않도록 /static 아래에만 둔다.
@@ -76,6 +100,19 @@ async def forbidden_error_handler(_: Request, exc: ForbiddenError) -> JSONRespon
 @app.exception_handler(BadRequestError)
 async def bad_request_error_handler(_: Request, exc: BadRequestError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": exc.message})
+
+
+@app.exception_handler(PayloadTooLargeError)
+async def payload_too_large_error_handler(_: Request, exc: PayloadTooLargeError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_413_CONTENT_TOO_LARGE, content={"detail": exc.message})
+
+
+# Pydantic 검증 실패(422)와 같은 상태 코드지만, 사람이 읽을 메시지 하나만 담는다.
+@app.exception_handler(UnprocessableError)
+async def unprocessable_error_handler(_: Request, exc: UnprocessableError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": exc.message}
+    )
 
 
 # 429 응답에는 언제 다시 시도하면 되는지 알려주는 Retry-After 헤더(초)를 함께 보낸다.

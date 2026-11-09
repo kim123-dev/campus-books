@@ -390,6 +390,104 @@ a.button {
   font-size: 0.875rem;
 }
 
+/* label이 아닌 칸 제목 (사진 칸은 버튼 모양 label을 따로 쓴다) */
+.field-label {
+  color: var(--color-sub);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+/* ---------- 글쓰기: 사진 ---------- */
+
+/* 375px에서도 3장이 한 줄에 들어가도록 칸 너비를 나눈다. */
+.photo-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  max-width: 360px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.photo-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.photo-tile__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: var(--color-fill);
+  object-fit: cover;
+}
+
+.photo-tile--removed .photo-tile__image {
+  opacity: 0.35;
+}
+
+.photo-tile__button {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-fill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photo-tile__button:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+}
+
+.photo-tile__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.photo-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* .field input의 너비·여백 규칙이 .visually-hidden보다 우선하므로, 숨긴 파일 입력칸은 여기서 다시 1px로 줄인다.
+   (줄이지 않으면 375px 화면에서 가로 스크롤이 생긴다) */
+.field .photo-picker input[type="file"] {
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+}
+
+/* 파일 입력칸은 숨기고 label을 버튼처럼 보여준다. .field label의 글자 모양을 버튼 모양으로 되돌린다. */
+.field .photo-picker__button {
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.photo-picker input:focus-visible + .photo-picker__button {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.photo-picker input:disabled + .photo-picker__button {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.photo-picker__count {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -472,6 +570,18 @@ a.button {
 
 .post-card:focus-visible {
   box-shadow: var(--shadow-card-hover);
+}
+
+/* 목록 카드 사진. 4:3 칸을 꽉 채우고(cover) 넘치는 부분은 잘라 카드 높이를 고르게 맞춘다. */
+.post-card__thumb {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 12px;
+  border-radius: var(--radius-control);
+  background: var(--color-fill);
+  object-fit: cover;
 }
 
 .post-card__top {
@@ -644,6 +754,56 @@ a.button {
 .post-detail__subtitle {
   margin: 24px 0 8px;
   font-size: 1.0625rem;
+}
+
+/* 상세 사진. 책 표지가 잘리지 않도록 4:3 칸 안에 통째로(contain) 보여준다. */
+.gallery {
+  margin-bottom: 20px;
+}
+
+.gallery__frame {
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-control);
+  background: var(--color-fill);
+}
+
+.gallery__main {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.gallery__thumbs {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.gallery__thumb {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-fill);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--duration) var(--ease);
+}
+
+.gallery__thumb[aria-pressed="true"] {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.gallery__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* 연락 방법: 오픈채팅 버튼 또는 로그인 안내 */

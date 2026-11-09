@@ -1,11 +1,12 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, select
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.core.database import Base
+from app.models.post_image import PostImage
 from app.models.user import User
 
 
@@ -62,3 +63,19 @@ class Post(Base):
 
     # User 쪽에는 관계를 두지 않는다. 지금은 글 → 판매자 방향만 필요하다.
     seller: Mapped[User] = relationship()
+    # 상세 화면의 사진들. 보여주는 순서(slot)대로 정렬한다.
+    # SQLite는 FK의 ON DELETE CASCADE를 실행하지 않으므로, 글을 지울 때 ORM이 사진 행도 함께 지우게 한다.
+    images: Mapped[list[PostImage]] = relationship(
+        order_by=PostImage.slot, cascade="all, delete-orphan"
+    )
+
+    # 목록 카드에 쓸 첫 사진의 썸네일 파일 이름. 글을 읽는 SELECT 안에 하위 쿼리로 함께 가져와,
+    # 목록 요청의 쿼리 수가 늘지 않게 한다. (글마다 사진을 따로 조회하는 N+1 방지)
+    thumbnail_filename: Mapped[str | None] = column_property(
+        select(PostImage.thumb_filename)
+        .where(PostImage.post_id == id)
+        .order_by(PostImage.slot)
+        .limit(1)
+        .correlate_except(PostImage)
+        .scalar_subquery()
+    )

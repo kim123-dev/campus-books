@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="사진 없음">
+  <!-- 사진이 없는 글의 기본 그림. 카드 4:3 비율에 맞춘 연회색 면 + 책 아이콘 -->
+  <rect width="400" height="300" fill="#eff1f4"/>
+  <g fill="none" stroke="#9aa1ad" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M200 112c-22-14-48-18-72-16v100c24-2 50 2 72 16 22-14 48-18 72-16V96c-24-2-50 2-72 16z"/>
+    <path d="M200 112v100"/>
+  </g>
+</svg>

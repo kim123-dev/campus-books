@@ -185,3 +185,36 @@ def test_front_status_transitions_match_server() -> None:
     }
 
     assert _read_front_transitions() == server
+
+
+# ---------- 사진 ----------
+
+POST_FORM_JS = STATIC_DIR / "js" / "pages" / "post-form.js"
+
+
+def test_placeholder_image_is_served(client: TestClient) -> None:
+    response = client.get("/static/img/book-placeholder.svg")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+
+
+def test_post_form_has_photo_input_limited_to_allowed_types(client: TestClient) -> None:
+    html = client.get("/static/post-form.html").text
+
+    assert 'type="file"' in html
+    assert 'accept="image/jpeg,image/png,image/webp"' in html
+
+
+def test_front_photo_limits_match_server() -> None:
+    # 화면의 미리 검사(장수·크기)가 서버 규칙과 어긋나면 화면은 통과시키고 서버가 거절하는 일이 생긴다.
+    from app.models import MAX_IMAGES_PER_POST
+    from app.services.image_service import MAX_IMAGE_BYTES
+
+    source = POST_FORM_JS.read_text(encoding="utf-8")
+    photos = re.search(r"const MAX_PHOTOS = (\d+);", source)
+    size = re.search(r"const MAX_PHOTO_BYTES = (\d+) \* 1024 \* 1024;", source)
+    assert photos and size, "post-form.js에서 MAX_PHOTOS / MAX_PHOTO_BYTES를 찾지 못했습니다."
+
+    assert int(photos.group(1)) == MAX_IMAGES_PER_POST
+    assert int(size.group(1)) * 1024 * 1024 == MAX_IMAGE_BYTES

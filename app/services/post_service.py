@@ -9,6 +9,7 @@ from app.core.exceptions import (
 )
 from app.models import Conversation, Post, PostStatus, User
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
+from app.services import image_storage
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
@@ -54,9 +55,7 @@ def to_detail_response(post: Post, show_contact: bool) -> PostDetailResponse:
 
 def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post:
     """글 내용 수정. 보낸 필드만 바꾸고, 판매 완료된 글은 SoldPostNotEditableError(400)."""
-    post = _get_own_post(db, post_id, user)
-    if post.status == PostStatus.SOLD:
-        raise SoldPostNotEditableError()
+    post = get_editable_post(db, post_id, user)
 
     # exclude_unset: 요청에 없던 필드를 None으로 덮어쓰지 않게 한다. 빈 본문이면 아무것도 바뀌지 않는다.
     for field, value in data.model_dump(exclude_unset=True).items():
@@ -77,14 +76,25 @@ def change_status(db: Session, post_id: int, user: User, new_status: PostStatus)
     return _commit_and_refresh(db, post)
 
 
+def get_editable_post(db: Session, post_id: int, user: User) -> Post:
+    """내용·사진을 바꿀 수 있는 내 글. 순서: 404 글 없음 → 403 작성자 아님 → 400 판매 완료."""
+    post = _get_own_post(db, post_id, user)
+    if post.status == PostStatus.SOLD:
+        raise SoldPostNotEditableError()
+    return post
+
+
 def delete_post(db: Session, post_id: int, user: User) -> None:
-    """글 삭제(hard delete). 판매 완료된 글도 삭제할 수 있다. 쪽지 대화방은 남긴다."""
+    """글 삭제(hard delete). 판매 완료된 글도 삭제할 수 있다. 쪽지 대화방은 남기고 사진은 지운다."""
     post = _get_own_post(db, post_id, user)
     # 대화 기록은 거래 분쟁 때 필요하므로 지우지 않고 글 연결만 끊는다.
     # FK의 ondelete="SET NULL"은 SQLite가 FK를 검사하지 않아 동작하지 않으므로 직접 바꾼다.
     db.execute(update(Conversation).where(Conversation.post_id == post.id).values(post_id=None))
-    db.delete(post)
+    image_names = [name for image in post.images for name in (image.filename, image.thumb_filename)]
+    db.delete(post)  # 사진 행은 relationship cascade로 함께 지워진다.
     db.commit()
+    # 파일은 DB 커밋이 성공한 뒤에 지운다. 순서가 반대면 커밋 실패 시 행은 있는데 파일이 없는 사진이 생긴다.
+    image_storage.remove_files(image_names)
 
 
 def list_posts(

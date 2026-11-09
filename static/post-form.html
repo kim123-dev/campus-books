@@ -98,6 +98,28 @@
             <p class="field-error" data-error-for="open_chat_url" hidden></p>
           </div>
 
+          <!-- 사진은 글 저장 뒤에 한 장씩 따로 올린다. (static/js/pages/post-form.js) -->
+          <div class="field">
+            <span class="field-label" id="photos-label">사진 (선택)</span>
+            <ul id="photo-list" class="photo-list" aria-labelledby="photos-label"></ul>
+            <div class="photo-picker">
+              <input
+                id="photos"
+                class="visually-hidden"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                aria-describedby="photos-hint photo-count"
+              />
+              <label for="photos" class="button photo-picker__button">사진 추가</label>
+              <span id="photo-count" class="photo-picker__count" aria-live="polite">0/3</span>
+            </div>
+            <p id="photos-hint" class="field-hint">
+              JPG·PNG·WebP, 한 장에 5MB까지 최대 3장. 사진 속 위치 정보(GPS)는 저장되지 않습니다.
+            </p>
+            <p id="photos-error" class="field-error" role="alert" hidden></p>
+          </div>
+
           <p id="form-error" class="form-error" role="alert" hidden></p>
 
           <div class="form-actions">

@@ -1,16 +1,28 @@
 // 작성·수정 공용 화면. 주소에 ?id=가 있으면 수정 모드, 없으면 작성 모드다.
 // 입력 규칙 검사는 서버가 하고, 화면은 서버 메시지를 칸 아래(422)나 폼 아래(400·403·404)에 보여준다.
-import { createPost, getPost, updatePost } from "../api.js";
+// 사진은 글(JSON)을 저장한 뒤 지울 사진 → 새 사진 순서로 한 장씩 따로 보낸다.
+import { createPost, deletePostImage, getPost, updatePost, uploadPostImage } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
 import { getToken } from "../token.js";
-import { clearFormErrors, readPostIdFromUrl, showFormErrors } from "../ui.js";
+import { clearFormErrors, el, readPostIdFromUrl, safeImageUrl, showFormErrors } from "../ui.js";
 
 const HOME_PAGE = "/static/index.html";
 const TEXT_FIELDS = ["title", "book_title", "course_name", "description", "open_chat_url"];
 
-const isEdit = new URLSearchParams(window.location.search).has("id");
-const postId = isEdit ? readPostIdFromUrl() : null;
-const submitLabel = isEdit ? "저장하기" : "등록하기";
+// 서버 규칙과 같은 값. 서버가 최종 검사하고(400·413·422), 화면은 올리기 전에 미리 알려주는 용도다.
+const MAX_PHOTOS = 3;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+// 사진 업로드가 일부 실패하면 작성 모드에서 수정 모드로 바뀌므로 let으로 둔다.
+let isEdit = new URLSearchParams(window.location.search).has("id");
+let postId = isEdit ? readPostIdFromUrl() : null;
+let submitLabel = isEdit ? "저장하기" : "등록하기";
+
+// 이미 올라간 사진: {id, url, thumbnail_url, removed}. removed면 저장할 때 지운다.
+let existingPhotos = [];
+// 새로 고른 사진: {file, previewUrl}. previewUrl은 브라우저 안에서만 쓰는 임시 주소다.
+let newPhotos = [];
 
 const pageStatus = document.getElementById("page-status");
 const pageError = document.getElementById("page-error");
@@ -20,8 +32,14 @@ const formCard = document.getElementById("form-card");
 const form = document.getElementById("post-form");
 const formError = document.getElementById("form-error");
 const submitButton = form.querySelector('button[type="submit"]');
+const photoInput = document.getElementById("photos");
+const photoList = document.getElementById("photo-list");
+const photoCount = document.getElementById("photo-count");
+const photosError = document.getElementById("photos-error");
 
 form.addEventListener("submit", onSubmit);
+photoInput.addEventListener("change", onPhotosSelected);
+renderPhotos();
 init();
 
 // ---------- 화면 준비 ----------
@@ -106,6 +124,91 @@ function fillForm(post) {
   for (const field of TEXT_FIELDS) form.elements.namedItem(field).value = post[field] ?? "";
   form.elements.condition.value = post.condition;
   form.elements.price.value = String(post.price);
+  setExistingPhotos(post.images);
+}
+
+// ---------- 사진 고르기 ----------
+
+function setExistingPhotos(images) {
+  existingPhotos = (Array.isArray(images) ? images : []).map((image) => ({ ...image, removed: false }));
+  renderPhotos();
+}
+
+function photoTotal() {
+  return existingPhotos.filter((photo) => !photo.removed).length + newPhotos.length;
+}
+
+// 고른 파일을 미리 검사한다. 걸린 파일은 빼고 이유를 보여주며, 통과한 파일은 미리보기에 더한다.
+function onPhotosSelected() {
+  const problems = [];
+  for (const file of photoInput.files) {
+    if (!PHOTO_TYPES.includes(file.type)) {
+      problems.push(`${file.name}: JPG, PNG, WebP 사진만 올릴 수 있습니다.`);
+    } else if (file.size > MAX_PHOTO_BYTES) {
+      problems.push(`${file.name}: 사진은 한 장에 5MB까지 올릴 수 있습니다.`);
+    } else if (photoTotal() >= MAX_PHOTOS) {
+      problems.push(`사진은 ${MAX_PHOTOS}장까지 올릴 수 있어 ${file.name}은(는) 빼었습니다.`);
+    } else {
+      newPhotos.push({ file, previewUrl: URL.createObjectURL(file) });
+    }
+  }
+  // 같은 파일을 지웠다가 다시 고를 수 있도록 선택값을 비운다.
+  photoInput.value = "";
+  showPhotosError(problems.join(" "));
+  renderPhotos();
+}
+
+function renderPhotos() {
+  const tiles = [
+    ...existingPhotos.map((photo, index) =>
+      photoTile(safeImageUrl(photo.thumbnail_url), `올린 사진 ${index + 1}`, photo.removed, () => {
+        // 이미 올린 사진은 바로 지우지 않고 표시만 해 두었다가 저장할 때 지운다. 다시 누르면 되돌린다.
+        if (photo.removed && photoTotal() >= MAX_PHOTOS) {
+          showPhotosError(`사진은 ${MAX_PHOTOS}장까지라 되돌리려면 새 사진을 먼저 빼 주세요.`);
+          return;
+        }
+        photo.removed = !photo.removed;
+        showPhotosError("");
+        renderPhotos();
+      }),
+    ),
+    ...newPhotos.map((photo, index) =>
+      photoTile(photo.previewUrl, `새 사진 ${index + 1}`, false, () => {
+        URL.revokeObjectURL(photo.previewUrl); // 브라우저가 붙잡고 있는 미리보기 메모리를 놓아준다.
+        newPhotos = newPhotos.filter((item) => item !== photo);
+        showPhotosError("");
+        renderPhotos();
+      }),
+    ),
+  ];
+  photoList.replaceChildren(...tiles);
+  photoList.hidden = tiles.length === 0;
+
+  const total = photoTotal();
+  photoCount.textContent = `${total}/${MAX_PHOTOS}`;
+  // 3장이 차면 "사진 추가"를 막는다. (label은 disabled가 없으므로 input을 막고 모양만 바꾼다)
+  photoInput.disabled = total >= MAX_PHOTOS;
+}
+
+function photoTile(src, label, removed, onToggle) {
+  const button = el("button", {
+    type: "button",
+    className: "photo-tile__button",
+    text: removed ? "되돌리기" : "빼기",
+    attrs: { "aria-label": `${label} ${removed ? "되돌리기" : "빼기"}` },
+  });
+  button.addEventListener("click", onToggle);
+  return el(
+    "li",
+    { className: removed ? "photo-tile photo-tile--removed" : "photo-tile" },
+    el("img", { className: "photo-tile__image", src, alt: removed ? `${label} (저장하면 삭제됨)` : label }),
+    button,
+  );
+}
+
+function showPhotosError(message) {
+  photosError.textContent = message;
+  photosError.hidden = message === "";
 }
 
 // ---------- 저장 ----------
@@ -135,10 +238,9 @@ async function onSubmit(event) {
   clearFormErrors(form, formError);
   setSubmitting(true);
 
+  let saved;
   try {
-    const saved = isEdit ? await updatePost(postId, readPayload()) : await createPost(readPayload());
-    // replace를 써서, 뒤로 가기를 눌렀을 때 입력이 끝난 폼으로 돌아오지 않게 한다.
-    window.location.replace(postDetailUrl(saved.id));
+    saved = isEdit ? await updatePost(postId, readPayload()) : await createPost(readPayload());
   } catch (error) {
     if (error.status === 401) {
       // 토큰이 만료되었다. 로그인 후 이 화면으로 돌아온다. (입력한 내용은 남지 않는다)
@@ -149,11 +251,71 @@ async function onSubmit(event) {
     showFormErrors(form, formError, error);
     form.querySelector('[aria-invalid="true"]')?.focus();
     setSubmitting(false);
+    return;
   }
+
+  const failures = await savePhotos(saved.id);
+  if (failures === null) return; // 로그인 화면으로 이동했다.
+  if (failures.length === 0) {
+    // replace를 써서, 뒤로 가기를 눌렀을 때 입력이 끝난 폼으로 돌아오지 않게 한다.
+    window.location.replace(postDetailUrl(saved.id));
+    return;
+  }
+  await showPartialFailure(saved.id, failures);
+}
+
+/**
+ * 지울 사진을 지우고 새 사진을 한 장씩 올린다. 실패한 사진의 메시지 목록을 돌려준다. (401이면 null)
+ * 지우기를 먼저 해야 "3장 중 1장 바꾸기"가 3장 제한(400)에 걸리지 않는다.
+ */
+async function savePhotos(id) {
+  const failures = [];
+  const tasks = [
+    ...existingPhotos.filter((photo) => photo.removed).map((photo) => () => deletePostImage(id, photo.id)),
+    ...newPhotos.map((photo) => () => uploadPostImage(id, photo.file)),
+  ];
+  for (const [index, task] of tasks.entries()) {
+    submitButton.textContent = `사진 저장 중… (${index + 1}/${tasks.length})`;
+    try {
+      await task();
+    } catch (error) {
+      if (error.status === 401) {
+        redirectToLogin();
+        return null;
+      }
+      failures.push(error.message);
+    }
+  }
+  return failures;
+}
+
+// 글은 저장됐으므로 다시 저장해도 글이 두 번 생기지 않게 수정 모드로 바꾸고, 서버의 현재 사진을 다시 보여준다.
+async function showPartialFailure(id, failures) {
+  for (const photo of newPhotos) URL.revokeObjectURL(photo.previewUrl);
+  newPhotos = [];
+  if (!isEdit) {
+    isEdit = true;
+    postId = String(id);
+    submitLabel = "저장하기";
+    window.history.replaceState(null, "", `/static/post-form.html?id=${encodeURIComponent(id)}`);
+    showForm();
+  }
+  try {
+    setExistingPhotos((await getPost(id)).images);
+  } catch {
+    setExistingPhotos([]);
+  }
+  const count = failures.length;
+  formError.textContent = `글은 저장됐지만 사진 ${count}장을 처리하지 못했습니다: ${[...new Set(failures)].join(" ")}`;
+  formError.hidden = false;
+  setSubmitting(false);
 }
 
 function setSubmitting(isSubmitting) {
   submitButton.disabled = isSubmitting;
+  // 저장하는 동안 사진을 바꾸면 무엇이 올라갔는지 헷갈리므로 막는다.
+  photoInput.disabled = isSubmitting || photoTotal() >= MAX_PHOTOS;
+  for (const button of photoList.querySelectorAll("button")) button.disabled = isSubmitting;
   submitButton.textContent = isSubmitting ? "저장 중…" : submitLabel;
 }
 
