@@ -2,7 +2,9 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- interactive-widget=resizes-content: 안드로이드 Chrome에서 키보드가 올라오면 화면 높이(dvh)도 줄어 입력창이 키보드 위에 남는다.
+         iOS Safari는 이 값을 모르므로 chat.js가 visualViewport 높이로 맞춘다. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>쪽지 | Campus Books</title>
     <link rel="stylesheet" href="/static/css/style.css" />
     <script type="module" src="/static/js/pages/chat.js"></script>

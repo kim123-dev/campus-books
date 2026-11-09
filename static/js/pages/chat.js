@@ -17,7 +17,15 @@ import {
   openReportDialog,
 } from "../safety.js";
 import { getToken, onTokenChangedInOtherTab } from "../token.js";
-import { clearFormErrors, el, formatShortDate, readPostIdFromUrl, showFormErrors, statusBadge } from "../ui.js";
+import {
+  MOBILE_QUERY,
+  clearFormErrors,
+  el,
+  formatShortDate,
+  readPostIdFromUrl,
+  showFormErrors,
+  statusBadge,
+} from "../ui.js";
 
 const POLL_INTERVAL_MS = 5000; // 새 메시지 확인 간격
 const POLL_RETRY_INTERVAL_MS = 15000; // 연결이 불안정할 때는 서버에 부담을 덜 주도록 늦춘다.
@@ -130,6 +138,7 @@ async function init() {
 
   refreshUnreadBadge(); // 방금 읽음 처리된 만큼 헤더 숫자가 줄어든다.
   bindEvents();
+  bindMobileKeyboard();
   schedulePoll(POLL_INTERVAL_MS);
 }
 
@@ -168,6 +177,45 @@ function bindEvents() {
     if (document.hidden) cancelPoll();
     else schedulePoll(0);
   });
+}
+
+// ---------- 모바일 키보드 ----------
+
+/**
+ * 휴대폰에서 키보드가 올라와도 입력창과 마지막 메시지가 가려지지 않게 한다.
+ * - 화면 높이: iOS Safari는 키보드가 올라와도 페이지 높이(dvh)를 줄이지 않고 화면 일부를 덮는다.
+ *   그래서 실제로 보이는 높이(visualViewport.height)를 CSS 변수로 넘겨 대화 화면 높이로 쓴다.
+ *   메시지 영역 크기가 바뀌면 bindEvents의 ResizeObserver가 맨 아래로 다시 맞춘다.
+ * - 입력 중(is-typing): 좁아진 화면을 메시지에 쓰도록 사이트 헤더·"← 쪽지함"·신고/차단 줄을 접는다. (CSS)
+ * - 보내기 버튼: 누를 때 입력창에서 포커스가 빠지면 키보드가 내려갔다 다시 올라와 화면이 흔들린다.
+ *   버튼이 포커스를 가져가지 않게 해 키보드를 그대로 둔다. (클릭·전송은 그대로 일어난다)
+ */
+function bindMobileKeyboard() {
+  const mobileQuery = window.matchMedia(MOBILE_QUERY);
+  const viewport = window.visualViewport;
+  const root = document.documentElement;
+
+  const fitHeight = () => {
+    if (viewport && mobileQuery.matches) {
+      root.style.setProperty("--chat-viewport-height", `${Math.round(viewport.height)}px`);
+      // iOS는 입력창을 보이게 하려고 페이지를 밀어 올린다. 높이를 맞췄으니 원래 위치로 되돌린다.
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+    } else {
+      root.style.removeProperty("--chat-viewport-height");
+    }
+  };
+  viewport?.addEventListener("resize", fitHeight);
+  mobileQuery.addEventListener("change", fitHeight);
+  fitHeight();
+
+  textarea.addEventListener("focus", () => document.body.classList.toggle("is-typing", mobileQuery.matches));
+  textarea.addEventListener("blur", () => document.body.classList.remove("is-typing"));
+
+  const keepTextareaFocus = (event) => {
+    if (document.activeElement === textarea) event.preventDefault();
+  };
+  submitButton.addEventListener("pointerdown", keepTextareaFocus);
+  submitButton.addEventListener("mousedown", keepTextareaFocus);
 }
 
 function renderChatHeader(conversation) {

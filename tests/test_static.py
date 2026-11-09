@@ -329,3 +329,37 @@ def test_mobile_inputs_are_at_least_16px() -> None:
     css = STYLE_CSS.read_text(encoding="utf-8")
     mobile = css.split("@media (max-width: 767.98px) {", 1)[1]
     assert re.search(r"input,\s*select,\s*textarea \{\s*font-size: max\(16px, 1em\);", mobile)
+
+
+def test_js_uses_shared_mobile_query() -> None:
+    # 화면별 JS가 폭을 직접 적으면 CSS 기준과 어긋날 수 있으므로, ui.js의 MOBILE_QUERY만 쓴다.
+    for path in (STATIC_DIR / "js").rglob("*.js"):
+        if path.name == "ui.js":
+            continue
+        assert "max-width" not in path.read_text(encoding="utf-8"), path.name
+
+
+def test_chat_page_resizes_with_keyboard() -> None:
+    # 안드로이드 Chrome이 키보드 높이만큼 화면(dvh)을 줄이게 한다. iOS는 chat.js가 visualViewport로 맞춘다.
+    html = (STATIC_DIR / "chat.html").read_text(encoding="utf-8")
+    assert "interactive-widget=resizes-content" in html
+    source = (STATIC_DIR / "js" / "pages" / "chat.js").read_text(encoding="utf-8")
+    assert "visualViewport" in source and "--chat-viewport-height" in source
+    css = STYLE_CSS.read_text(encoding="utf-8").split("@media (max-width: 767.98px) {", 1)[1]
+    assert "var(--chat-viewport-height, 100dvh)" in css
+
+
+def test_send_button_keeps_textarea_focus() -> None:
+    # 보내기 버튼이 포커스를 가져가면 모바일 키보드가 내려갔다 다시 올라온다.
+    source = (STATIC_DIR / "js" / "pages" / "chat.js").read_text(encoding="utf-8")
+    assert re.search(r'submitButton\.addEventListener\("pointerdown", keepTextareaFocus\)', source)
+    assert re.search(r'submitButton\.addEventListener\("mousedown", keepTextareaFocus\)', source)
+
+
+def test_gallery_is_swipeable_only_on_mobile() -> None:
+    # PC는 작은 사진 버튼으로만 넘기고(스크롤 막음), 모바일만 손가락으로 넘긴다.
+    css = STYLE_CSS.read_text(encoding="utf-8")
+    base, mobile = css.split("@media (max-width: 767.98px) {", 1)
+    assert re.search(r"\.gallery__track \{[^}]*overflow-x: hidden;[^}]*scroll-snap-type: x mandatory;", base)
+    assert re.search(r"\.gallery__track \{\s*overflow-x: auto;", mobile)
+    assert re.search(r"\.gallery__main \{[^}]*scroll-snap-align: start;", base)

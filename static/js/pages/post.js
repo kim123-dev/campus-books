@@ -10,7 +10,16 @@ import {
   confirmUnblock,
   openReportDialog,
 } from "../safety.js";
-import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, safeImageUrl, statusBadge } from "../ui.js";
+import {
+  CONDITION_LABELS,
+  MOBILE_QUERY,
+  el,
+  formatDate,
+  formatPrice,
+  readPostIdFromUrl,
+  safeImageUrl,
+  statusBadge,
+} from "../ui.js";
 import { createWishlistButton } from "../wishlist-button.js";
 
 const HOME_PAGE = "/static/index.html";
@@ -44,6 +53,17 @@ const actionError = document.getElementById("action-error");
 
 // 로그인한 사용자(없으면 null). 내 글인지, 연락 방법 안내를 어떻게 할지 고를 때 쓴다.
 let currentUser = null;
+
+// 모바일 하단 연락 바: 가격·찜 하트·문의 버튼을 화면 아래에 고정해, 긴 설명을 읽다가도 바로 문의할 수 있게 한다.
+// 하트와 문의 버튼은 새로 만들지 않고 글 영역에서 옮겨 온다. (같은 버튼이 두 개면 찜 상태가 어긋나기 때문)
+// PC(768px 이상)로 바뀌면 원래 자리로 되돌린다.
+const mobileQuery = window.matchMedia(MOBILE_QUERY);
+const contactBarRow = el("div", { className: "contact-bar__row" });
+const contactBar = el("section", { className: "contact-bar", attrs: { "aria-label": "가격과 문의" }, hidden: true }, contactBarRow);
+document.body.append(contactBar);
+// 바에 넣을 것들. 바가 필요 없는 글(내 글·판매 완료·차단)이면 null.
+let barParts = null;
+mobileQuery.addEventListener("change", placeContactBar);
 
 // 헤더(/users/me)와 글 조회를 동시에 시작한다. renderHeader는 실패해도 null을 돌려주고 멈추지 않는다.
 const mePromise = renderHeader(document.getElementById("site-header"));
@@ -112,20 +132,78 @@ function renderDetail(post) {
     ? el("p", { className: "post-detail__description", text: post.description })
     : el("p", { className: "post-detail__description post-detail__description--empty", text: "설명이 없습니다." });
 
+  const heart = renderWishlistButton(post);
+  const contact = renderContact(post);
   // replaceChildren은 null을 건너뛰지 않으므로, 연락 영역이 없을 때를 대비해 걸러낸다.
   detail.replaceChildren(
     ...[
       renderGallery(post),
-      el("div", { className: "post-detail__top" }, statusBadge(post.status), renderWishlistButton(post)),
+      el("div", { className: "post-detail__top" }, statusBadge(post.status), heart),
       el("h1", { className: "post-detail__title", text: post.title }),
       el("p", { className: "post-detail__price", text: formatPrice(post.price) }),
       info,
-      renderContact(post),
+      contact,
       el("h2", { className: "post-detail__subtitle", text: "설명" }),
       description,
       renderSafety(post),
     ].filter(Boolean),
   );
+  setupContactBar(post, heart, contact);
+}
+
+// ---------- 모바일 하단 연락 바 ----------
+
+/**
+ * 문의할 수 있는 글(내 글·판매 완료·차단한 판매자가 아님)에만 바를 만든다.
+ * - 로그인: 찜 하트 + 가격 + "쪽지로 문의하기" (오픈채팅은 보조 버튼이라 글 영역에 남긴다)
+ * - 비로그인: 찜 하트 + 가격 + "로그인하고 문의하기"
+ */
+function setupContactBar(post, heart, contact) {
+  // 다시 그릴 때(상태 변경·차단) 이전 바의 버튼은 이미 지워진 글 영역의 것이므로 비운다.
+  contactBarRow.replaceChildren();
+  contactBar.querySelector("#contact-error")?.remove();
+  barParts = null;
+  const isOwner = currentUser !== null && currentUser.id === post.seller.id;
+  if (post.status !== "SOLD" && post.is_seller_blocked !== true && !isOwner && contact !== null) {
+    const inquiry = contact.querySelector("#inquiry-button");
+    const error = contact.querySelector("#contact-error");
+    const moved = [heart, inquiry, error].filter(Boolean).map((node) => {
+      // 원래 자리를 표시해 두었다가 PC로 바뀌면 그 자리로 되돌린다.
+      const marker = document.createComment("");
+      node.before(marker);
+      return { node, marker };
+    });
+    barParts = {
+      heart,
+      error,
+      // 가격은 글 영역에도 있으므로 화면 낭독기에는 한 번만 읽히게 숨긴다.
+      price: el("p", { className: "contact-bar__price", text: formatPrice(post.price), attrs: { "aria-hidden": "true" } }),
+      primary:
+        inquiry ?? el("a", { className: "button button--primary", href: authPageUrl(LOGIN_PAGE), text: "로그인하고 문의하기" }),
+      moved,
+      contact,
+    };
+  }
+  placeContactBar();
+}
+
+/** 화면 폭에 맞춰 하트·문의 버튼을 바(모바일) 또는 글 영역(PC)에 둔다. */
+function placeContactBar() {
+  const onMobile = barParts !== null && mobileQuery.matches;
+  if (barParts !== null) {
+    const { heart, error, price, primary, moved, contact } = barParts;
+    if (onMobile) {
+      contactBarRow.replaceChildren(...[heart, price, primary].filter(Boolean));
+      if (error) contactBar.prepend(error);
+    } else {
+      for (const { node, marker } of moved) marker.after(node);
+    }
+    // 문의 버튼을 옮긴 뒤 글 영역의 "연락하기"에 남은 것이 없으면 제목만 남지 않게 숨긴다.
+    const actions = contact.querySelector(".post-detail__contact-actions");
+    contact.hidden = onMobile && actions !== null && actions.children.length === 0;
+  }
+  contactBar.hidden = !onMobile;
+  document.body.classList.toggle("has-contact-bar", onMobile);
 }
 
 // ---------- 신고·차단 ----------
@@ -214,21 +292,53 @@ function renderWishlistButton(post) {
 
 /**
  * 사진 영역. 사진이 없으면 null.
- * 큰 사진 하나와, 2장 이상이면 아래에 작은 사진 버튼을 둔다. 버튼을 누르면 큰 사진이 바뀐다.
+ * 사진을 가로로 이어 붙인 줄(track)을 한 장 너비의 칸으로 보여준다.
+ * - 모바일: 손가락으로 좌우로 넘기고(scroll-snap), "1 / 3"으로 몇 번째인지 보여준다.
+ * - PC: 줄이 스크롤되지 않게 두고, 아래 작은 사진 버튼을 누르면 그 사진으로 넘어간다. (이전과 같은 모습)
+ * 작은 사진 버튼은 두 화면 모두에 있고, 보이는 사진과 눌린 버튼(aria-pressed)을 항상 같게 맞춘다.
  */
 function renderGallery(post) {
   const images = Array.isArray(post.images) ? post.images : [];
   if (images.length === 0) return null;
 
-  const altFor = (index) => `${post.book_title} 사진 ${index + 1}/${images.length}`;
-  const main = el("img", {
-    className: "gallery__main",
-    src: safeImageUrl(images[0].url),
-    alt: altFor(0),
-    decoding: "async",
-  });
-  const gallery = el("div", { className: "gallery" }, el("div", { className: "gallery__frame" }, main));
+  const slides = images.map((image, index) =>
+    el("img", {
+      className: "gallery__main",
+      src: safeImageUrl(image.url),
+      alt: `${post.book_title} 사진 ${index + 1}/${images.length}`,
+      decoding: "async",
+    }),
+  );
+  const track = el("div", { className: "gallery__track" }, ...slides);
+  const frame = el("div", { className: "gallery__frame" }, track);
+  const gallery = el("div", { className: "gallery" }, frame);
   if (images.length === 1) return gallery;
+
+  // 몇 번째 사진인지. 사진의 대체 글에 같은 내용이 있어 화면 낭독기에는 숨긴다.
+  const counter = el("span", { className: "gallery__counter mobile-only", attrs: { "aria-hidden": "true" } });
+  frame.append(counter);
+  let shownIndex = -1;
+  const showIndex = (index) => {
+    if (index === shownIndex) return;
+    shownIndex = index;
+    counter.textContent = `${index + 1} / ${images.length}`;
+    for (const [i, thumb] of thumbs.entries()) thumb.setAttribute("aria-pressed", String(i === index));
+  };
+  // 넘기는 동안 scroll이 계속 오므로, 한 프레임에 한 번만 지금 보이는 사진을 계산한다.
+  let frameRequested = false;
+  track.addEventListener(
+    "scroll",
+    () => {
+      if (frameRequested) return;
+      frameRequested = true;
+      window.requestAnimationFrame(() => {
+        frameRequested = false;
+        const index = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+        showIndex(Math.min(images.length - 1, Math.max(0, index)));
+      });
+    },
+    { passive: true },
+  );
 
   const thumbs = images.map((image, index) => {
     const button = el(
@@ -241,13 +351,13 @@ function renderGallery(post) {
       el("img", { src: safeImageUrl(image.thumbnail_url), alt: "", loading: "lazy" }),
     );
     button.addEventListener("click", () => {
-      main.src = safeImageUrl(image.url);
-      main.alt = altFor(index);
-      for (const other of thumbs) other.setAttribute("aria-pressed", String(other === button));
+      track.scrollTo({ left: index * track.clientWidth });
+      showIndex(index);
     });
     return button;
   });
   gallery.append(el("div", { className: "gallery__thumbs" }, ...thumbs));
+  showIndex(0);
   return gallery;
 }
 
@@ -307,7 +417,12 @@ function renderContact(post) {
 
 // 누르면 대화방을 만들거나(201) 이미 있는 방(200)을 받아 대화 화면으로 이동한다.
 function renderInquiryButton(post) {
-  const button = el("button", { type: "button", className: "button button--primary", text: "쪽지로 문의하기" });
+  const button = el("button", {
+    type: "button",
+    className: "button button--primary",
+    text: "쪽지로 문의하기",
+    attrs: { id: "inquiry-button" },
+  });
   button.addEventListener("click", async () => {
     const errorText = document.getElementById("contact-error");
     errorText.hidden = true;

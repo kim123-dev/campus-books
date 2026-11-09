@@ -799,11 +799,27 @@ a.button {
   background: var(--color-fill);
 }
 
+/* 사진을 가로로 이어 붙인 줄. 한 장이 칸 너비를 꽉 채운다.
+   PC는 스크롤을 막고 작은 사진 버튼으로만 넘긴다. 모바일은 아래 모바일 구역에서 손가락으로 넘기게 연다. */
+.gallery__track {
+  display: flex;
+  height: 100%;
+  overflow-x: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.gallery__track::-webkit-scrollbar {
+  display: none;
+}
+
 .gallery__main {
   display: block;
+  flex: 0 0 100%;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  scroll-snap-align: start;
 }
 
 .gallery__thumbs {
@@ -2301,6 +2317,189 @@ a.button {
   .chat__post,
   .chat__privacy {
     font-size: 1rem;
+  }
+  /* ----- 상세: 사진 좌우로 넘기기 ----- */
+
+  .gallery__frame {
+    position: relative;
+  }
+
+  .gallery__track {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  /* "1 / 3": 작은 글자 예외 (13px) */
+  .gallery__counter {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(17, 24, 39, 0.62);
+    color: #ffffff;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.6;
+    pointer-events: none;
+  }
+
+  /* ----- 상세: 하단 고정 연락 바 (가격 + 찜 + 문의) ----- */
+
+  .contact-bar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -1px 0 rgba(17, 24, 39, 0.08);
+  }
+
+  .contact-bar__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .contact-bar__price {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .contact-bar .wish-button {
+    flex: none;
+  }
+
+  .contact-bar .button {
+    flex: none;
+    min-height: 48px;
+    padding: 0 20px;
+  }
+
+  .contact-bar .form-error {
+    margin: 0;
+  }
+
+  /* 바에 가려지지 않도록 화면 아래를 비운다. */
+  .has-contact-bar {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  .has-contact-bar .toast {
+    bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  /* ----- 대화: 키보드가 올라와도 입력창이 보이게 ----- */
+
+  /* chat.js가 실제로 보이는 높이(visualViewport)를 넘겨 준다. 없으면 dvh */
+  .chat-body {
+    height: var(--chat-viewport-height, 100dvh);
+  }
+
+  .chat-body main {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .chat-body .back-link,
+  .chat-body .chat {
+    margin-top: 4px;
+  }
+
+  .chat__header {
+    padding: 12px 14px 8px;
+  }
+
+  /* 입력창 오른쪽에 보내기 버튼을 두어 한 줄을 아낀다. 숨겨진 줄이 빈틈을 만들지 않게 줄 간격은 여백으로 준다. */
+  .chat__form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "privacy privacy"
+      "blocked blocked"
+      "input send"
+      "field-error field-error"
+      "count count"
+      "send-error send-error";
+    gap: 0 8px;
+    padding: 10px 12px;
+  }
+
+  .chat__privacy {
+    grid-area: privacy;
+    margin-bottom: 8px;
+  }
+
+  .chat__blocked {
+    grid-area: blocked;
+    margin-bottom: 8px;
+  }
+
+  .chat__form textarea {
+    grid-area: input;
+    min-height: 48px;
+    max-height: 120px;
+    resize: none;
+  }
+
+  .chat__form-bottom {
+    display: contents;
+  }
+
+  .chat__form-bottom .button {
+    grid-area: send;
+    align-self: end;
+    min-height: 48px;
+    padding: 0 16px;
+  }
+
+  .chat__count {
+    grid-area: count;
+    margin-top: 4px;
+    text-align: right;
+  }
+
+  .chat__form .field-error {
+    grid-area: field-error;
+    margin-top: 4px;
+  }
+
+  .chat__form .form-error {
+    grid-area: send-error;
+    margin-top: 4px;
+  }
+
+  /* 입력 중(키보드가 올라옴): 좁아진 화면을 메시지에 쓰도록 위쪽 줄을 접고, 개인정보 안내는 한 줄로 줄인다. */
+  .chat-body.is-typing .site-header,
+  .chat-body.is-typing .back-link,
+  .chat-body.is-typing .chat__actions,
+  .chat-body.is-typing .chat__header .safety-notice {
+    display: none;
+  }
+
+  .chat-body.is-typing .chat__privacy {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-body.is-typing main {
+    padding-bottom: 8px;
+  }
+
+  .chat-body.is-typing .chat__scroll {
+    min-height: 96px;
   }
 }
 
