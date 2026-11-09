@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # 판매글 사진 저장 폴더. 누구나 받을 수 있는 static/ 밖에 두고, 이미지 전용 API로만 내려준다.
     UPLOAD_DIR: str = "./uploads"
+    # bcrypt 작업 비용(2의 거듭제곱 횟수). 운영 기본값 12는 bcrypt 라이브러리 기본값과 같다.
+    # 테스트만 4(허용 최솟값)로 낮춰 가입·로그인이 많은 테스트를 빠르게 한다. (tests/conftest.py)
+    BCRYPT_ROUNDS: int = Field(default=12, ge=4, le=31)
 
 
 # 매 요청마다 .env를 다시 읽지 않도록 한 번만 생성해 재사용한다.

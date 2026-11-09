@@ -4,6 +4,9 @@ import os
 # 개발용 DB(dev.db)를 건드리지 않게 한다.
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATABASE_URL", "sqlite://")
+# 테스트에서만 bcrypt 비용을 최솟값으로 낮춘다. 셸이나 .env에 다른 값이 있어도 덮어써서
+# 테스트 속도가 환경에 따라 달라지지 않게 한다. (운영 기본값 12는 app/core/config.py)
+os.environ["BCRYPT_ROUNDS"] = "4"
 
 from collections.abc import Callable, Iterator  # noqa: E402
 from pathlib import Path  # noqa: E402

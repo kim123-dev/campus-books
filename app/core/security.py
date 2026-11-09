@@ -18,8 +18,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 # 솔트를 매번 새로 만들어, 같은 비밀번호라도 해시가 달라지게 한다.
+# 작업 비용은 설정값을 쓴다. 검증(checkpw)은 해시 안에 적힌 비용을 따르므로 기존 해시도 그대로 확인된다.
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    salt = bcrypt.gensalt(rounds=get_settings().BCRYPT_ROUNDS)
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 # 해시 안에 솔트가 들어 있어서 별도 저장 없이 검증할 수 있다.
