@@ -1,9 +1,16 @@
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import DateTime, String, func
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+
+
+class UserRole(StrEnum):
+    USER = "USER"
+    ADMIN = "ADMIN"  # 신고 처리 화면을 쓸 수 있다. 가입으로는 될 수 없고 CLI로만 지정한다. (app/cli.py)
 
 
 class User(Base):
@@ -21,3 +28,12 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Post 모델과 같이 DB 고유 ENUM 대신 문자열 + 값 검사로 저장한다. (SQLite·MySQL 공통)
+    role: Mapped[UserRole] = mapped_column(
+        SAEnum(UserRole, native_enum=False, length=20, validate_strings=True),
+        default=UserRole.USER,
+        server_default=UserRole.USER.value,
+    )
+    # 이용 정지가 끝나는 시각(UTC). 이 시각이 지나면 따로 풀어 주지 않아도 정지가 끝난 것으로 본다.
+    # 정지 여부 판단은 user_service.active_suspension_end 한 곳에서 한다.
+    suspended_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

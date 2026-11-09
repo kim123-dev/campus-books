@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser
+from app.core.deps import ActiveUser
 from app.models import Report
 from app.schemas.report import ReportCreate, ReportCreatedResponse
 from app.services import report_service
@@ -31,7 +31,7 @@ REPORT_RESPONSES: dict[int | str, dict] = {
 def report_post(
     post_id: int,
     data: ReportCreate,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> Report:
     return report_service.report_post(db, post_id, current_user, data)
@@ -47,7 +47,7 @@ def report_post(
 def report_user(
     user_id: int,
     data: ReportCreate,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> Report:
     return report_service.report_user(db, user_id, current_user, data)

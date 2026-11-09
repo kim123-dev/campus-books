@@ -17,6 +17,10 @@ class DuplicateReportError(ConflictError):
     message = "이미 신고한 대상입니다."
 
 
+class ReportAlreadyResolvedError(ConflictError):
+    message = "이미 처리된 신고입니다."
+
+
 class DuplicateEmailError(ConflictError):
     message = "이미 사용 중인 이메일입니다."
 
@@ -37,6 +41,10 @@ class UserNotFoundError(NotFoundError):
     message = "사용자를 찾을 수 없습니다."
 
 
+class ReportNotFoundError(NotFoundError):
+    message = "신고를 찾을 수 없습니다."
+
+
 class ImageNotFoundError(NotFoundError):
     message = "사진을 찾을 수 없습니다."
 
@@ -51,6 +59,15 @@ class ForbiddenError(DomainError):
 
 class NotPostOwnerError(ForbiddenError):
     message = "본인이 작성한 글만 수정·삭제할 수 있습니다."
+
+
+class AdminOnlyError(ForbiddenError):
+    message = "관리자만 사용할 수 있습니다."
+
+
+class SuspendedUserError(ForbiddenError):
+    # 실제 메시지는 정지 종료 시각을 넣어 만든다. (user_service.suspension_message)
+    message = "이용이 정지되었습니다."
 
 
 class NotConversationParticipantError(ForbiddenError):
@@ -111,6 +128,22 @@ class CannotReportOwnPostError(BadRequestError):
 
 class CannotReportSelfError(BadRequestError):
     message = "자기 자신은 신고할 수 없습니다."
+
+
+class CannotDeletePostForUserReportError(BadRequestError):
+    message = "사용자 신고에는 글 삭제를 할 수 없습니다."
+
+
+class ReportedPostAlreadyDeletedError(BadRequestError):
+    message = "이미 삭제된 글입니다. 기각이나 정지로 처리해 주세요."
+
+
+class ReportedUserNotFoundError(BadRequestError):
+    message = "신고당한 사용자가 없어 정지할 수 없습니다."
+
+
+class CannotSuspendAdminError(BadRequestError):
+    message = "관리자는 정지할 수 없습니다."
 
 
 class PayloadTooLargeError(DomainError):

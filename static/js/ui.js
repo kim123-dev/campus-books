@@ -60,6 +60,14 @@ export function formatShortDate(isoText) {
   return formatDate(isoText);
 }
 
+/** 정지 안내처럼 "언제까지"를 알려줄 때 쓰는 형식. "11월 16일 14:00" (해가 다르면 연도도) */
+export function formatMonthDayTime(isoText) {
+  const date = parseServerDate(isoText);
+  if (date === null) return "";
+  const year = date.getFullYear() !== new Date().getFullYear() ? `${date.getFullYear()}년 ` : "";
+  return `${year}${date.getMonth() + 1}월 ${date.getDate()}일 ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
 function parseServerDate(isoText) {
   if (typeof isoText !== "string") return null;
   const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(isoText);

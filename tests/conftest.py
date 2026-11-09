@@ -13,12 +13,13 @@ from pathlib import Path  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import create_engine, select  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models import User, UserRole  # noqa: E402
 from app.services import image_storage  # noqa: E402
 
 # 인메모리 SQLite는 연결마다 DB가 따로 생기므로, StaticPool로 연결 하나를 공유한다.
@@ -73,6 +74,20 @@ def make_auth_headers(client: TestClient) -> Callable[..., dict[str, str]]:
         assert signup.status_code == 201, signup.text
         login = client.post("/auth/login", data={"username": email, "password": TEST_PASSWORD})
         return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    return _make
+
+
+# 관리자는 API로 만들 수 없으므로(CLI 전용), 가입한 뒤 DB에서 role을 바꿔 만든다.
+@pytest.fixture
+def make_admin_headers(
+    db_session: Session, make_auth_headers: Callable[..., dict[str, str]]
+) -> Callable[..., dict[str, str]]:
+    def _make(email: str = "admin@campus.ac.kr", nickname: str = "관리자") -> dict[str, str]:
+        headers = make_auth_headers(email, nickname)
+        db_session.scalar(select(User).where(User.email == email)).role = UserRole.ADMIN
+        db_session.commit()
+        return headers
 
     return _make
 

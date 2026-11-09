@@ -3,8 +3,8 @@ from app.models.block import UserBlock
 from app.models.conversation import Conversation, Message
 from app.models.post import BookCondition, Post, PostStatus
 from app.models.post_image import MAX_IMAGES_PER_POST, PostImage
-from app.models.report import Report, ReportReason, ReportStatus, ReportTargetType
-from app.models.user import User
+from app.models.report import Report, ReportAction, ReportReason, ReportStatus, ReportTargetType
+from app.models.user import User, UserRole
 from app.models.wishlist import Wishlist
 
 __all__ = [
@@ -16,10 +16,12 @@ __all__ = [
     "PostImage",
     "PostStatus",
     "Report",
+    "ReportAction",
     "ReportReason",
     "ReportStatus",
     "ReportTargetType",
     "User",
+    "UserRole",
     "UserBlock",
     "Wishlist",
 ]

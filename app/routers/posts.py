@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, OptionalCurrentUser
+from app.core.deps import ActiveUser, OptionalCurrentUser
 from app.models import Post
 from app.schemas.post import (
     PageQuery,
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/posts", tags=["posts"])
     responses={401: {"description": "로그인 필요"}},
 )
 def create_post(
-    data: PostCreate, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+    data: PostCreate, current_user: ActiveUser, db: Annotated[Session, Depends(get_db)]
 ) -> Post:
     return post_service.create_post(db, current_user, data)
 
@@ -87,7 +87,7 @@ OWNER_ONLY_RESPONSES: dict[int | str, dict] = {
 def update_post(
     post_id: int,
     data: PostUpdate,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> Post:
     return post_service.update_post(db, post_id, current_user, data)
@@ -102,7 +102,7 @@ def update_post(
 def change_post_status(
     post_id: int,
     data: PostStatusUpdate,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> Post:
     return post_service.change_status(db, post_id, current_user, data.status)
@@ -117,6 +117,6 @@ def change_post_status(
     responses=OWNER_ONLY_RESPONSES,
 )
 def delete_post(
-    post_id: int, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+    post_id: int, current_user: ActiveUser, db: Annotated[Session, Depends(get_db)]
 ) -> None:
     post_service.delete_post(db, post_id, current_user)

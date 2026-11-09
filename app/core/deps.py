@@ -4,9 +4,14 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.exceptions import InvalidTokenError, NotAuthenticatedError
+from app.core.exceptions import (
+    AdminOnlyError,
+    InvalidTokenError,
+    NotAuthenticatedError,
+    SuspendedUserError,
+)
 from app.core.security import decode_access_token, oauth2_scheme
-from app.models import User
+from app.models import User, UserRole
 from app.services import user_service
 
 
@@ -47,3 +52,26 @@ def get_optional_current_user(
 
 # 로그인 여부에 따라 응답 내용만 달라지는 API에서 쓴다.
 OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
+
+
+def get_active_user(current_user: CurrentUser) -> User:
+    """쓰기 요청용. 이용 정지 중이면 403. 정지 전에 받은 토큰으로도 쓰기를 할 수 없게 요청마다 확인한다."""
+    end = user_service.active_suspension_end(current_user)
+    if end is not None:
+        raise SuspendedUserError(user_service.suspension_message(end))
+    return current_user
+
+
+# 글쓰기·수정·사진·찜·쪽지·신고처럼 무언가를 바꾸는 API에서 쓴다.
+# 읽기 API와 차단·차단 해제는 정지 중에도 쓸 수 있도록 CurrentUser를 그대로 쓴다.
+ActiveUser = Annotated[User, Depends(get_active_user)]
+
+
+def require_admin(current_user: CurrentUser) -> User:
+    """관리자 전용. 로그인하지 않았으면 401, 관리자가 아니면 403."""
+    if current_user.role != UserRole.ADMIN:
+        raise AdminOnlyError()
+    return current_user
+
+
+AdminUser = Annotated[User, Depends(require_admin)]

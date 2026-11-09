@@ -156,6 +156,16 @@ export function reportPost(postId, data) {
   return request(`/posts/${encodeURIComponent(postId)}/reports`, { method: "POST", json: data });
 }
 
+/** 관리자: 신고 목록. params: {status: PENDING|RESOLVED|생략, page, size}. 관리자가 아니면 403 */
+export function listAdminReports(params) {
+  return request("/admin/reports", { query: params });
+}
+
+/** 관리자: 신고 처리. data: {action, suspend_days?, note?, include_same_user?}. 409(이미 처리) */
+export function resolveReport(reportId, data) {
+  return request(`/admin/reports/${encodeURIComponent(reportId)}/resolve`, { method: "POST", json: data });
+}
+
 /** 사용자 신고. data: {reason, description}. 409(이미 신고), 429(횟수 제한) */
 export function reportUser(userId, data) {
   return request(`/users/${encodeURIComponent(userId)}/reports`, { method: "POST", json: data });

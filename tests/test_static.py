@@ -87,6 +87,21 @@ def test_header_links_to_wishlist() -> None:
     assert '"/static/wishlist.html"' in (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
 
 
+def test_admin_page_is_served(client: TestClient) -> None:
+    response = client.get("/static/admin.html")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "/static/js/pages/admin.js" in response.text
+
+
+def test_header_links_to_admin_only_for_admin() -> None:
+    # "관리" 링크는 role이 ADMIN일 때만 만든다. (권한 검사 자체는 서버의 /admin API가 한다)
+    auth_js = (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
+    assert '"/static/admin.html"' in auth_js
+    assert 'me.role === "ADMIN"' in auth_js
+
+
 def test_chat_page_has_privacy_notice(client: TestClient) -> None:
     # 쪽지로 전화번호·계좌번호를 주고받다 생기는 피해를 줄이기 위한 안내가 빠지지 않게 한다.
     assert "개인정보" in client.get("/static/chat.html").text

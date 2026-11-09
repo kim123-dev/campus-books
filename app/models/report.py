@@ -3,7 +3,7 @@ from enum import StrEnum
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -22,7 +22,14 @@ class ReportReason(StrEnum):
 
 
 class ReportStatus(StrEnum):
-    PENDING = "PENDING"  # 접수됨. 관리자 처리 상태는 다음 단계에서 늘린다.
+    PENDING = "PENDING"  # 접수됨. 관리자가 아직 보지 않았다.
+    RESOLVED = "RESOLVED"  # 관리자가 처리했다. 어떤 조치였는지는 action에 남는다.
+
+
+class ReportAction(StrEnum):
+    DISMISS = "DISMISS"  # 기각 (조치 없음)
+    DELETE_POST = "DELETE_POST"  # 신고된 글 삭제
+    SUSPEND = "SUSPEND"  # 신고당한 사용자 기간 정지
 
 
 def _enum_column(enum_cls: type[StrEnum]) -> SAEnum:
@@ -31,7 +38,7 @@ def _enum_column(enum_cls: type[StrEnum]) -> SAEnum:
 
 
 class Report(Base):
-    """신고. 저장만 하고, 읽는 화면(관리자)은 다음 단계에서 만든다.
+    """신고. 관리자가 관리 화면에서 처리하고, 처리 기록(누가·언제·어떤 조치·메모)을 같은 행에 남긴다.
 
     신고자는 신고당한 사람에게 어떤 응답으로도 드러나지 않는다.
     """
@@ -42,6 +49,8 @@ class Report(Base):
         UniqueConstraint("reporter_id", "target_type", "target_id", name="uq_report_target"),
         # 신고 횟수 제한에서 한 사람의 최근 신고를 센다.
         Index("ix_reports_reporter_created", "reporter_id", "created_at"),
+        # 관리 화면은 미처리 신고를 먼저, 최신순으로 보여준다.
+        Index("ix_reports_status_created", "status", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -69,3 +78,19 @@ class Report(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    # ---------- 처리 기록 (처리 전에는 모두 NULL) ----------
+    action: Mapped[ReportAction | None] = mapped_column(_enum_column(ReportAction), nullable=True)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 처리한 관리자. 관리자 계정이 지워져도 처리 기록은 남긴다(SET NULL).
+    resolved_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 다른 신고를 처리하면서 함께 처리된 경우 그 신고 번호. 직접 처리한 신고는 NULL.
+    resolved_with_report_id: Mapped[int | None] = mapped_column(nullable=True)
+
+    # 관리 화면에서 닉네임을 보여주기 위한 관계. 목록에서는 joinedload로 한 번에 읽는다.
+    reporter: Mapped["User | None"] = relationship(foreign_keys=[reporter_id])
+    reported_user: Mapped["User | None"] = relationship(foreign_keys=[reported_user_id])
+    resolved_by: Mapped["User | None"] = relationship(foreign_keys=[resolved_by_id])

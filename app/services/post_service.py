@@ -94,6 +94,16 @@ def get_editable_post(db: Session, post_id: int, user: User) -> Post:
 def delete_post(db: Session, post_id: int, user: User) -> None:
     """글 삭제(hard delete). 판매 완료된 글도 삭제할 수 있다. 쪽지 대화방은 남기고 사진은 지운다."""
     post = _get_own_post(db, post_id, user)
+    image_names = delete_post_rows(db, post)
+    db.commit()
+    # 파일은 DB 커밋이 성공한 뒤에 지운다. 순서가 반대면 커밋 실패 시 행은 있는데 파일이 없는 사진이 생긴다.
+    image_storage.remove_files(image_names)
+
+
+def delete_post_rows(db: Session, post: Post) -> list[str]:
+    """글과 딸린 행을 지운다(커밋 전). 커밋 뒤에 지울 사진 파일 이름을 돌려준다.
+    작성자 삭제와 관리자 삭제(신고 처리)가 같은 규칙으로 지우도록 한 곳에 모았다.
+    """
     # 대화 기록은 거래 분쟁 때 필요하므로 지우지 않고 글 연결만 끊는다.
     # FK의 ondelete="SET NULL"은 SQLite가 FK를 검사하지 않아 동작하지 않으므로 직접 바꾼다.
     db.execute(update(Conversation).where(Conversation.post_id == post.id).values(post_id=None))
@@ -101,9 +111,7 @@ def delete_post(db: Session, post_id: int, user: User) -> None:
     db.execute(delete(Wishlist).where(Wishlist.post_id == post.id))
     image_names = [name for image in post.images for name in (image.filename, image.thumb_filename)]
     db.delete(post)  # 사진 행은 relationship cascade로 함께 지워진다.
-    db.commit()
-    # 파일은 DB 커밋이 성공한 뒤에 지운다. 순서가 반대면 커밋 실패 시 행은 있는데 파일이 없는 사진이 생긴다.
-    image_storage.remove_files(image_names)
+    return image_names
 
 
 def list_posts(

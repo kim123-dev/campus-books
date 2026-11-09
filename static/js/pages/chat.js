@@ -7,7 +7,7 @@
 // - 토큰은 탭끼리 공유된다. 다른 탭에서 계정이 바뀌면 이 화면이 새 계정 토큰으로 폴링·전송하게 되어
 //   상대 메시지가 내 말풍선으로 그려지거나 다른 계정 이름으로 전송되므로, 계정이 바뀌면 멈춘다.
 import { blockUser, getConversation, listMessages, reportUser, sendMessage, unblockUser } from "../api.js";
-import { redirectToLogin, refreshUnreadBadge, renderHeader } from "../auth.js";
+import { redirectToLogin, refreshUnreadBadge, renderHeader, suspensionText } from "../auth.js";
 import {
   REPORT_DONE_TEXT,
   UNBLOCK_DONE_TEXT,
@@ -63,6 +63,8 @@ let pollInFlight = false;
 let stopped = false; // 방을 더 볼 수 없게 되면(401·403·404) 폴링을 완전히 멈춘다.
 
 let sending = false;
+// 이용 정지 중이면 안내 문구. 차단과 같이 입력창을 잠근다. (헤더의 내 정보 또는 전송 403으로 알게 된다)
+let suspendedText = null;
 let cooldownTimer = null;
 
 // 이 화면을 연 계정의 토큰. 요청 전후로 비교해, 다른 탭에서 계정이 바뀌었는지 확인한다.
@@ -88,6 +90,7 @@ async function init() {
     else showPageError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
     return;
   }
+  suspendedText = suspensionText(me);
   if (conversationId === null) {
     showPageError("대화방 주소가 올바르지 않습니다.");
     return;
@@ -196,11 +199,14 @@ function renderChatHeader(conversation) {
  * 상대가 나를 차단한 경우에는 "차단당했다"고 알리지 않고 보낼 수 없다는 것만 보여준다.
  */
 function applyBlockState(conversation) {
-  canSend = conversation.can_send;
+  canSend = conversation.can_send && suspendedText === null;
   const { partner } = conversation;
 
   if (canSend) {
     blockedNotice.hidden = true;
+  } else if (suspendedText !== null) {
+    blockedNotice.textContent = suspendedText;
+    blockedNotice.hidden = false;
   } else {
     blockedNotice.textContent = conversation.blocked_by_me
       ? "차단한 사용자입니다. 차단을 해제하면 다시 쪽지를 보낼 수 있어요."
@@ -475,6 +481,13 @@ async function onSubmit(event) {
     updateCounter();
     addNewerMessages([message]);
   } catch (error) {
+    // 방은 이미 열었으므로 전송의 403은 "남의 방"이 아니라 이용 정지다. 대화는 계속 볼 수 있게 입력창만 잠근다.
+    if (error.status === 403) {
+      suspendedText = error.message;
+      showFormErrors(form, sendError, error);
+      refreshBlockState();
+      return;
+    }
     if (handleFatalError(error)) return;
     if (error.status === 429) {
       // 입력한 내용은 그대로 두고, 다시 보낼 수 있을 때까지 버튼을 잠근다.

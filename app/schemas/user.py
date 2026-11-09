@@ -4,10 +4,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.security import BCRYPT_MAX_BYTES
+from app.models import UserRole
 
 
 class UserCreate(BaseModel):
     """회원가입 요청. 형식이 틀린 입력은 서비스에 닿기 전에 422로 걸러낸다."""
+
+    # role 같은 모르는 필드를 조용히 무시하지 않고 422로 거절한다. 가입으로 관리자가 될 수 없음을 분명히 한다.
+    model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
     password: str = Field(min_length=8, max_length=64)
@@ -43,6 +47,14 @@ class UserResponse(BaseModel):
     email: str
     nickname: str
     created_at: datetime
+
+
+class MeResponse(UserResponse):
+    """내 정보(/users/me)에만 쓰는 응답. 권한과 정지 상태는 본인에게만 보여준다."""
+
+    role: UserRole
+    # 정지 중이면 종료 시각(UTC), 아니면 null. 기간이 지난 정지는 null로 보여준다.
+    suspended_until: datetime | None = None
 
 
 class LoginForm(BaseModel):

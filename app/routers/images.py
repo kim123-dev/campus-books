@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser
+from app.core.deps import ActiveUser
 from app.core.exceptions import ImageNotFoundError
 from app.models import PostImage
 from app.schemas.post import PostImageResponse
@@ -37,7 +37,7 @@ IMAGE_EDIT_RESPONSES: dict[int | str, dict] = {
 )
 def upload_post_image(
     post_id: int,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
     file: Annotated[UploadFile, File(description="사진 파일 (multipart 필드 이름: file)")],
 ) -> PostImage:
@@ -54,7 +54,7 @@ def upload_post_image(
 def delete_post_image(
     post_id: int,
     image_id: int,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     image_service.delete_image(db, post_id, image_id, current_user)

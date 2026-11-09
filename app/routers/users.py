@@ -5,23 +5,26 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser
-from app.models import User
 from app.schemas.post import PageQuery, PostListResponse, SizeQuery
-from app.schemas.user import UserResponse
-from app.services import post_service, wishlist_service
+from app.schemas.user import MeResponse
+from app.services import post_service, user_service, wishlist_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 # 인증은 CurrentUser 의존성이 처리하고, response_model이 password_hash를 걸러낸다.
+# role과 정지 상태는 이 응답에만 넣는다. 다른 사용자에 대한 응답에는 닉네임까지만 나간다.
 @router.get(
     "/me",
-    response_model=UserResponse,
+    response_model=MeResponse,
     summary="내 정보 조회",
     responses={401: {"description": "토큰 없음, 만료·변조된 토큰, 존재하지 않는 사용자"}},
 )
-def read_me(current_user: CurrentUser) -> User:
-    return current_user
+def read_me(current_user: CurrentUser) -> MeResponse:
+    # 기간이 지난 정지는 null로 보여준다. 화면은 이 값이 있을 때만 정지 안내를 띄운다.
+    return MeResponse.model_validate(current_user).model_copy(
+        update={"suspended_until": user_service.active_suspension_end(current_user)}
+    )
 
 
 # 내 글 관리 화면용. 판매 완료된 글도 보여야 하므로 상태로 거르지 않는다.

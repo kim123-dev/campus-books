@@ -2,7 +2,7 @@
 // 토큰 보관 자체는 token.js가 맡는다.
 import { getMe, getUnreadCount } from "./api.js";
 import { clearToken, getToken } from "./token.js";
-import { el } from "./ui.js";
+import { el, formatMonthDayTime } from "./ui.js";
 
 export const LOGIN_PAGE = "/static/login.html";
 export const SIGNUP_PAGE = "/static/signup.html";
@@ -11,6 +11,7 @@ const POST_FORM_PAGE = "/static/post-form.html";
 const MY_POSTS_PAGE = "/static/my-posts.html";
 const WISHLIST_PAGE = "/static/wishlist.html";
 const CONVERSATIONS_PAGE = "/static/conversations.html";
+const ADMIN_PAGE = "/static/admin.html";
 const MAX_BADGE_COUNT = 99;
 
 // ---------- 돌아갈 주소 (next) ----------
@@ -87,6 +88,13 @@ export async function renderHeader(container) {
   try {
     const me = await getMe();
     nav.replaceChildren(...loggedInItems(me));
+    // 정지 중이면 모든 화면 위쪽에 언제까지인지 알려준다. 쓰기 버튼을 눌렀다가 403을 받고 나서야 알게 되지 않도록.
+    const suspension = suspensionText(me);
+    if (suspension !== null) {
+      container.append(
+        el("p", { className: "site-notice", attrs: { role: "status" } }, el("span", { className: "container", text: suspension })),
+      );
+    }
     // 배지는 헤더를 그린 뒤 따로 채운다. 기다리지 않아서, 배지 요청이 늦어도 화면이 먼저 뜬다.
     refreshUnreadBadge();
     return me;
@@ -119,8 +127,16 @@ function loggedInItems(me) {
       "쪽지",
       el("span", { className: "nav-badge", attrs: { id: "nav-unread", "aria-hidden": "true" }, hidden: true }),
     ),
+    // 관리자에게만 보인다. 링크를 숨기는 것은 편의일 뿐이고, 실제 권한은 서버가 /admin API마다 확인한다.
+    ...(me.role === "ADMIN" ? [el("a", { href: ADMIN_PAGE, text: "관리" })] : []),
     logoutButton,
   ];
+}
+
+/** 정지 중이면 안내 문구, 아니면 null. 서버는 기간이 지난 정지를 null로 보내므로 날짜만 확인한다. */
+export function suspensionText(me) {
+  if (!me?.suspended_until) return null;
+  return `${formatMonthDayTime(me.suspended_until)}까지 이용이 정지된 상태입니다. 글쓰기·수정·쪽지·찜·신고를 할 수 없어요.`;
 }
 
 /**

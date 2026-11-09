@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser
+from app.core.deps import ActiveUser, CurrentUser
 from app.schemas.conversation import (
     ConversationListResponse,
     ConversationDetailResponse,
@@ -44,7 +44,7 @@ PARTICIPANT_ONLY_RESPONSES: dict[int | str, dict] = {
 def start_conversation(
     post_id: int,
     response: Response,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> ConversationDetailResponse:
     conversation, created = conversation_service.start_conversation(db, post_id, current_user)
@@ -119,7 +119,7 @@ def list_messages(
 def send_message(
     conversation_id: int,
     data: MessageCreate,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> MessageResponse:
     return conversation_service.send_message(db, conversation_id, current_user, data)
