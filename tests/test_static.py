@@ -363,3 +363,88 @@ def test_gallery_is_swipeable_only_on_mobile() -> None:
     assert re.search(r"\.gallery__track \{[^}]*overflow-x: hidden;[^}]*scroll-snap-type: x mandatory;", base)
     assert re.search(r"\.gallery__track \{\s*overflow-x: auto;", mobile)
     assert re.search(r"\.gallery__main \{[^}]*scroll-snap-align: start;", base)
+
+
+# ---------- 홈 화면 앱 (PWA) ----------
+
+MANIFEST = STATIC_DIR / "manifest.json"
+SW_JS = STATIC_DIR / "sw.js"
+
+
+def png_size(path: Path) -> tuple[int, int]:
+    # PNG 파일 머리(IHDR)의 가로·세로. 이미지 라이브러리 없이 크기만 확인한다.
+    data = path.read_bytes()[:24]
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", path.name
+    return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+
+
+def test_manifest_describes_installable_app(client: TestClient) -> None:
+    response = client.get("/static/manifest.json")
+    assert response.status_code == 200
+    manifest = response.json()
+
+    assert manifest["name"] == "Campus Books"
+    assert manifest["display"] == "standalone"
+    assert manifest["start_url"] == "/static/index.html"
+    assert manifest["start_url"].startswith(manifest["scope"])
+    # 테마색은 화면의 포인트 색과 같아야 상태 표시줄과 화면 색이 어긋나지 않는다.
+    primary = re.search(r"--color-primary: (#[0-9a-f]{6});", STYLE_CSS.read_text(encoding="utf-8"))
+    assert primary and manifest["theme_color"] == primary.group(1)
+
+    sizes = {icon["sizes"] for icon in manifest["icons"]}
+    assert {"192x192", "512x512"} <= sizes
+    for icon in manifest["icons"]:
+        width, height = map(int, icon["sizes"].split("x"))
+        assert png_size(STATIC_DIR / icon["src"].removeprefix("/static/")) == (width, height)
+        assert client.get(icon["src"]).headers["content-type"] == "image/png"
+
+
+def test_apple_touch_icon_is_180px() -> None:
+    assert png_size(STATIC_DIR / "img" / "apple-touch-icon.png") == (180, 180)
+
+
+@pytest.mark.parametrize("html", HTML_FILES, ids=lambda path: path.name)
+def test_pages_link_manifest_and_apple_meta(html: Path) -> None:
+    text = html.read_text(encoding="utf-8")
+    assert '<link rel="manifest" href="/static/manifest.json" />' in text
+    assert '<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png" />' in text
+    assert '<meta name="apple-mobile-web-app-capable" content="yes" />' in text
+    assert '<meta name="apple-mobile-web-app-title" content="Campus Books" />' in text
+    assert '<meta name="theme-color" content="#5b3fd6" />' in text
+    # 어느 화면으로 먼저 들어와도 서비스 워커가 등록되게 모든 화면이 불러온다.
+    assert '<script type="module" src="/static/js/pwa.js"></script>' in text
+
+
+def test_service_worker_is_served_as_javascript(client: TestClient) -> None:
+    response = client.get("/static/sw.js")
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+
+
+def test_service_worker_caches_only_static_files() -> None:
+    source = SW_JS.read_text(encoding="utf-8")
+    # /static/ 밖(API·/images)과 다른 사이트 요청은 손대지 않고 돌려보낸다.
+    assert re.search(r'url\.origin !== self\.location\.origin \|\| !url\.pathname\.startsWith\("/static/"\)', source)
+    assert 'request.method !== "GET"' in source
+    # 미리 받는 목록도 정적 파일뿐이다.
+    precache = re.search(r"const PRECACHE = \[(.*?)\];", source, re.S)
+    assert precache
+    paths = re.findall(r'"([^"]+)"', precache.group(1))
+    assert paths and all(path.startswith("/static/") for path in paths)
+    for path in paths:
+        assert (STATIC_DIR / path.removeprefix("/static/")).is_file(), path
+
+
+def test_service_worker_cache_has_version_key() -> None:
+    # 배포 때 VERSION을 바꾸면 새 캐시를 만들고 이전 버전 캐시를 지운다.
+    source = SW_JS.read_text(encoding="utf-8")
+    assert re.search(r'const VERSION = "[^"]+";', source)
+    assert "const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;" in source
+    assert "name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME" in source
+
+
+def test_install_guide_is_dismissable_and_skips_standalone() -> None:
+    source = (STATIC_DIR / "js" / "pwa.js").read_text(encoding="utf-8")
+    assert "if (!isIosSafari() || isStandalone() || readDismissed()) return;" in source
+    assert "(display-mode: standalone)" in source and "navigator.standalone" in source
+    assert 'export const INSTALL_GUIDE_KEY = "campus-books.install-guide-dismissed";' in source

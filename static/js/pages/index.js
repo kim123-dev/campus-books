@@ -2,6 +2,7 @@
 // 필터와 페이지는 주소창(?q=...&page=2)에 저장한다. 새로고침, 뒤로 가기, 링크 공유에도 같은 결과가 나오게 하기 위해서다.
 import { listPosts } from "../api.js";
 import { renderHeader } from "../auth.js";
+import { showInstallGuide } from "../pwa.js";
 import { clearFormErrors, el, icon, renderPagination, renderPostCard, showFormErrors } from "../ui.js";
 import { createWishlistButton } from "../wishlist-button.js";
 
@@ -23,6 +24,8 @@ let latestRequestId = 0;
 
 // 로그인한 사용자(없으면 null). 내 글에는 하트를 그리지 않으려고 쓴다.
 const mePromise = renderHeader(document.getElementById("site-header"));
+// 아이폰 Safari에서 처음 열었을 때만 "홈 화면에 추가" 안내를 목록 위에 보여준다.
+showInstallGuide(document.querySelector("main"));
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();

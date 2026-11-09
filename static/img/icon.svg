@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 앱 아이콘: 포인트 보라 바탕 + 기본 그림(book-placeholder.svg)의 책 모양.
+       안드로이드가 원·둥근 사각형으로 잘라도(maskable) 책이 잘리지 않게 가운데 80% 안에 둔다. -->
+  <rect width="512" height="512" fill="#5b3fd6"/>
+  <g transform="translate(-144 -52) scale(2)" fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M200 112c-22-14-48-18-72-16v100c24-2 50 2 72 16 22-14 48-18 72-16V96c-24-2-50 2-72 16z"/>
+    <path d="M200 112v100"/>
+  </g>
+</svg>

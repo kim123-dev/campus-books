@@ -26,7 +26,7 @@ export function el(tag, props = {}, ...children) {
 export const MOBILE_QUERY = "(max-width: 767.98px)";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-// 하단 탭 바와 검색·필터 버튼 아이콘 (24×24 선 아이콘)
+// 하단 탭 바, 검색·필터 버튼, 설치 안내의 아이콘 (24×24 선 아이콘)
 const ICON_PATHS = {
   home: "M3.5 10.5 12 3.5l8.5 7V20a1 1 0 0 1-1 1H15v-6H9v6H4.5a1 1 0 0 1-1-1z",
   heart: "M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z",
@@ -35,6 +35,7 @@ const ICON_PATHS = {
   user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4",
   filter: "M4 7h16M7 12h10M10 17h4",
+  share: "M12 3.5v11M8 7.5l4-4 4 4M8 10.5H6v10h12v-10h-2", // iOS Safari의 공유 버튼 모양 (설치 안내)
 };
 
 /** 선 아이콘(svg). HTML 문자열 없이 createElementNS로 만든다. 꾸밈용이라 화면 낭독기에서는 숨긴다. */

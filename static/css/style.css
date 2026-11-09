@@ -1913,6 +1913,71 @@ a.button {
   font-weight: 600;
 }
 
+/* ---------- 홈 화면 추가 안내 (아이폰 Safari, 목록 화면) ---------- */
+
+.install-guide {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 14px 6px 14px 16px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary-soft);
+}
+
+.install-guide__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.install-guide__title {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.install-guide__text {
+  margin: 0;
+  color: var(--color-sub);
+}
+
+/* 문장 안의 공유 아이콘. Safari 아래쪽 버튼과 같은 모양이라 찾기 쉽다. */
+.install-guide__share {
+  display: inline-flex;
+  margin: 0 3px;
+  color: var(--color-primary);
+  vertical-align: -3px;
+}
+
+.install-guide__share .icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.install-guide__close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -10px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-sub);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.install-guide__close:hover {
+  background: rgba(17, 24, 39, 0.06);
+}
+
 /* ---------- 좁은 화면 ---------- */
 
 @media (max-width: 400px) {

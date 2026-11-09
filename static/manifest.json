@@ -1,0 +1,17 @@
+{
+  "id": "/static/index.html",
+  "name": "Campus Books",
+  "short_name": "Campus Books",
+  "description": "같은 학교 학생끼리 전공 교재를 사고파는 중고 교재 게시판",
+  "lang": "ko",
+  "start_url": "/static/index.html",
+  "scope": "/static/",
+  "display": "standalone",
+  "theme_color": "#5b3fd6",
+  "background_color": "#f5f6f8",
+  "icons": [
+    { "src": "/static/img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
