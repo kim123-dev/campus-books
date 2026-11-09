@@ -8,7 +8,7 @@ from app.core.exceptions import (
     SoldPostNotEditableError,
 )
 from app.models import Post, PostStatus, User
-from app.schemas.post import PostCreate, PostSearchParams, PostUpdate
+from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
@@ -40,6 +40,16 @@ def get_post(db: Session, post_id: int) -> Post:
     if post is None:
         raise PostNotFoundError()
     return post
+
+
+def to_detail_response(post: Post, show_contact: bool) -> PostDetailResponse:
+    """상세 응답을 만든다. show_contact가 False면 오픈채팅 링크를 null로 비운다."""
+    # 링크를 모아 스팸을 보내는 수집을 막기 위해, 연락 방법은 로그인한 사용자에게만 보여준다.
+    # ORM 객체를 직접 고치면 같은 세션의 다음 commit에 null이 저장될 수 있어 응답 객체에서만 바꾼다.
+    detail = PostDetailResponse.model_validate(post)
+    if not show_contact:
+        detail = detail.model_copy(update={"open_chat_url": None})
+    return detail
 
 
 def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post:

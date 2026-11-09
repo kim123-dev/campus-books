@@ -4,13 +4,13 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentUser, OptionalCurrentUser
 from app.models import Post
 from app.schemas.post import (
     PageQuery,
     PostCreate,
+    PostDetailResponse,
     PostListResponse,
-    PostResponse,
     PostSearchParams,
     PostStatusUpdate,
     PostUpdate,
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 @router.post(
     "",
-    response_model=PostResponse,
+    response_model=PostDetailResponse,
     status_code=status.HTTP_201_CREATED,
     summary="판매글 작성",
     responses={401: {"description": "로그인 필요"}},
@@ -46,14 +46,19 @@ def list_posts(
     return PostListResponse(items=posts, total=total, page=page, size=size)
 
 
+# 상세는 로그인 없이도 볼 수 있지만, 연락 방법(오픈채팅 링크)은 로그인한 사용자에게만 준다.
+# 토큰이 없거나 잘못·만료되었어도 401이 아니라 링크만 null로 비운 글을 돌려준다.
 @router.get(
     "/{post_id}",
-    response_model=PostResponse,
-    summary="판매글 상세",
+    response_model=PostDetailResponse,
+    summary="판매글 상세 (오픈채팅 링크는 로그인 시에만)",
     responses={404: {"description": "없는 글"}},
 )
-def read_post(post_id: int, db: Annotated[Session, Depends(get_db)]) -> Post:
-    return post_service.get_post(db, post_id)
+def read_post(
+    post_id: int, current_user: OptionalCurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> PostDetailResponse:
+    post = post_service.get_post(db, post_id)
+    return post_service.to_detail_response(post, show_contact=current_user is not None)
 
 
 # 수정·삭제 API의 공통 에러 응답. Swagger 문서에 보이도록 정리해 둔다.
@@ -66,7 +71,7 @@ OWNER_ONLY_RESPONSES: dict[int | str, dict] = {
 
 @router.patch(
     "/{post_id}",
-    response_model=PostResponse,
+    response_model=PostDetailResponse,
     summary="판매글 수정 (보낸 필드만)",
     responses={**OWNER_ONLY_RESPONSES, 400: {"description": "판매 완료된 글"}},
 )
@@ -81,7 +86,7 @@ def update_post(
 
 @router.patch(
     "/{post_id}/status",
-    response_model=PostResponse,
+    response_model=PostDetailResponse,
     summary="판매 상태 변경",
     responses={**OWNER_ONLY_RESPONSES, 400: {"description": "판매 완료된 글의 상태 변경"}},
 )

@@ -119,6 +119,28 @@ def test_js_does_not_use_html_string_apis(js_file: Path) -> None:
     assert not found, "textContent/createElement를 사용하세요:\n" + "\n".join(found)
 
 
+def test_open_chat_link_opens_safely() -> None:
+    # 새 탭으로 여는 외부 링크는 noopener noreferrer가 없으면 열린 페이지가 window.opener로
+    # 이 탭을 다른 주소로 바꿀 수 있다(reverse tabnabbing). 오픈채팅 버튼이 이 속성을 갖는지 확인한다.
+    source = (STATIC_DIR / "js" / "pages" / "post.js").read_text(encoding="utf-8")
+    link = re.search(r'el\("a", \{[^}]*href: url,[^}]*\}\)', source, re.S)
+
+    assert link, "post.js에서 오픈채팅 링크(el(\"a\", { href: url, ... }))를 찾지 못했습니다."
+    assert 'target: "_blank"' in link.group(0)
+    assert 'rel: "noopener noreferrer"' in link.group(0)
+
+
+def test_open_chat_prefix_matches_server() -> None:
+    # 화면의 2차 검사 접두사가 서버 규칙과 어긋나면, 정상 링크가 화면에 안 보이게 된다.
+    from app.schemas.post import OPEN_CHAT_URL_PATTERN
+
+    source = (STATIC_DIR / "js" / "pages" / "post.js").read_text(encoding="utf-8")
+    prefix = re.search(r'const OPEN_CHAT_PREFIX = "([^"]+)";', source)
+
+    assert prefix, "post.js에서 OPEN_CHAT_PREFIX를 찾지 못했습니다."
+    assert OPEN_CHAT_URL_PATTERN.pattern.startswith(re.escape(prefix.group(1)))
+
+
 # ---------- 프론트와 서버의 상태 규칙 일치 ----------
 
 POST_JS = STATIC_DIR / "js" / "pages" / "post.js"

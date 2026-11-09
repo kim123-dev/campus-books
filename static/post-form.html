@@ -80,6 +80,24 @@
             <p class="field-error" data-error-for="description" hidden></p>
           </div>
 
+          <div class="field">
+            <label for="open_chat_url">오픈채팅 링크 (선택)</label>
+            <input
+              id="open_chat_url"
+              name="open_chat_url"
+              type="url"
+              maxlength="200"
+              inputmode="url"
+              autocomplete="off"
+              placeholder="https://open.kakao.com/o/..."
+              aria-describedby="open-chat-hint"
+            />
+            <p id="open-chat-hint" class="field-hint">
+              카카오 오픈채팅 주소만 등록할 수 있습니다. 로그인한 사용자에게만 보이고, 판매 완료되면 숨겨집니다.
+            </p>
+            <p class="field-error" data-error-for="open_chat_url" hidden></p>
+          </div>
+
           <p id="form-error" class="form-error" role="alert" hidden></p>
 
           <div class="form-actions">

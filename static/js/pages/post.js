@@ -1,10 +1,14 @@
 // 상세 화면: 글 정보를 보여주고, 내 글이면 상태 변경과 삭제를 할 수 있게 한다.
 // 권한과 상태 규칙의 최종 판단은 서버가 한다. 화면은 누를 수 없는 버튼을 미리 숨기는 정도만 한다.
 import { changePostStatus, deletePost, getPost } from "../api.js";
-import { redirectToLogin, renderHeader } from "../auth.js";
+import { LOGIN_PAGE, authPageUrl, redirectToLogin, renderHeader } from "../auth.js";
 import { CONDITION_LABELS, el, formatDate, formatPrice, readPostIdFromUrl, statusBadge } from "../ui.js";
 
 const HOME_PAGE = "/static/index.html";
+
+// 서버가 허용하는 오픈채팅 주소의 시작 부분. 서버 검증(422)이 1차 방어이고,
+// 화면도 이 형식일 때만 링크를 만들어 javascript: 같은 주소가 href에 들어가지 않게 한 번 더 막는다.
+const OPEN_CHAT_PREFIX = "https://open.kakao.com/";
 
 // 현재 상태에서 바꿀 수 있는 상태. 서버 app/services/post_service.py의 ALLOWED_TRANSITIONS와 같아야 한다.
 // 어긋나더라도 서버가 400으로 막으므로, 여기서는 누르면 실패할 버튼을 보여주지 않는 용도다.
@@ -29,6 +33,9 @@ const ownerPanel = document.getElementById("owner-panel");
 const ownerActions = document.getElementById("owner-actions");
 const actionError = document.getElementById("action-error");
 
+// 로그인한 사용자(없으면 null). 내 글인지, 연락 방법 안내를 어떻게 할지 고를 때 쓴다.
+let currentUser = null;
+
 // 헤더(/users/me)와 글 조회를 동시에 시작한다. renderHeader는 실패해도 null을 돌려주고 멈추지 않는다.
 const mePromise = renderHeader(document.getElementById("site-header"));
 const postId = readPostIdFromUrl();
@@ -50,9 +57,9 @@ async function load(id) {
     showPageError(error.message);
     return;
   }
-  const me = await mePromise;
+  currentUser = await mePromise;
   pageStatus.hidden = true;
-  render(post, me !== null && me.id === post.seller.id);
+  render(post);
 }
 
 function showPageError(message) {
@@ -65,12 +72,12 @@ function showPageError(message) {
 
 // ---------- 그리기 ----------
 
-function render(post, isOwner) {
+function render(post) {
   document.title = `${post.title} | Campus Books`; // document.title은 글자로만 처리되어 안전하다.
   renderDetail(post);
   detail.hidden = false;
 
-  if (isOwner) {
+  if (currentUser !== null && currentUser.id === post.seller.id) {
     renderOwnerActions(post);
     ownerPanel.hidden = false;
   } else {
@@ -96,13 +103,61 @@ function renderDetail(post) {
     ? el("p", { className: "post-detail__description", text: post.description })
     : el("p", { className: "post-detail__description post-detail__description--empty", text: "설명이 없습니다." });
 
+  // replaceChildren은 null을 건너뛰지 않으므로, 연락 영역이 없을 때를 대비해 걸러낸다.
   detail.replaceChildren(
-    el("div", { className: "post-detail__top" }, statusBadge(post.status)),
-    el("h1", { className: "post-detail__title", text: post.title }),
-    el("p", { className: "post-detail__price", text: formatPrice(post.price) }),
-    info,
-    el("h2", { className: "post-detail__subtitle", text: "설명" }),
-    description,
+    ...[
+      el("div", { className: "post-detail__top" }, statusBadge(post.status)),
+      el("h1", { className: "post-detail__title", text: post.title }),
+      el("p", { className: "post-detail__price", text: formatPrice(post.price) }),
+      info,
+      renderContact(post),
+      el("h2", { className: "post-detail__subtitle", text: "설명" }),
+      description,
+    ].filter(Boolean),
+  );
+}
+
+/**
+ * 연락 방법 영역. 보여줄 것이 없으면 null을 돌려준다.
+ * - 판매 완료: 더 연락할 이유가 없으므로 아무것도 보여주지 않는다.
+ * - 링크가 있음: 새 탭으로 여는 버튼. noopener noreferrer로 열린 페이지가 이 창(window.opener)과 주소를 알 수 없게 한다.
+ * - 링크가 없고 로그인하지 않음: 서버가 링크를 비워 보냈을 수 있으므로 로그인을 안내한다.
+ * - 링크가 없고 로그인함: 판매자가 링크를 등록하지 않은 글이다.
+ */
+function renderContact(post) {
+  if (post.status === "SOLD") return null;
+
+  const url = post.open_chat_url;
+  if (typeof url === "string" && url.startsWith(OPEN_CHAT_PREFIX)) {
+    return contactSection(
+      el("a", {
+        className: "button button--primary",
+        href: url,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        text: "오픈채팅으로 연락하기",
+      }),
+    );
+  }
+  if (currentUser === null) {
+    return contactSection(
+      el(
+        "p",
+        { className: "post-detail__contact-login" },
+        "로그인하면 연락 방법을 볼 수 있어요. ",
+        el("a", { href: authPageUrl(LOGIN_PAGE), text: "로그인" }),
+      ),
+    );
+  }
+  return null;
+}
+
+function contactSection(content) {
+  return el(
+    "section",
+    { className: "post-detail__contact", attrs: { "aria-label": "연락 방법" } },
+    el("h2", { className: "post-detail__subtitle", text: "연락하기" }),
+    content,
   );
 }
 
@@ -144,8 +199,8 @@ function onChangeStatus(post, status) {
 
   runAction(async () => {
     const updated = await changePostStatus(post.id, status);
-    // 서버가 돌려준 최신 글로 배지, 버튼, 수정 시각을 다시 그린다.
-    render(updated, true);
+    // 서버가 돌려준 최신 글로 배지, 버튼, 수정 시각, 연락 버튼을 다시 그린다.
+    render(updated);
   });
 }
 

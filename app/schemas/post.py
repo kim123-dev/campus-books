@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -8,6 +9,12 @@ from app.models import BookCondition, PostStatus
 
 MAX_PRICE = 10_000_000
 MAX_PAGE_SIZE = 100
+MAX_OPEN_CHAT_URL_LENGTH = 200
+
+# 카카오 오픈채팅 주소만 허용한다. 접두사를 "/"까지 고정해 open.kakao.com.evil.com 같은 주소를 막고,
+# 뒤쪽 글자도 URL에 흔히 쓰는 문자로 제한해 따옴표·꺾쇠·공백·역슬래시가 섞인 주소를 거절한다.
+OPEN_CHAT_URL_PATTERN = re.compile(r"https://open\.kakao\.com/[A-Za-z0-9._~\-/?=&%]+")
+OPEN_CHAT_URL_ERROR = "카카오 오픈채팅 주소(https://open.kakao.com/...)만 입력할 수 있습니다."
 
 # 목록 API들이 같은 규칙을 쓰도록 쿼리 파라미터 정의를 한곳에 둔다.
 # 범위를 벗어나면 FastAPI가 422를 돌려준다.
@@ -28,6 +35,13 @@ def _blank_to_none(value: Any) -> Any:
     return value
 
 
+def _check_open_chat_url(value: str | None) -> str | None:
+    """javascript:, http:, 다른 도메인 주소가 링크로 저장되지 않게 형식을 검사한다."""
+    if value is not None and not OPEN_CHAT_URL_PATTERN.fullmatch(value):
+        raise ValueError(OPEN_CHAT_URL_ERROR)
+    return value
+
+
 class PostCreate(BaseModel):
     """판매글 작성 요청. status는 서버가 정하므로 받지 않는다."""
 
@@ -41,16 +55,24 @@ class PostCreate(BaseModel):
     # strict: "1000" 같은 문자열이나 1000.5 같은 실수를 정수로 바꾸지 않고 거절한다.
     price: int = Field(ge=0, le=MAX_PRICE, strict=True, description="가격 (원)")
     description: str | None = Field(default=None, max_length=2000)
+    open_chat_url: str | None = Field(
+        default=None, max_length=MAX_OPEN_CHAT_URL_LENGTH, description="카카오 오픈채팅 주소"
+    )
 
     @field_validator("title", "book_title", mode="before")
     @classmethod
     def strip_required(cls, value: Any) -> Any:
         return _strip(value)
 
-    @field_validator("course_name", "description", mode="before")
+    @field_validator("course_name", "description", "open_chat_url", mode="before")
     @classmethod
     def clean_optional(cls, value: Any) -> Any:
         return _blank_to_none(value)
+
+    @field_validator("open_chat_url")
+    @classmethod
+    def check_open_chat_url(cls, value: str | None) -> str | None:
+        return _check_open_chat_url(value)
 
 
 class PostUpdate(BaseModel):
@@ -65,16 +87,24 @@ class PostUpdate(BaseModel):
     condition: BookCondition | None = None
     price: int | None = Field(default=None, ge=0, le=MAX_PRICE, strict=True)
     description: str | None = Field(default=None, max_length=2000)
+    open_chat_url: str | None = Field(
+        default=None, max_length=MAX_OPEN_CHAT_URL_LENGTH, description="카카오 오픈채팅 주소"
+    )
 
     @field_validator("title", "book_title", mode="before")
     @classmethod
     def strip_required(cls, value: Any) -> Any:
         return _strip(value)
 
-    @field_validator("course_name", "description", mode="before")
+    @field_validator("course_name", "description", "open_chat_url", mode="before")
     @classmethod
     def clean_optional(cls, value: Any) -> Any:
         return _blank_to_none(value)
+
+    @field_validator("open_chat_url")
+    @classmethod
+    def check_open_chat_url(cls, value: str | None) -> str | None:
+        return _check_open_chat_url(value)
 
     # 필수 컬럼에 null을 명시적으로 보내면 DB 제약 위반(500)이 되기 전에 422로 막는다.
     # (검증기는 직접 보낸 값에만 실행되므로, 생략한 필드는 여기에 걸리지 않는다)
@@ -148,6 +178,13 @@ class PostResponse(BaseModel):
     seller: SellerResponse
     created_at: datetime
     updated_at: datetime
+
+
+class PostDetailResponse(PostResponse):
+    """상세·작성·수정 응답. 연락 방법은 목록에는 넣지 않고 상세에서만 보여준다."""
+
+    # 로그인하지 않은 요청에는 라우터가 null로 바꿔 돌려준다.
+    open_chat_url: str | None
 
 
 class PostListResponse(BaseModel):

@@ -6,7 +6,7 @@ import { getToken } from "../token.js";
 import { clearFormErrors, readPostIdFromUrl, showFormErrors } from "../ui.js";
 
 const HOME_PAGE = "/static/index.html";
-const TEXT_FIELDS = ["title", "book_title", "course_name", "description"];
+const TEXT_FIELDS = ["title", "book_title", "course_name", "description", "open_chat_url"];
 
 const isEdit = new URLSearchParams(window.location.search).has("id");
 const postId = isEdit ? readPostIdFromUrl() : null;
@@ -112,7 +112,7 @@ function fillForm(post) {
 
 /**
  * 폼 값을 API 요청 본문으로 바꾼다.
- * - 과목명·설명을 비우면 빈 문자열을 보내고, 서버가 "없음(null)"으로 바꾼다. (수정에서 지울 수 있게)
+ * - 과목명·설명·오픈채팅 링크를 비우면 빈 문자열을 보내고, 서버가 "없음(null)"으로 바꾼다. (수정에서 지울 수 있게)
  * - 가격은 숫자로 보낸다. 서버가 "1000" 같은 문자열을 거절하기 때문이다.
  * - 책 상태·가격을 비우면 작성에서는 빼고 보내 서버가 "필수 항목입니다."를 주게 하고,
  *   수정에서는 null을 보내 서버가 거절하게 한다. 수정에서 빼면 "변경 안 함"으로 조용히 넘어가기 때문이다.

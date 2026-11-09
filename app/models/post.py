@@ -44,6 +44,8 @@ class Post(Base):
     condition: Mapped[BookCondition] = mapped_column(_enum_column(BookCondition))
     price: Mapped[int] = mapped_column(Integer)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 구매자가 판매자에게 연락할 카카오 오픈채팅 주소. 허용 형식 검사는 스키마에서 한다.
+    open_chat_url: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[PostStatus] = mapped_column(
         _enum_column(PostStatus),
         default=PostStatus.ON_SALE,

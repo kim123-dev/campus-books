@@ -610,6 +610,12 @@ a.button {
   font-size: 1.0625rem;
 }
 
+/* 연락 방법: 오픈채팅 버튼 또는 로그인 안내 */
+.post-detail__contact-login {
+  margin: 0;
+  color: var(--color-muted);
+}
+
 /* 판매자가 입력한 줄바꿈을 그대로 보여준다. */
 .post-detail__description {
   margin: 0;
