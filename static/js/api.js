@@ -220,6 +220,18 @@ export function signup(data) {
 }
 
 /** 내 정보. 헤더의 닉네임 표시와 "이미 로그인했는지" 확인에 쓴다. */
+// 성공하면 새 토큰을 준다. 변경 전 토큰은 서버에서 무효가 되므로 바로 바꿔 저장해야 한다.
+export function changePassword(currentPassword, newPassword) {
+  return request("/users/me/password", {
+    method: "PUT",
+    json: { current_password: currentPassword, new_password: newPassword },
+  });
+}
+
+export function withdraw(password) {
+  return request("/users/me/withdraw", { method: "POST", json: { password } });
+}
+
 export function getMe() {
   return request("/users/me");
 }

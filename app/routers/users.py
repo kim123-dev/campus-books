@@ -1,13 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser
 from app.schemas.post import PageQuery, PostListResponse, SizeQuery
-from app.schemas.user import MeResponse
-from app.services import post_service, user_service, wishlist_service
+from app.schemas.user import MeResponse, PasswordChange, TokenResponse, WithdrawRequest
+from app.services import account_service, post_service, user_service, wishlist_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -59,3 +59,37 @@ def read_my_wishlist(
 ) -> PostListResponse:
     items, total = wishlist_service.list_wishlist(db, current_user, page, size)
     return PostListResponse(items=items, total=total, page=page, size=size)
+
+
+# 정지 중에도 쓸 수 있게 ActiveUser가 아닌 CurrentUser를 쓴다. (유출이 의심되면 정지 중에도 바꿀 수 있어야 한다)
+@router.put(
+    "/me/password",
+    response_model=TokenResponse,
+    summary="비밀번호 변경 (새 액세스 토큰 발급)",
+    responses={
+        400: {"description": "현재 비밀번호 불일치"},
+        401: {"description": "로그인 필요"},
+    },
+)
+def change_my_password(
+    data: PasswordChange, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> TokenResponse:
+    # 변경 전에 받은 토큰은 모두 무효가 되므로, 지금 기기에서 계속 쓸 새 토큰을 돌려준다.
+    return TokenResponse(access_token=account_service.change_password(db, current_user, data))
+
+
+# DELETE에 본문을 받는 대신 POST로 둔다. 본문이 있는 DELETE는 일부 프록시·클라이언트가 지원하지 않는다.
+@router.post(
+    "/me/withdraw",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="회원 탈퇴",
+    responses={
+        400: {"description": "비밀번호 불일치, 관리자 계정"},
+        401: {"description": "로그인 필요"},
+    },
+)
+def withdraw_me(
+    data: WithdrawRequest, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> Response:
+    account_service.withdraw(db, current_user, data)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

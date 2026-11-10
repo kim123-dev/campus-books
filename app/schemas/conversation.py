@@ -64,6 +64,8 @@ class PartnerResponse(BaseModel):
 
     id: int
     nickname: str
+    # 탈퇴했으면 true. 화면은 신고·차단 버튼을 숨긴다. (nickname은 "탈퇴한 사용자")
+    withdrawn: bool = False
 
 
 class ConversationPostResponse(BaseModel):

@@ -10,7 +10,7 @@ from app.core.exceptions import (
     NotAuthenticatedError,
     SuspendedUserError,
 )
-from app.core.security import decode_access_token, oauth2_scheme
+from app.core.security import decode_access_token, oauth2_scheme, password_fingerprint
 from app.models import User, UserRole
 from app.services import user_service
 
@@ -25,11 +25,15 @@ def get_current_user(
         raise NotAuthenticatedError()
 
     # 만료·변조·형식 오류는 decode_access_token이 InvalidTokenError로 던진다.
-    user_id = decode_access_token(token)
+    data = decode_access_token(token)
 
-    # 서명이 맞아도 그사이 사용자가 삭제됐을 수 있으므로 DB에서 다시 확인한다.
-    user = user_service.get_user_by_id(db, user_id)
+    # 서명이 맞아도 그사이 사용자가 탈퇴했을 수 있으므로 DB에서 다시 확인한다. (탈퇴한 계정은 None)
+    user = user_service.get_user_by_id(db, data.user_id)
     if user is None:
+        raise InvalidTokenError()
+    # 비밀번호를 바꾸기 전에 발급된 토큰이면 거절한다. 토큰을 훔친 사람이 비밀번호 변경 뒤에도
+    # 계속 쓰지 못하게 하기 위해서다. (자세한 이유는 security.password_fingerprint)
+    if data.password_fingerprint != password_fingerprint(user.password_hash):
         raise InvalidTokenError()
     return user
 

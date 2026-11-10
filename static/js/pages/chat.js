@@ -255,6 +255,9 @@ function applyBlockState(conversation) {
   } else if (suspendedText !== null) {
     blockedNotice.textContent = suspendedText;
     blockedNotice.hidden = false;
+  } else if (partner.withdrawn) {
+    blockedNotice.textContent = "탈퇴한 사용자에게는 쪽지를 보낼 수 없습니다.";
+    blockedNotice.hidden = false;
   } else {
     blockedNotice.textContent = conversation.blocked_by_me
       ? "차단한 사용자입니다. 차단을 해제하면 다시 쪽지를 보낼 수 있어요."
@@ -263,6 +266,12 @@ function applyBlockState(conversation) {
   }
   textarea.disabled = !canSend;
   submitButton.disabled = sending || cooldownTimer !== null || !canSend;
+
+  // 탈퇴한 상대는 신고·차단할 대상이 없으므로(서버도 404) 버튼을 두지 않는다.
+  if (partner.withdrawn) {
+    chatActions.replaceChildren();
+    return;
+  }
 
   const reportButton = el("button", { type: "button", className: "link-button", text: "신고" });
   reportButton.addEventListener("click", async () => {

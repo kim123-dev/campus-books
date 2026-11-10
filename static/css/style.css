@@ -1042,6 +1042,36 @@ a.button {
   overflow-wrap: anywhere;
 }
 
+.account-card {
+  margin-top: 12px;
+  padding: var(--gap) 24px;
+}
+
+.account-card__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-card__notice {
+  margin: 12px 0 0;
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+}
+
+.account-form {
+  margin-top: 16px;
+  max-width: 420px;
+}
+
+.account-form > .field-hint {
+  margin: 0 0 12px;
+}
+
+.account-form .form-error {
+  margin-bottom: 12px;
+}
+
 .empty-actions {
   margin: 0 0 24px;
 }

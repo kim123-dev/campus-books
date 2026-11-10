@@ -14,6 +14,7 @@ from app.core.exceptions import (
     MessageRateLimitError,
     NotConversationParticipantError,
     SoldPostNotContactableError,
+    WithdrawnPartnerMessageError,
 )
 from app.models import Conversation, Message, PostStatus, User
 from app.schemas.conversation import (
@@ -28,7 +29,7 @@ from app.schemas.conversation import (
     MessageResponse,
     PartnerResponse,
 )
-from app.services import block_service, post_service
+from app.services import block_service, post_service, user_service
 
 
 @dataclass(frozen=True)
@@ -163,6 +164,8 @@ def send_message(
 ) -> MessageResponse:
     """메시지 전송. 차단 관계면 400, 짧은 시간에 너무 많이 보내면 MessageRateLimitError(429)."""
     conversation = _get_participating_conversation(db, conversation_id, sender)
+    if user_service.is_withdrawn(_partner(conversation, sender)):
+        raise WithdrawnPartnerMessageError()
     _check_not_blocked(db, sender, _partner_id(conversation, sender))
     _check_rate_limit(db, sender)
 
@@ -179,6 +182,10 @@ def send_message(
 
 
 # ---------- 내부 함수 ----------
+
+
+def _partner(conversation: Conversation, user: User) -> User:
+    return conversation.seller if conversation.buyer_id == user.id else conversation.buyer
 
 
 def _partner_id(conversation: Conversation, user: User) -> int:
@@ -198,8 +205,12 @@ def _to_detail(db: Session, conversation: Conversation, viewer: User) -> Convers
     """대화 화면용 응답. 목록 응답에 차단 상태(쿼리 1번)를 더한다."""
     base = _to_responses(db, [conversation], viewer)[0]
     i_blocked, they_blocked = block_service.block_state(db, viewer.id, _partner_id(conversation, viewer))
+    # 상대가 탈퇴했으면 답장할 사람이 없으므로 입력창을 잠근다. (차단 행은 탈퇴 때 지워졌다)
+    partner_withdrawn = user_service.is_withdrawn(_partner(conversation, viewer))
     return ConversationDetailResponse(
-        **base.model_dump(), can_send=not (i_blocked or they_blocked), blocked_by_me=i_blocked
+        **base.model_dump(),
+        can_send=not (i_blocked or they_blocked or partner_withdrawn),
+        blocked_by_me=i_blocked,
     )
 
 
@@ -301,9 +312,7 @@ def _to_responses(
                     if conversation.post is not None
                     else None
                 ),
-                partner=PartnerResponse.model_validate(
-                    conversation.seller if is_buyer else conversation.buyer
-                ),
+                partner=_to_partner_response(conversation.seller if is_buyer else conversation.buyer),
                 my_role=ConversationRole.BUYER if is_buyer else ConversationRole.SELLER,
                 last_message=(
                     LastMessageResponse(
@@ -320,6 +329,15 @@ def _to_responses(
             )
         )
     return responses
+
+
+def _to_partner_response(partner: User) -> PartnerResponse:
+    # 탈퇴한 상대는 닉네임 대신 "탈퇴한 사용자"로 보여준다. (탈퇴 때 바꾼 임의 닉네임을 드러내지 않는다)
+    return PartnerResponse(
+        id=partner.id,
+        nickname=user_service.display_nickname(partner),
+        withdrawn=user_service.is_withdrawn(partner),
+    )
 
 
 def _to_message_response(message: Message, viewer: User) -> MessageResponse:

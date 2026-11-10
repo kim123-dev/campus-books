@@ -146,6 +146,20 @@ class CannotSuspendAdminError(BadRequestError):
     message = "관리자는 정지할 수 없습니다."
 
 
+class WrongPasswordError(BadRequestError):
+    # 로그인한 상태에서 본인 확인에 실패한 경우라 401(로그인 풀림)이 아니라 400으로 돌려준다.
+    message = "현재 비밀번호가 올바르지 않습니다."
+
+
+class AdminCannotWithdrawError(BadRequestError):
+    # 관리자가 모두 탈퇴하면 신고를 처리할 사람이 없어진다. 관리자 해제는 서버(CLI)에서 한다.
+    message = "관리자 계정은 탈퇴할 수 없습니다."
+
+
+class WithdrawnPartnerMessageError(BadRequestError):
+    message = "탈퇴한 사용자에게는 쪽지를 보낼 수 없습니다."
+
+
 class PayloadTooLargeError(DomainError):
     """요청 본문(업로드 파일)이 너무 큼. main.py에서 413으로 변환한다."""
 

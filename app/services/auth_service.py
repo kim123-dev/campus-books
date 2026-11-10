@@ -55,4 +55,4 @@ def login(db: Session, data: LoginForm) -> str:
     end = user_service.active_suspension_end(user)
     if end is not None:
         raise SuspendedUserError(user_service.suspension_message(end))
-    return create_access_token(user.id)
+    return create_access_token(user.id, user.password_hash)

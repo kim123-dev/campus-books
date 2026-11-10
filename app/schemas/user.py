@@ -1,10 +1,21 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.security import BCRYPT_MAX_BYTES
 from app.models import UserRole
+
+
+# 가입과 비밀번호 변경이 같은 규칙을 쓰도록 한 곳에 둔다.
+# 글자 수 제한(64자)만으로는 한글 비밀번호가 72바이트를 넘을 수 있어 바이트도 검사한다.
+def _check_password_bytes(value: str) -> str:
+    if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise ValueError(f"비밀번호는 {BCRYPT_MAX_BYTES}바이트 이하여야 합니다.")
+    return value
+
+
+NewPassword = Annotated[str, Field(min_length=8, max_length=64), AfterValidator(_check_password_bytes)]
 
 
 class UserCreate(BaseModel):
@@ -14,7 +25,7 @@ class UserCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
-    password: str = Field(min_length=8, max_length=64)
+    password: NewPassword
     nickname: str = Field(min_length=2, max_length=30)
 
     # 대소문자만 다른 이메일로 중복 가입하는 것을 막기 위해 소문자로 통일한다.
@@ -22,14 +33,6 @@ class UserCreate(BaseModel):
     @classmethod
     def normalize_email(cls, value: str) -> str:
         return value.lower()
-
-    # 글자 수 제한(64자)만으로는 한글 비밀번호가 72바이트를 넘을 수 있어 바이트도 검사한다.
-    @field_validator("password")
-    @classmethod
-    def check_password_bytes(cls, value: str) -> str:
-        if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
-            raise ValueError(f"비밀번호는 {BCRYPT_MAX_BYTES}바이트 이하여야 합니다.")
-        return value
 
     # 공백만 넣은 닉네임을 막기 위해 길이 검사 전에(before) 앞뒤 공백을 제거한다.
     @field_validator("nickname", mode="before")
@@ -76,3 +79,21 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: Literal["bearer"] = "bearer"
+
+
+class PasswordChange(BaseModel):
+    """비밀번호 변경 요청. 새 비밀번호는 가입 때와 같은 규칙으로 검사한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # 현재 비밀번호는 맞는지만 확인하므로 빈 값만 막는다. (로그인과 같은 기준)
+    current_password: str = Field(min_length=1)
+    new_password: NewPassword
+
+
+class WithdrawRequest(BaseModel):
+    """회원 탈퇴 요청. 토큰만 훔친 사람이 계정을 지우지 못하게 비밀번호를 다시 받는다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1)

@@ -40,7 +40,7 @@ def test_login_success_returns_bearer_token(client: TestClient, user_id: int) ->
     body = response.json()
     assert body["token_type"] == "bearer"
     # 발급된 토큰을 풀면 가입한 사용자의 id가 나와야 한다.
-    assert decode_access_token(body["access_token"]) == user_id
+    assert decode_access_token(body["access_token"]).user_id == user_id
 
 
 def test_login_token_expiry_follows_settings(client: TestClient, user_id: int) -> None:

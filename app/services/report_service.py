@@ -19,7 +19,7 @@ from app.core.exceptions import (
 )
 from app.models import Report, ReportTargetType, User
 from app.schemas.report import ReportCreate
-from app.services import post_service
+from app.services import post_service, user_service
 
 
 @dataclass(frozen=True)
@@ -54,7 +54,8 @@ def report_post(db: Session, post_id: int, reporter: User, data: ReportCreate) -
 
 def report_user(db: Session, user_id: int, reporter: User, data: ReportCreate) -> Report:
     """사용자 신고. 순서: 404 없는 사용자 → 400 자기 자신 → 409 이미 신고 → 429 횟수 제한."""
-    if db.get(User, user_id) is None:
+    # 탈퇴한 사용자는 없는 사람으로 본다.
+    if user_service.get_user_by_id(db, user_id) is None:
         raise UserNotFoundError()
     if user_id == reporter.id:
         raise CannotReportSelfError()

@@ -1,3 +1,5 @@
+import hashlib
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -31,10 +33,33 @@ def verify_password(password: str, password_hash: str) -> bool:
     # 가입 단계에서 이미 막았으므로 그런 비밀번호는 절대 일치할 수 없어 False로 처리한다.
     if len(password_bytes) > BCRYPT_MAX_BYTES:
         return False
-    return bcrypt.checkpw(password_bytes, password_hash.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(password_bytes, password_hash.encode("utf-8"))
+    except ValueError:
+        # bcrypt 형식이 아닌 해시(탈퇴한 계정의 잠금 표시)는 어떤 비밀번호와도 일치하지 않는다.
+        return False
 
 
-def create_access_token(user_id: int, expires_delta: timedelta | None = None) -> str:
+def password_fingerprint(password_hash: str) -> str:
+    """토큰에 넣을 비밀번호 지문. 비밀번호 해시가 바뀌면 지문도 바뀐다.
+
+    비밀번호를 바꾸면(또는 탈퇴하면) 그 전에 발급한 토큰을 모두 쓸 수 없게 하려고 쓴다.
+    토큰 목록을 저장하거나 DB 컬럼을 추가하지 않아도 되는 가장 단순한 방법이다.
+    해시의 해시 일부만 넣으므로 토큰을 열어 봐도 비밀번호를 알아낼 수 없다.
+    """
+    return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:16]
+
+
+@dataclass(frozen=True)
+class AccessTokenData:
+    user_id: int
+    # 발급 당시 비밀번호 지문. 지금 사용자의 지문과 다르면 비밀번호가 바뀐 뒤의 옛 토큰이다.
+    password_fingerprint: str
+
+
+def create_access_token(
+    user_id: int, password_hash: str = "", expires_delta: timedelta | None = None
+) -> str:
     """액세스 토큰 발급. 만료 시간을 바꿔야 하는 테스트를 위해 expires_delta를 열어둔다."""
     settings = get_settings()
     if expires_delta is None:
@@ -43,13 +68,14 @@ def create_access_token(user_id: int, expires_delta: timedelta | None = None) ->
     payload = {
         # JWT 표준상 sub는 문자열이어야 해서 user id를 문자열로 넣는다.
         "sub": str(user_id),
+        "pwd": password_fingerprint(password_hash),
         "exp": datetime.now(UTC) + expires_delta,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str) -> int:
-    """토큰을 검증하고 user id를 돌려준다. 만료, 변조, 형식 오류는 모두 InvalidTokenError."""
+def decode_access_token(token: str) -> AccessTokenData:
+    """토큰을 검증해 user id와 비밀번호 지문을 돌려준다. 만료, 변조, 형식 오류는 모두 InvalidTokenError."""
     settings = get_settings()
     try:
         payload = jwt.decode(
@@ -57,8 +83,9 @@ def decode_access_token(token: str) -> int:
             settings.SECRET_KEY,
             # 허용 알고리즘을 고정해 alg 헤더를 바꾸는 공격(예: "none")을 막는다.
             algorithms=[ALGORITHM],
-            options={"require": ["exp", "sub"]},
+            # 지문(pwd)이 없는 토큰(이 기능 전에 발급된 토큰)도 거절한다. 다시 로그인하면 된다.
+            options={"require": ["exp", "sub", "pwd"]},
         )
-        return int(payload["sub"])
+        return AccessTokenData(user_id=int(payload["sub"]), password_fingerprint=str(payload["pwd"]))
     except (jwt.InvalidTokenError, ValueError) as exc:
         raise InvalidTokenError() from exc

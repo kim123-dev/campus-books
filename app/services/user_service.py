@@ -11,10 +11,27 @@ from app.models import User, UserRole
 KST = timezone(timedelta(hours=9), "KST")
 
 
-# 없으면 None을 돌려주고, 없을 때 어떤 에러로 볼지는 호출하는 쪽이 정한다.
+# 탈퇴한 계정의 password_hash 자리에 넣는 값. bcrypt 해시는 "$2"로 시작하므로 이 값과 겹칠 수 없고,
+# 어떤 비밀번호로도 로그인되지 않는다. (security.verify_password가 False를 돌려준다)
+WITHDRAWN_PASSWORD_HASH = "!withdrawn"
+# 탈퇴한 사용자를 다른 사람 화면에 보여줄 때 쓰는 이름
+WITHDRAWN_NICKNAME = "탈퇴한 사용자"
+
+
+def is_withdrawn(user: User) -> bool:
+    return user.password_hash == WITHDRAWN_PASSWORD_HASH
+
+
+def display_nickname(user: User) -> str:
+    """다른 사용자에게 보여줄 닉네임. 탈퇴했으면 "탈퇴한 사용자"."""
+    return WITHDRAWN_NICKNAME if is_withdrawn(user) else user.nickname
+
+
+# 없거나 탈퇴했으면 None을 돌려주고, 없을 때 어떤 에러로 볼지는 호출하는 쪽이 정한다.
 # (인증에서는 401, 다른 기능에서는 404처럼 상황마다 의미가 다르기 때문)
 def get_user_by_id(db: Session, user_id: int) -> User | None:
-    return db.get(User, user_id)
+    user = db.get(User, user_id)
+    return None if user is None or is_withdrawn(user) else user
 
 
 # ---------- 이용 정지 ----------

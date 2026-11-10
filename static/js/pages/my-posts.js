@@ -1,9 +1,9 @@
 // 내 글 화면: 내 정보와 내 판매글 목록(판매 완료 포함)을 보여준다. 로그인이 필요하다.
 // 페이지 번호는 주소창(?page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 페이지가 나오게 하기 위해서다.
-import { listMyPosts } from "../api.js";
+import { changePassword, listMyPosts, withdraw } from "../api.js";
 import { logout, redirectToLogin, renderHeader } from "../auth.js";
-import { getToken } from "../token.js";
-import { el, formatDate, renderPagination, renderPostCard } from "../ui.js";
+import { clearToken, getToken, setToken } from "../token.js";
+import { clearFormErrors, el, formatDate, renderPagination, renderPostCard, showFormErrors } from "../ui.js";
 
 const PAGE_SIZE = 10; // 목록 화면과 같게 맞춘다. (서버 기본값은 20)
 
@@ -39,6 +39,7 @@ async function init() {
   }
 
   renderProfile(me);
+  setUpAccount(me);
   // 뒤로 가기/앞으로 가기로 주소가 바뀌면 그 페이지를 다시 불러온다.
   window.addEventListener("popstate", load);
   load();
@@ -58,6 +59,104 @@ function renderProfile(me) {
   logoutButton.addEventListener("click", logout);
   actions.append(logoutButton);
   profile.hidden = false;
+  document.getElementById("account").hidden = false;
+}
+
+// ---------- 계정 관리: 비밀번호 변경·회원 탈퇴 ----------
+
+function setUpAccount(me) {
+  const account = document.getElementById("account");
+  const notice = document.getElementById("account-notice");
+  const passwordForm = document.getElementById("password-form");
+  const withdrawForm = document.getElementById("withdraw-form");
+  const passwordToggle = document.getElementById("password-toggle");
+  const withdrawToggle = document.getElementById("withdraw-toggle");
+
+  // 버튼 하나를 누르면 그 폼만 펼친다. 두 폼이 함께 열려 있으면 어떤 비밀번호 칸인지 헷갈린다.
+  function toggle(form, button) {
+    const open = form.hidden;
+    for (const [f, b] of [[passwordForm, passwordToggle], [withdrawForm, withdrawToggle]]) {
+      f.hidden = !(open && f === form);
+      b.setAttribute("aria-expanded", String(!f.hidden));
+    }
+    notice.hidden = true;
+    if (open) form.querySelector("input").focus();
+  }
+  passwordToggle.addEventListener("click", () => toggle(passwordForm, passwordToggle));
+  // 관리자는 탈퇴할 수 없으므로(서버도 400) 버튼을 두지 않는다.
+  if (me.role === "ADMIN") withdrawToggle.hidden = true;
+  else withdrawToggle.addEventListener("click", () => toggle(withdrawForm, withdrawToggle));
+
+  passwordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const errorBox = passwordForm.querySelector(".form-error");
+    clearFormErrors(passwordForm, errorBox);
+    const { current_password: current, new_password: next, new_password_confirm: confirm } = passwordForm.elements;
+    if (next.value !== confirm.value) {
+      showFormErrors(passwordForm, errorBox, { fieldErrors: { new_password_confirm: "새 비밀번호가 일치하지 않습니다." } });
+      return;
+    }
+    const submit = passwordForm.querySelector("[type=submit]");
+    submit.disabled = true;
+    try {
+      const { access_token: token } = await changePassword(current.value, next.value);
+      // 서버가 변경 전 토큰을 모두 무효로 만들었으므로, 받은 새 토큰으로 바로 바꿔 이 기기의 로그인을 유지한다.
+      setToken(token);
+      passwordForm.reset();
+      passwordForm.hidden = true;
+      passwordToggle.setAttribute("aria-expanded", "false");
+      notice.textContent = "비밀번호를 변경했습니다. 다른 기기에서는 다시 로그인해야 합니다.";
+      notice.hidden = false;
+    } catch (error) {
+      if (error.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      showPasswordError(passwordForm, errorBox, error, "current_password");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  withdrawForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const errorBox = withdrawForm.querySelector(".form-error");
+    clearFormErrors(withdrawForm, errorBox);
+    const password = withdrawForm.elements.password;
+    if (password.value === "") {
+      showFormErrors(withdrawForm, errorBox, { fieldErrors: { password: "비밀번호를 입력해 주세요." } });
+      return;
+    }
+    // 되돌릴 수 없는 작업이라 실수로 누르지 않게 두 번 묻는다.
+    if (!window.confirm("정말 탈퇴할까요? 내 글과 사진, 찜, 차단 목록이 모두 삭제됩니다.")) return;
+    if (!window.confirm("탈퇴하면 되돌릴 수 없습니다. 마지막으로 확인할게요. 탈퇴할까요?")) return;
+
+    const submit = withdrawForm.querySelector("[type=submit]");
+    submit.disabled = true;
+    try {
+      await withdraw(password.value);
+    } catch (error) {
+      submit.disabled = false;
+      if (error.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      showPasswordError(withdrawForm, errorBox, error, "password");
+      return;
+    }
+    clearToken();
+    window.alert("탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
+    window.location.replace("/static/index.html");
+  });
+}
+
+// 비밀번호가 틀리면(400) 공통 영역 대신 비밀번호 칸 아래에 보여준다.
+function showPasswordError(form, errorBox, error, field) {
+  if (error.status === 400) {
+    showFormErrors(form, errorBox, { fieldErrors: { [field]: error.message } });
+  } else {
+    showFormErrors(form, errorBox, error);
+  }
 }
 
 // ---------- 불러오기와 그리기 ----------

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import CannotBlockSelfError, UserNotFoundError
 from app.models import User, UserBlock
 from app.schemas.block import BlockedUserResponse, BlockResponse
+from app.services import user_service
 
 
 def block(db: Session, target_id: int, user: User) -> bool:
@@ -87,7 +88,8 @@ def blocked_ids_query(user_id: int) -> Select:
 
 
 def _get_user(db: Session, user_id: int) -> User:
-    user = db.get(User, user_id)
+    # 탈퇴한 사용자는 없는 사람으로 본다. (get_user_by_id가 None을 돌려준다)
+    user = user_service.get_user_by_id(db, user_id)
     if user is None:
         raise UserNotFoundError()
     return user

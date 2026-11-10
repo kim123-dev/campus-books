@@ -65,7 +65,7 @@ def test_start_creates_conversation(client: TestClient, buyer: dict, post: dict)
     assert response.status_code == 201
     body = response.json()
     assert body["post"] == {"id": post["id"], "title": post["title"], "status": "ON_SALE"}
-    assert body["partner"] == {"id": post["seller"]["id"], "nickname": "판매자"}
+    assert body["partner"] == {"id": post["seller"]["id"], "nickname": "판매자", "withdrawn": False}
     assert body["my_role"] == "BUYER"
     assert body["last_message"] is None
     assert body["unread_count"] == 0
@@ -240,7 +240,7 @@ def test_responses_do_not_expose_email_or_password(
         assert "email" not in response.text
         assert "password" not in response.text
     partner = responses[2].json()["items"][0]["partner"]
-    assert set(partner) == {"id", "nickname"}
+    assert set(partner) == {"id", "nickname", "withdrawn"}
 
 
 # ---------- 목록 ----------
