@@ -1,0 +1,54 @@
+# 헤드리스 UI 확인
+
+헤드리스 Chrome을 DevTools 프로토콜로 직접 움직여 화면을 확인하는 스크립트입니다. npm 패키지는 따로 설치하지 않아도 됩니다.
+실행할 때마다 임시 DB와 확인용 서버(기본 포트 8001)를 새로 띄우기 때문에 `dev.db`와 `uploads/`는 건드리지 않습니다.
+
+## 준비
+
+- Node.js 22 이상 (내장 `fetch`·`WebSocket` 사용)
+- Google Chrome
+- 저장소 루트에 `venv`와 `requirements.txt` 패키지 설치
+- Windows에서는 Git Bash로 실행
+
+## 실행
+
+저장소 루트에서 실행합니다.
+
+```bash
+# 확인 하나 (기본 폭 375px)
+tools/ui-check/run.sh mobile-check
+
+# 폭 바꾸기
+WIDTH=390 tools/ui-check/run.sh mobile-check
+
+# PC 화면 비교: 변경 전 기록 → 변경 후 기록 → 비교
+tools/ui-check/run.sh pc-snapshot before
+tools/ui-check/run.sh pc-snapshot after
+node tools/ui-check/compare.mjs tools/ui-check/out before after
+```
+
+| 스크립트 | 확인 내용 |
+|---|---|
+| `mobile-check` | 모바일 탭 바, 목록·카드, 터치 영역 44px, 글자 16px, 상세 갤러리, 대화 키보드 |
+| `ui-check` | 쪽지(대화) 화면 |
+| `photo-check` | 사진 업로드 (개수 제한, 5MB 초과, 형식 오류, 부분 실패) |
+| `wish-check` | 찜하기 |
+| `safety-check` | 신고·차단 |
+| `admin-check` | 신고 관리, 이용 정지, `make-admin` CLI |
+| `pwa-check` | 홈 화면 설치 안내, 서비스 워커 캐시 |
+| `pc-snapshot` | PC(1280px) 화면의 요소 위치·스타일 기록 (`compare.mjs`로 비교) |
+
+결과는 `tools/ui-check/out/`에 쌓입니다(`<이름>-<폭>.txt`, 스크린샷, 서버 로그). 이 폴더는 커밋하지 않습니다.
+
+## 환경 변수 (모두 선택)
+
+| 이름 | 기본값 | 설명 |
+|---|---|---|
+| `WIDTH` | `375` | 모바일 화면 폭 |
+| `UI_CHECK_OUT` | `tools/ui-check/out` | 결과·임시 DB 폴더 |
+| `UI_CHECK_PORT` | `8001` | 확인용 서버 포트 |
+| `CHROME_PATH` | OS별 기본 설치 경로 | Chrome 실행 파일 |
+| `CDP_PORT` | `9333` | Chrome 원격 디버깅 포트 |
+| `PYTHON` | `venv`의 python | 서버·시드에 쓸 파이썬 |
+
+`SECRET_KEY`는 실행할 때마다 임의로 만들기 때문에 따로 설정할 필요가 없습니다. 테스트 계정은 `seed.py`가 매번 새로 만듭니다.
