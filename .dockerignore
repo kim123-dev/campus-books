@@ -1,0 +1,18 @@
+# 이미지에는 실행에 필요한 app/, static/, requirements.txt만 들어가면 된다.
+# 비밀값·로컬 DB·사용자 사진이 이미지에 섞여 올라가지 않도록 막는다.
+.env
+.env.*
+*.db
+*.bak
+uploads/
+
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+.git/
+.claude/
+tests/
+docs/

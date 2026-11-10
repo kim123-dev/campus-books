@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  모델을 등록해야 create_all이 테이블을 만든다.
+from app.core.config import get_settings
 from app.core.database import Base, engine
 from app.core.exceptions import (
     AuthenticationError,
@@ -39,10 +40,18 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
+def api_docs_urls(is_production: bool) -> dict[str, str | None]:
+    """운영에서는 API 문서(/docs, /redoc, /openapi.json)를 끈다. 누구나 전체 API 구조를 훑어보지 못하게 하기 위해서다."""
+    if is_production:
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
+
+
 app = FastAPI(
     title="Campus Books",
     description="캠퍼스 중고 교재 거래 게시판 API",
     lifespan=lifespan,
+    **api_docs_urls(get_settings().is_production),
 )
 app.include_router(auth.router)
 app.include_router(users.router)
