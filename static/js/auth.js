@@ -1,6 +1,6 @@
 // 로그인 상태 처리: 공통 헤더, 로그인 후 돌아갈 주소, 로그아웃.
 // 토큰 보관 자체는 token.js가 맡는다.
-import { getMe, getUnreadCount } from "./api.js";
+import { getAlertUnreadCount, getMe, getUnreadCount } from "./api.js";
 import { clearToken, getToken } from "./token.js";
 import { el, formatMonthDayTime, icon } from "./ui.js";
 
@@ -13,6 +13,7 @@ const WISHLIST_PAGE = "/static/wishlist.html";
 const CONVERSATIONS_PAGE = "/static/conversations.html";
 const ADMIN_PAGE = "/static/admin.html";
 const BLOCKS_PAGE = "/static/blocks.html";
+const ALERTS_PAGE = "/static/alerts.html";
 const MAX_BADGE_COUNT = 99;
 
 // ---------- 돌아갈 주소 (next) ----------
@@ -71,12 +72,14 @@ export function redirectToLogin() {
  */
 export async function renderHeader(container) {
   const nav = el("nav", { className: "site-nav", attrs: { "aria-label": "주요 메뉴" } });
+  // 알림 종은 메뉴(nav) 밖에 둔다. 모바일에서는 로그인 메뉴가 숨겨져도(하단 탭 바가 대신) 종은 보여야 하기 때문이다.
+  const bellSlot = el("span", { className: "site-header__bell" });
   container.replaceChildren(
     el(
       "div",
       { className: "container site-header__inner" },
       el("a", { className: "site-logo", href: HOME_PAGE, text: "Campus Books" }),
-      nav,
+      el("div", { className: "site-header__right" }, nav, bellSlot),
     ),
   );
   // 모바일 하단 탭 바는 로그인 확인을 기다리지 않고 바로 그려, 화면이 뜬 뒤 아래가 밀리지 않게 한다.
@@ -91,6 +94,7 @@ export async function renderHeader(container) {
   try {
     const me = await getMe();
     nav.replaceChildren(...loggedInItems(me));
+    bellSlot.replaceChildren(alertBell());
     // 로그인 메뉴는 모바일에서 하단 탭 바가 대신한다. (로그인·회원가입 링크는 모바일에서도 헤더에 남긴다)
     nav.classList.add("site-nav--member");
     // 정지 중이면 모든 화면 위쪽에 언제까지인지 알려준다. 쓰기 버튼을 눌렀다가 403을 받고 나서야 알게 되지 않도록.
@@ -102,6 +106,7 @@ export async function renderHeader(container) {
     }
     // 배지는 헤더를 그린 뒤 따로 채운다. 기다리지 않아서, 배지 요청이 늦어도 화면이 먼저 뜬다.
     refreshUnreadBadge();
+    refreshAlertBadge();
     return me;
   } catch {
     // 401이면 api.js가 이미 토큰을 지웠다.
@@ -138,6 +143,20 @@ function loggedInItems(me) {
   ];
 }
 
+// 찾는 교재 알림 종. PC와 모바일 모두 헤더 오른쪽에 보인다. (하단 탭 바는 이미 5칸이라 늘리지 않는다)
+function alertBell() {
+  return el(
+    "a",
+    {
+      className: "site-bell",
+      href: ALERTS_PAGE,
+      attrs: { id: "nav-alerts", "aria-label": "찾는 교재 알림", ...(window.location.pathname === ALERTS_PAGE ? { "aria-current": "page" } : {}) },
+    },
+    icon("bell"),
+    el("span", { className: "nav-badge site-bell__badge", attrs: { id: "nav-alerts-unread", "aria-hidden": "true" }, hidden: true }),
+  );
+}
+
 // ---------- 모바일 하단 탭 바 ----------
 
 // also: 이 탭에서 들어가는 화면. 그 화면에서도 이 탭을 현재 탭으로 표시한다.
@@ -146,7 +165,7 @@ const TABS = [
   { href: WISHLIST_PAGE, label: "찜", icon: "heart" },
   { href: POST_FORM_PAGE, label: "글쓰기", icon: "plus", modifier: "write" },
   { href: CONVERSATIONS_PAGE, label: "쪽지", icon: "chat", id: "tab-messages", badgeId: "tab-unread" },
-  { href: MY_POSTS_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ADMIN_PAGE] },
+  { href: MY_POSTS_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ADMIN_PAGE, ALERTS_PAGE] },
 ];
 
 /**
@@ -181,6 +200,25 @@ function renderTabBar() {
 export function suspensionText(me) {
   if (!me?.suspended_until) return null;
   return `${formatMonthDayTime(me.suspended_until)}까지 이용이 정지된 상태입니다. 글쓰기·수정·쪽지·찜·신고를 할 수 없어요.`;
+}
+
+/**
+ * 헤더 종의 안 읽은 알림 배지를 다시 채운다. 알림 화면이 모두 읽음 처리한 뒤에도 부른다.
+ * 쪽지 배지와 같이 보조 정보라 실패해도 배지만 숨긴다.
+ */
+export async function refreshAlertBadge() {
+  const link = document.getElementById("nav-alerts");
+  const badge = document.getElementById("nav-alerts-unread");
+  if (!link || !badge) return;
+  let count = 0;
+  try {
+    ({ unread_count: count } = await getAlertUnreadCount());
+  } catch {
+    count = 0;
+  }
+  badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
+  badge.hidden = count === 0;
+  link.setAttribute("aria-label", count > 0 ? `찾는 교재 알림, 새 알림 ${count}개` : "찾는 교재 알림");
 }
 
 /**

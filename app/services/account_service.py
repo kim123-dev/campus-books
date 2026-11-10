@@ -9,7 +9,7 @@ from app.core.exceptions import AdminCannotWithdrawError, WrongPasswordError
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import Post, Report, User, UserBlock, UserRole, Wishlist
 from app.schemas.user import PasswordChange, WithdrawRequest
-from app.services import image_storage, post_service, user_service
+from app.services import alert_service, image_storage, post_service, user_service
 
 
 def change_password(db: Session, user: User, data: PasswordChange) -> str:
@@ -29,7 +29,7 @@ def change_password(db: Session, user: User, data: PasswordChange) -> str:
 def withdraw(db: Session, user: User, data: WithdrawRequest) -> None:
     """회원 탈퇴. 순서: 400 관리자 → 400 비밀번호 틀림.
 
-    - 지운다: 내 글(사진 파일 포함), 내 찜, 내가 한·받은 차단
+    - 지운다: 내 글(사진 파일 포함), 내 찜, 내가 한·받은 차단, 찾는 교재 조건과 알림
     - 남긴다: 쪽지 대화방(상대 화면에는 "탈퇴한 사용자"), 신고 기록(내 id만 비운다)
 
     사용자 행은 지우지 않고 개인정보를 지운 "탈퇴 표시"로 남긴다. 대화방·쪽지가 사용자 id를
@@ -46,6 +46,7 @@ def withdraw(db: Session, user: User, data: WithdrawRequest) -> None:
     for post in db.scalars(select(Post).where(Post.seller_id == user.id)).all():
         image_names += post_service.delete_post_rows(db, post)
     db.execute(delete(Wishlist).where(Wishlist.user_id == user.id))
+    alert_service.delete_for_user(db, user.id)
     db.execute(
         delete(UserBlock).where(or_(UserBlock.blocker_id == user.id, UserBlock.blocked_id == user.id))
     )

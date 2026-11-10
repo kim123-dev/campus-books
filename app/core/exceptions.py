@@ -29,6 +29,10 @@ class DuplicateNicknameError(ConflictError):
     message = "이미 사용 중인 닉네임입니다."
 
 
+class DuplicateAlertError(ConflictError):
+    message = "이미 등록한 키워드입니다."
+
+
 class NotFoundError(DomainError):
     """요청한 데이터가 없음. main.py에서 404로 변환한다."""
 
@@ -47,6 +51,10 @@ class ReportNotFoundError(NotFoundError):
 
 class ImageNotFoundError(NotFoundError):
     message = "사진을 찾을 수 없습니다."
+
+
+class AlertNotFoundError(NotFoundError):
+    message = "찾는 교재 조건을 찾을 수 없습니다."
 
 
 class ConversationNotFoundError(NotFoundError):
@@ -158,6 +166,11 @@ class AdminCannotWithdrawError(BadRequestError):
 
 class WithdrawnPartnerMessageError(BadRequestError):
     message = "탈퇴한 사용자에게는 쪽지를 보낼 수 없습니다."
+
+
+class TooManyAlertsError(BadRequestError):
+    # 숫자는 서비스가 MAX_ALERTS_PER_USER로 채운다.
+    message = "찾는 교재는 최대 10개까지 등록할 수 있습니다."
 
 
 class PayloadTooLargeError(DomainError):

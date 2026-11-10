@@ -9,7 +9,7 @@ from app.core.exceptions import (
 )
 from app.models import Conversation, Post, PostStatus, User, Wishlist
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
-from app.services import block_service, image_storage
+from app.services import alert_service, block_service, image_storage
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
@@ -27,6 +27,9 @@ def create_post(db: Session, seller: User, data: PostCreate) -> Post:
     """판매글 작성. status는 모델 기본값(ON_SALE)을 따른다."""
     post = Post(seller_id=seller.id, **data.model_dump())
     db.add(post)
+    # 알림에 글 번호가 필요하므로 먼저 INSERT한다. 글과 알림은 한 트랜잭션으로 함께 저장된다.
+    db.flush()
+    alert_service.notify_matching(db, post)
     db.commit()
     # created_at/updated_at은 DB가 채우므로 다시 읽어와야 응답에 담을 수 있다.
     db.refresh(post)
@@ -65,8 +68,13 @@ def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post
     post = get_editable_post(db, post_id, user)
 
     # exclude_unset: 요청에 없던 필드를 None으로 덮어쓰지 않게 한다. 빈 본문이면 아무것도 바뀌지 않는다.
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    rematch = alert_service.match_fields_changed(post, changes)
+    for field, value in changes.items():
         setattr(post, field, value)
+    # 교재명·과목명·가격이 바뀌어 조건에 새로 맞게 된 사람에게 알린다. (이미 받은 사람은 건너뛴다)
+    if rematch:
+        alert_service.notify_matching(db, post)
     return _commit_and_refresh(db, post)
 
 
@@ -109,6 +117,8 @@ def delete_post_rows(db: Session, post: Post) -> list[str]:
     db.execute(update(Conversation).where(Conversation.post_id == post.id).values(post_id=None))
     # 찜은 글이 없으면 의미가 없으므로 함께 지운다. (SQLite는 FK의 CASCADE를 실행하지 않는다)
     db.execute(delete(Wishlist).where(Wishlist.post_id == post.id))
+    # 찾는 교재 알림도 글이 없으면 의미가 없으므로 함께 지운다.
+    alert_service.delete_for_post(db, post.id)
     image_names = [name for image in post.images for name in (image.filename, image.thumb_filename)]
     db.delete(post)  # 사진 행은 relationship cascade로 함께 지워진다.
     return image_names

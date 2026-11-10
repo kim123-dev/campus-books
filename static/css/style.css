@@ -190,6 +190,166 @@ a {
   overflow-wrap: anywhere;
 }
 
+.site-header__right {
+  display: flex;
+  align-items: center;
+  gap: 4px 16px;
+}
+
+/* 찾는 교재 알림 종. 배지는 쪽지 배지와 같은 모양을 종 오른쪽 위에 겹쳐 둔다. */
+.site-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: var(--color-text);
+}
+
+.site-bell:hover,
+.site-bell[aria-current="page"] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.site-bell .icon {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.site-bell__badge {
+  position: absolute;
+  top: 2px;
+  left: 24px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+}
+
+/* ---------- 찾는 교재 알림 화면 ---------- */
+
+.alert-form {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0 12px;
+}
+
+.alert-form .field {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.alert-form__submit {
+  align-self: flex-end;
+  margin-bottom: 16px;
+}
+
+.alert-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alert-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-divider);
+}
+
+.alert-list__text {
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-list__keyword {
+  font-weight: 700;
+}
+
+.alert-list__price {
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+}
+
+.alert-list__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.alert-section-title {
+  margin: 32px 0 12px;
+  font-size: 1.25rem;
+}
+
+.alert-section-title--in-card {
+  margin-top: 0;
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.notification-card--unread {
+  box-shadow: inset 4px 0 0 var(--color-primary), var(--shadow-card);
+}
+
+.notification-card__thumb {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--color-fill);
+}
+
+.notification-card__body {
+  min-width: 0;
+}
+
+.notification-card__keyword {
+  margin: 0 0 4px;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.notification-card__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.notification-card__meta {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
 .site-nav__messages {
   display: inline-flex;
   align-items: center;

@@ -232,6 +232,32 @@ export function withdraw(password) {
   return request("/users/me/withdraw", { method: "POST", json: { password } });
 }
 
+// ---------- 찾는 교재 알림 ----------
+
+export function listAlerts() {
+  return request("/users/me/alerts");
+}
+
+export function createAlert(data) {
+  return request("/users/me/alerts", { method: "POST", json: data });
+}
+
+export function deleteAlert(alertId) {
+  return request(`/users/me/alerts/${encodeURIComponent(alertId)}`, { method: "DELETE" });
+}
+
+export function listNotifications(params) {
+  return request("/notifications", { query: params });
+}
+
+export function getAlertUnreadCount() {
+  return request("/notifications/unread-count");
+}
+
+export function markAllNotificationsRead() {
+  return request("/notifications/read-all", { method: "POST" });
+}
+
 export function getMe() {
   return request("/users/me");
 }
