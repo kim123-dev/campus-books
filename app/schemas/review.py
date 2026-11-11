@@ -46,6 +46,8 @@ class ReviewResponse(BaseModel):
     # 거래한 교재명. 글이 지워져도 거래 기록의 사본으로 보여준다.
     book_title: str
     created_at: datetime
+    # 로그인한 사용자가 쓴 후기인지(신고 버튼을 숨긴다). 로그인하지 않았으면 null.
+    is_mine: bool | None = None
 
 
 class ReviewListResponse(BaseModel):

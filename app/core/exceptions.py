@@ -85,6 +85,10 @@ class WithdrawnRevieweeError(NotFoundError):
     message = "탈퇴한 사용자에게는 후기를 남길 수 없습니다."
 
 
+class ReviewNotFoundError(NotFoundError):
+    message = "후기를 찾을 수 없습니다."
+
+
 class ForbiddenError(DomainError):
     """로그인은 했지만 권한이 없음. main.py에서 403으로 변환한다."""
 
@@ -168,6 +172,18 @@ class CannotReportSelfError(BadRequestError):
 
 class CannotDeletePostForUserReportError(BadRequestError):
     message = "사용자 신고에는 글 삭제를 할 수 없습니다."
+
+
+class CannotDeletePostForReviewReportError(BadRequestError):
+    message = "후기 신고에는 글 삭제를 할 수 없습니다."
+
+
+class CannotHideReviewForOtherReportError(BadRequestError):
+    message = "후기 숨김은 후기 신고에만 쓸 수 있습니다."
+
+
+class CannotReportOwnReviewError(BadRequestError):
+    message = "내가 쓴 후기는 신고할 수 없습니다."
 
 
 class ReportedPostAlreadyDeletedError(BadRequestError):

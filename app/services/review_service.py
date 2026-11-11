@@ -82,8 +82,10 @@ def state_for_conversation(db: Session, conversation: Conversation, viewer: User
     )
 
 
-def list_received(db: Session, user_id: int, page: int, size: int) -> tuple[list[ReviewResponse], int]:
-    """받은 후기(최신순). 숨긴 후기는 뺀다."""
+def list_received(
+    db: Session, user_id: int, page: int, size: int, viewer: User | None = None
+) -> tuple[list[ReviewResponse], int]:
+    """받은 후기(최신순). 숨긴 후기는 뺀다. viewer가 있으면 후기마다 내가 쓴 것인지 표시한다."""
     conditions = (Review.reviewee_id == user_id, Review.hidden_at.is_(None))
     total = db.scalar(select(func.count()).select_from(Review).where(*conditions)) or 0
     reviews = db.scalars(
@@ -95,7 +97,13 @@ def list_received(db: Session, user_id: int, page: int, size: int) -> tuple[list
         .offset((page - 1) * size)
         .limit(size)
     ).all()
-    return [_to_response(review, review.trade, review.reviewer) for review in reviews], total
+    items = [
+        _to_response(review, review.trade, review.reviewer).model_copy(
+            update={"is_mine": None if viewer is None else review.reviewer_id == viewer.id}
+        )
+        for review in reviews
+    ]
+    return items, total
 
 
 def manner_summary(db: Session, user_id: int) -> MannerSummary:

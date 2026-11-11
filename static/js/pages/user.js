@@ -1,7 +1,8 @@
 // 프로필 화면: 닉네임, 매너 점수, 판매 중인 글, 받은 거래 후기. 로그인하지 않아도 볼 수 있다.
 // 글과 후기는 각자 페이지를 넘긴다. 둘을 함께 주소에 담으면 복잡해지므로 페이지 번호는 화면 안에서만 기억한다.
-import { getProfile, listProfilePosts, listProfileReviews } from "../api.js";
+import { getProfile, listProfilePosts, listProfileReviews, reportReview } from "../api.js";
 import { renderHeader } from "../auth.js";
+import { REPORT_DONE_TEXT, openReportDialog } from "../safety.js";
 import { RATING_LABELS, REVIEWEE_ROLE_LABELS } from "../trade.js";
 import { el, formatDate, readPostIdFromUrl, renderPagination, renderPostCard } from "../ui.js";
 
@@ -103,6 +104,23 @@ async function loadReviews(page) {
 
 function renderReview(review) {
   const rating = review.rating === "GOOD" ? "good" : "bad";
+  // 로그인했고 내가 쓴 후기가 아니면 신고할 수 있다. (is_mine: 로그인하지 않았으면 null)
+  const notice = el("p", { className: "safety-notice", attrs: { role: "status" }, hidden: true });
+  let reportButton = null;
+  if (review.is_mine === false) {
+    reportButton = el("button", { type: "button", className: "link-button review__report", text: "신고" });
+    reportButton.addEventListener("click", async () => {
+      const reported = await openReportDialog({
+        heading: "후기 신고",
+        targetText: `${review.reviewer_nickname}님이 남긴 후기`,
+        send: (data) => reportReview(review.id, data),
+      });
+      if (reported) {
+        notice.textContent = REPORT_DONE_TEXT;
+        notice.hidden = false;
+      }
+    });
+  }
   return el(
     "li",
     { className: "card review" },
@@ -111,12 +129,14 @@ function renderReview(review) {
       { className: "review__top" },
       el("span", { className: `rating rating--${rating}`, text: RATING_LABELS[review.rating] ?? review.rating }),
       el("span", { className: "review__role", text: REVIEWEE_ROLE_LABELS[review.reviewee_role] ?? "" }),
+      reportButton,
     ),
     review.content ? el("p", { className: "review__content", text: review.content }) : null,
     el("p", {
       className: "review__meta",
       text: `${review.reviewer_nickname} · ${review.book_title} · ${formatDate(review.created_at)}`,
     }),
+    notice,
   );
 }
 

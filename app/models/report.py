@@ -11,6 +11,7 @@ from app.core.database import Base
 class ReportTargetType(StrEnum):
     POST = "POST"
     USER = "USER"
+    REVIEW = "REVIEW"  # 거래 후기. 피신고자는 후기를 쓴 사람이다.
 
 
 class ReportReason(StrEnum):
@@ -30,6 +31,7 @@ class ReportAction(StrEnum):
     DISMISS = "DISMISS"  # 기각 (조치 없음)
     DELETE_POST = "DELETE_POST"  # 신고된 글 삭제
     SUSPEND = "SUSPEND"  # 신고당한 사용자 기간 정지
+    HIDE_REVIEW = "HIDE_REVIEW"  # 신고된 후기 숨김 (목록·매너 점수에서 빠진다)
 
 
 def _enum_column(enum_cls: type[StrEnum]) -> SAEnum:
@@ -59,7 +61,8 @@ class Report(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     target_type: Mapped[ReportTargetType] = mapped_column(_enum_column(ReportTargetType))
-    # 글 번호 또는 사용자 번호. 글은 삭제되면 행이 지워지지만 신고는 남겨야 하므로 FK를 걸지 않는다.
+    # 글·사용자·후기 번호. 글은 삭제되면 행이 지워지지만 신고는 남겨야 하므로 FK를 걸지 않는다.
+    # 대상 종류와 조치는 CHECK 제약 없는 문자열 컬럼이라, 종류를 늘려도 운영 DB에 ALTER가 필요 없다.
     target_id: Mapped[int]
     # 신고당한 사람. 글 신고면 그 글의 작성자. 사람별 신고 수를 셀 때 쓴다.
     reported_user_id: Mapped[int | None] = mapped_column(

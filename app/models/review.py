@@ -47,3 +47,4 @@ class Review(Base):
 
     trade: Mapped[Trade] = relationship()
     reviewer: Mapped[User] = relationship(foreign_keys=[reviewer_id])
+    reviewee: Mapped[User] = relationship(foreign_keys=[reviewee_id])

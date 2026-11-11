@@ -1831,6 +1831,16 @@ a.button {
   font-size: 0.8125rem;
 }
 
+/* 후기 신고 버튼은 줄 오른쪽 끝에 둔다. */
+.review__report {
+  margin-left: auto;
+  font-size: 0.875rem;
+}
+
+.review .safety-notice {
+  margin: 0;
+}
+
 .review__content {
   margin: 0;
   white-space: pre-wrap;

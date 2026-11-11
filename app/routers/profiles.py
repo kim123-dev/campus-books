@@ -46,7 +46,11 @@ def read_profile_posts(
     responses=NOT_FOUND,
 )
 def read_profile_reviews(
-    user_id: int, db: Annotated[Session, Depends(get_db)], page: PageQuery = 1, size: SizeQuery = 20
+    user_id: int,
+    current_user: OptionalCurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+    page: PageQuery = 1,
+    size: SizeQuery = 20,
 ) -> ReviewListResponse:
-    items, total = profile_service.list_reviews(db, user_id, page, size)
+    items, total = profile_service.list_reviews(db, user_id, page, size, current_user)
     return ReviewListResponse(items=items, total=total, page=page, size=size)

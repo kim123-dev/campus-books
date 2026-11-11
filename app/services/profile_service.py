@@ -19,9 +19,11 @@ def list_selling_posts(db: Session, user_id: int, page: int, size: int) -> tuple
     return post_service.list_selling_posts_by_seller(db, user_id, page, size)
 
 
-def list_reviews(db: Session, user_id: int, page: int, size: int) -> tuple[list[ReviewResponse], int]:
+def list_reviews(
+    db: Session, user_id: int, page: int, size: int, viewer: User | None = None
+) -> tuple[list[ReviewResponse], int]:
     _get_user(db, user_id)
-    return review_service.list_received(db, user_id, page, size)
+    return review_service.list_received(db, user_id, page, size, viewer)
 
 
 # 프로필 API의 공통 기준: 없거나 탈퇴한 사용자는 404.

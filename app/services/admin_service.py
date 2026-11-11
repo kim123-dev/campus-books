@@ -1,4 +1,4 @@
-"""관리자 신고 처리. 신고 목록과 처리(기각·글 삭제·기간 정지)를 맡는다.
+"""관리자 신고 처리. 신고 목록과 처리(기각·글 삭제·기간 정지·후기 숨김)를 맡는다.
 
 권한 검사(관리자만)는 라우터 전체에 걸린 의존성(require_admin)이 한다.
 """
@@ -9,16 +9,20 @@ from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import (
+    CannotDeletePostForReviewReportError,
     CannotDeletePostForUserReportError,
+    CannotHideReviewForOtherReportError,
     CannotSuspendAdminError,
     ReportAlreadyResolvedError,
     ReportedPostAlreadyDeletedError,
     ReportedUserNotFoundError,
     ReportNotFoundError,
+    ReviewNotFoundError,
 )
-from app.models import Post, Report, ReportAction, ReportStatus, ReportTargetType, User, UserRole
+from app.models import Post, Report, ReportAction, ReportStatus, ReportTargetType, Review, User, UserRole
 from app.schemas.admin import (
     AdminReportResponse,
+    AdminReviewBrief,
     AdminUserBrief,
     ReportedUserBrief,
     ReportResolution,
@@ -33,8 +37,8 @@ from app.services import image_storage, post_service, user_service
 def list_reports(
     db: Session, page: int, size: int, status: ReportStatus | None = None
 ) -> tuple[list[AdminReportResponse], int]:
-    """신고 목록. 미처리 먼저, 그 안에서 최신순. 쿼리 수는 신고 수와 상관없이 4번이다.
-    (개수 + 목록·사용자 JOIN + 남아 있는 글 + 피신고자별 미처리 수)
+    """신고 목록. 미처리 먼저, 그 안에서 최신순. 쿼리 수는 신고 수와 상관없이 5번 이하다.
+    (개수 + 목록·사용자 JOIN + 남아 있는 글 + 신고된 후기 + 피신고자별 미처리 수)
     """
     conditions = [Report.status == status] if status is not None else []
     total = db.scalar(select(func.count()).select_from(Report).where(*conditions)) or 0
@@ -55,9 +59,10 @@ def list_reports(
         )
     )
     existing_posts = _existing_post_ids(db, reports)
+    reviews = _reported_reviews(db, reports)
     pending_counts = _pending_counts(db, reports)
     now = user_service.utc_now()
-    items = [_to_response(report, existing_posts, pending_counts, now) for report in reports]
+    items = [_to_response(report, existing_posts, reviews, pending_counts, now) for report in reports]
     return items, total
 
 
@@ -66,6 +71,30 @@ def _existing_post_ids(db: Session, reports: list[Report]) -> set[int]:
     if not post_ids:
         return set()
     return set(db.scalars(select(Post.id).where(Post.id.in_(post_ids))))
+
+
+def _reported_reviews(db: Session, reports: list[Report]) -> dict[int, AdminReviewBrief]:
+    """후기 신고의 대상 후기들을 한 번에 읽는다. 받은 사람·거래(교재명)도 JOIN으로 함께 가져온다."""
+    review_ids = {r.target_id for r in reports if r.target_type == ReportTargetType.REVIEW}
+    if not review_ids:
+        return {}
+    rows = db.scalars(
+        select(Review)
+        .options(joinedload(Review.reviewee), joinedload(Review.trade))
+        .where(Review.id.in_(review_ids))
+    )
+    return {
+        review.id: AdminReviewBrief(
+            rating=review.rating,
+            content=review.content,
+            book_title=review.trade.book_title_snapshot,
+            reviewee=None
+            if user_service.is_withdrawn(review.reviewee)
+            else AdminUserBrief.model_validate(review.reviewee),
+            hidden=review.hidden_at is not None,
+        )
+        for review in rows
+    }
 
 
 def _pending_counts(db: Session, reports: list[Report]) -> dict[int, int]:
@@ -81,7 +110,11 @@ def _pending_counts(db: Session, reports: list[Report]) -> dict[int, int]:
 
 
 def _to_response(
-    report: Report, existing_posts: set[int], pending_counts: dict[int, int], now: datetime
+    report: Report,
+    existing_posts: set[int],
+    reviews: dict[int, AdminReviewBrief],
+    pending_counts: dict[int, int],
+    now: datetime,
 ) -> AdminReportResponse:
     is_post = report.target_type == ReportTargetType.POST
     pending_for_user = pending_counts.get(report.reported_user_id, 0) if report.reported_user_id else 0
@@ -107,6 +140,7 @@ def _to_response(
         post_title_snapshot=report.post_title_snapshot,
         post_content_snapshot=report.post_content_snapshot,
         post_exists=(report.target_id in existing_posts) if is_post else None,
+        review=reviews.get(report.target_id) if report.target_type == ReportTargetType.REVIEW else None,
         reporter=AdminUserBrief.model_validate(report.reporter) if report.reporter else None,
         reported_user=(
             ReportedUserBrief(
@@ -132,6 +166,7 @@ def resolve_report(
 ) -> tuple[list[int], datetime | None]:
     """신고를 처리하고 (처리된 신고 번호들, 정지 종료 시각)을 돌려준다.
     순서: 404 없는 신고 → 409 이미 처리 → 400 조치 규칙 위반. 처리 기록과 조치는 한 트랜잭션으로 저장한다.
+    글 삭제는 글 신고에만, 후기 숨김은 후기 신고에만 쓸 수 있다. 정지는 모든 신고에 쓸 수 있다(후기는 작성자 정지).
     """
     report = db.get(Report, report_id)
     if report is None:
@@ -141,7 +176,16 @@ def resolve_report(
 
     post: Post | None = None
     target_user: User | None = None
-    if data.action == ReportAction.DELETE_POST:
+    review: Review | None = None
+    if data.action == ReportAction.HIDE_REVIEW:
+        if report.target_type != ReportTargetType.REVIEW:
+            raise CannotHideReviewForOtherReportError()
+        review = db.get(Review, report.target_id)
+        if review is None:
+            raise ReviewNotFoundError()
+    elif data.action == ReportAction.DELETE_POST:
+        if report.target_type == ReportTargetType.REVIEW:
+            raise CannotDeletePostForReviewReportError()
         if report.target_type != ReportTargetType.POST:
             raise CannotDeletePostForUserReportError()
         post = db.get(Post, report.target_id)
@@ -187,6 +231,9 @@ def resolve_report(
         image_names = post_service.delete_post_rows(db, post)
     if target_user is not None and data.suspend_days is not None:
         suspended_until = user_service.suspend(target_user, data.suspend_days)
+    # 행은 지우지 않고 숨긴 시각만 남긴다. 신고 기록이 가리키는 원문을 관리자가 계속 볼 수 있게 하기 위해서다.
+    if review is not None and review.hidden_at is None:
+        review.hidden_at = user_service.utc_now()
     db.commit()
     # 사진 파일은 커밋이 성공한 뒤에 지운다. (작성자 삭제와 같은 순서)
     image_storage.remove_files(image_names)
@@ -204,6 +251,9 @@ def _reports_to_resolve_together(report: Report, data: ReportResolveRequest):
     # 글을 지우면 같은 글에 대한 다른 신고는 더 판단할 내용이 없으므로 자동으로 함께 처리한다.
     if data.action == ReportAction.DELETE_POST:
         return (Report.target_type == ReportTargetType.POST) & (Report.target_id == report.target_id)
+    # 후기를 숨기면 같은 후기에 대한 다른 신고도 더 판단할 내용이 없다.
+    if data.action == ReportAction.HIDE_REVIEW:
+        return (Report.target_type == ReportTargetType.REVIEW) & (Report.target_id == report.target_id)
     # 기각·정지는 관리자가 고른 경우에만 같은 피신고자의 미처리 신고를 함께 처리한다.
     if data.include_same_user and report.reported_user_id is not None:
         return Report.reported_user_id == report.reported_user_id

@@ -180,6 +180,11 @@ export function resolveReport(reportId, data) {
   return request(`/admin/reports/${encodeURIComponent(reportId)}/resolve`, { method: "POST", json: data });
 }
 
+/** 거래 후기 신고. data: {reason, description}. 400(내가 쓴 후기), 404(숨긴 후기), 409, 429 */
+export function reportReview(reviewId, data) {
+  return request(`/reviews/${encodeURIComponent(reviewId)}/reports`, { method: "POST", json: data });
+}
+
 /** 사용자 신고. data: {reason, description}. 409(이미 신고), 429(횟수 제한) */
 export function reportUser(userId, data) {
   return request(`/users/${encodeURIComponent(userId)}/reports`, { method: "POST", json: data });

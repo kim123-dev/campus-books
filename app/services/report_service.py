@@ -12,12 +12,14 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
     CannotReportOwnPostError,
+    CannotReportOwnReviewError,
     CannotReportSelfError,
     DuplicateReportError,
     ReportRateLimitError,
+    ReviewNotFoundError,
     UserNotFoundError,
 )
-from app.models import Report, ReportTargetType, User
+from app.models import Report, ReportTargetType, Review, User
 from app.schemas.report import ReportCreate
 from app.services import post_service, user_service
 
@@ -64,6 +66,29 @@ def report_user(db: Session, user_id: int, reporter: User, data: ReportCreate) -
     )
 
 
+def report_review(db: Session, review_id: int, reporter: User, data: ReportCreate) -> Report:
+    """후기 신고. 순서: 404 없거나 숨긴 후기 → 400 내가 쓴 후기 → 409 이미 신고 → 429 횟수 제한.
+    피신고자는 후기를 쓴 사람이다. 작성자가 탈퇴했으면 정지할 사람이 없으므로 비워 둔다.
+    후기는 작성자가 고치거나 지울 수 없어서, 글 신고와 달리 내용 사본을 따로 저장하지 않는다.
+    """
+    review = db.get(Review, review_id)
+    # 숨긴 후기는 아무에게도 보이지 않으므로 없는 것으로 본다.
+    if review is None or review.hidden_at is not None:
+        raise ReviewNotFoundError()
+    if review.reviewer_id == reporter.id:
+        raise CannotReportOwnReviewError()
+    reviewer = db.get(User, review.reviewer_id)
+    reported_user_id = None if reviewer is None or user_service.is_withdrawn(reviewer) else reviewer.id
+    return _create(
+        db,
+        reporter,
+        data,
+        target_type=ReportTargetType.REVIEW,
+        target_id=review.id,
+        reported_user_id=reported_user_id,
+    )
+
+
 def _create(
     db: Session,
     reporter: User,
@@ -71,7 +96,7 @@ def _create(
     *,
     target_type: ReportTargetType,
     target_id: int,
-    reported_user_id: int,
+    reported_user_id: int | None,
     post_title_snapshot: str | None = None,
     post_content_snapshot: str | None = None,
 ) -> Report:

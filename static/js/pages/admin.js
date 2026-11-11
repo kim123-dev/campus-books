@@ -13,7 +13,9 @@ const STATUSES = ["PENDING", "RESOLVED", "ALL"];
 // 신고 창의 "기타 (설명 필수)" 같은 입력 안내는 관리 화면에서 필요 없으므로 괄호 부분을 뺀다.
 const REASON_LABELS = Object.fromEntries(REPORT_REASONS.map(([value, label]) => [value, label.replace(/\s*\(.*\)$/, "")]));
 // 서버 규칙과 같은 값. (app/models/report.py, app/schemas/admin.py) 최종 검사는 서버가 한다.
-export const ACTION_LABELS = { DISMISS: "기각", DELETE_POST: "글 삭제", SUSPEND: "기간 정지" };
+export const ACTION_LABELS = { DISMISS: "기각", DELETE_POST: "글 삭제", SUSPEND: "기간 정지", HIDE_REVIEW: "후기 숨김" };
+const TARGET_LABELS = { POST: "글 신고", USER: "사용자 신고", REVIEW: "후기 신고" };
+const RATING_TEXT = { GOOD: "좋아요", BAD: "아쉬워요" };
 const SUSPEND_DAY_OPTIONS = [1, 3, 7, 30];
 const MAX_NOTE = 500;
 
@@ -138,7 +140,7 @@ function renderReportCard(report) {
     el(
       "div",
       { className: "report-card__head" },
-      el("span", { className: "report-card__type", text: isPost ? "글 신고" : "사용자 신고" }),
+      el("span", { className: "report-card__type", text: TARGET_LABELS[report.target_type] ?? report.target_type }),
       el("h2", {
         id: titleId,
         className: "report-card__reason",
@@ -152,6 +154,7 @@ function renderReportCard(report) {
     el("p", { className: "report-card__meta", text: `${formatDate(report.created_at)} 접수` }),
     renderPeople(report),
     isPost ? renderSnapshot(report) : null,
+    report.review ? renderReviewTarget(report.review) : null,
     report.description ? el("p", { className: "report-card__description", text: report.description }) : null,
     !resolved && report.other_pending_count > 0
       ? el("p", {
@@ -204,6 +207,23 @@ function renderSnapshot(report) {
   );
 }
 
+/** 후기 신고의 대상 후기. 후기는 작성자가 고치거나 지울 수 없어 지금 내용이 곧 신고 시점의 내용이다. */
+function renderReviewTarget(review) {
+  const reviewee = review.reviewee ? `${review.reviewee.nickname}님이 받은 후기` : "탈퇴한 사용자가 받은 후기";
+  return el(
+    "div",
+    { className: "report-card__snapshot" },
+    el(
+      "p",
+      { className: "report-card__snapshot-title" },
+      el("span", { text: `${RATING_TEXT[review.rating] ?? review.rating} · ${review.book_title}` }),
+      review.hidden ? el("span", { className: "report-card__deleted", text: "숨김" }) : null,
+    ),
+    el("p", { className: "report-card__snapshot-content", text: review.content || "글 없이 평가만 남긴 후기입니다." }),
+    el("p", { className: "report-card__snapshot-hint", text: reviewee }),
+  );
+}
+
 function renderResolution(resolution) {
   if (resolution === null) return null;
   const by = resolution.resolved_by ? resolution.resolved_by.nickname : "(삭제된 관리자)";
@@ -226,8 +246,14 @@ function renderResolution(resolution) {
 function renderActions(report) {
   const prefix = `report-${report.id}`;
   const canDeletePost = report.target_type === "POST" && report.post_exists === true;
+  const canHideReview = report.review !== null && report.review !== undefined && !report.review.hidden;
   const canSuspend = report.reported_user !== null;
-  const actions = ["DISMISS", ...(canDeletePost ? ["DELETE_POST"] : []), ...(canSuspend ? ["SUSPEND"] : [])];
+  const actions = [
+    "DISMISS",
+    ...(canDeletePost ? ["DELETE_POST"] : []),
+    ...(canHideReview ? ["HIDE_REVIEW"] : []),
+    ...(canSuspend ? ["SUSPEND"] : []),
+  ];
 
   const radios = actions.map((action) =>
     el(
@@ -332,6 +358,10 @@ function confirmText(report, data) {
   if (data.action === "DELETE_POST") {
     lines.push(`· 글 삭제: "${report.post_title_snapshot}" 글과 사진을 지웁니다.`);
     lines.push("· 같은 글에 대한 다른 미처리 신고도 함께 처리됩니다.");
+  }
+  if (data.action === "HIDE_REVIEW") {
+    lines.push("· 후기 숨김: 프로필 목록과 매너 점수에서 이 후기를 뺍니다.");
+    lines.push("· 같은 후기에 대한 다른 미처리 신고도 함께 처리됩니다.");
   }
   if (data.action === "SUSPEND") {
     lines.push(`· 기간 정지: ${target}을(를) ${data.suspend_days}일 동안 정지합니다.`);

@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import ReportAction, ReportReason, ReportStatus, ReportTargetType
+from app.models import ReportAction, ReportReason, ReportStatus, ReportTargetType, ReviewRating
 
 MAX_RESOLUTION_NOTE_LENGTH = 500
 MAX_SUSPEND_DAYS = 365
@@ -19,7 +19,9 @@ class ReportResolveRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    action: ReportAction = Field(description="DISMISS(기각) / DELETE_POST(글 삭제) / SUSPEND(기간 정지)")
+    action: ReportAction = Field(
+        description="DISMISS(기각) / DELETE_POST(글 삭제) / SUSPEND(기간 정지) / HIDE_REVIEW(후기 숨김)"
+    )
     suspend_days: int | None = Field(
         default=None, ge=1, le=MAX_SUSPEND_DAYS, description="정지 일수 (SUSPEND일 때만, 필수)"
     )
@@ -47,6 +49,9 @@ class ReportResolveRequest(BaseModel):
         # (같은 글에 대한 다른 신고는 글이 없어지므로 서버가 자동으로 함께 처리한다)
         if self.action == ReportAction.DELETE_POST and self.include_same_user:
             raise ValueError("글 삭제는 같은 사용자의 다른 신고와 함께 처리할 수 없습니다.")
+        # 후기 숨김도 그 후기 하나에 대한 조치다. (같은 후기에 대한 다른 신고는 서버가 함께 처리한다)
+        if self.action == ReportAction.HIDE_REVIEW and self.include_same_user:
+            raise ValueError("후기 숨김은 같은 사용자의 다른 신고와 함께 처리할 수 없습니다.")
         return self
 
 
@@ -65,6 +70,16 @@ class AdminUserBrief(BaseModel):
 class ReportedUserBrief(AdminUserBrief):
     # 지금 정지 중이면 종료 시각(UTC), 아니면 null.
     suspended_until: datetime | None = None
+
+
+class AdminReviewBrief(BaseModel):
+    """후기 신고의 대상 후기. 작성자는 피신고자(reported_user)로 따로 보여준다."""
+
+    rating: ReviewRating
+    content: str | None
+    book_title: str
+    reviewee: AdminUserBrief | None  # 후기를 받은 사람. 탈퇴했으면 null
+    hidden: bool  # 이미 숨긴 후기인지
 
 
 class ReportResolution(BaseModel):
@@ -87,8 +102,10 @@ class AdminReportResponse(BaseModel):
     description: str | None
     post_title_snapshot: str | None
     post_content_snapshot: str | None
-    # 글 신고에서 그 글이 아직 있는지. 사용자 신고면 null. (글 삭제 버튼을 보여줄지 정한다)
+    # 글 신고에서 그 글이 아직 있는지. 사용자·후기 신고면 null. (글 삭제 버튼을 보여줄지 정한다)
     post_exists: bool | None
+    # 후기 신고의 대상 후기. 다른 신고면 null.
+    review: AdminReviewBrief | None = None
     reporter: AdminUserBrief | None  # 신고자가 탈퇴했으면 null
     reported_user: ReportedUserBrief | None
     status: ReportStatus
