@@ -35,6 +35,8 @@ node tools/ui-check/compare.mjs tools/ui-check/out before after
 | `wish-check` | 찜하기 |
 | `safety-check` | 신고·차단 |
 | `admin-check` | 신고 관리, 이용 정지, `make-admin` CLI |
+| `trade-check` | 판매 완료 때 구매자 고르기(후보·선택 안 함·고르지 않으면 안내), 구매자 줄, 구매자 변경과 선택 안 함으로 되돌리기 |
+| `review-check` | 쪽지 화면의 후기 남기기, 프로필(매너 점수·글·후기), 후기 신고, 관리자 후기 숨김 |
 | `pwa-check` | 홈 화면 설치 안내, 서비스 워커 캐시 |
 | `pc-snapshot` | PC(1280px) 화면의 요소 위치·스타일 기록 (`compare.mjs`로 비교) |
 
