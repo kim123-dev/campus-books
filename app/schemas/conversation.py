@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import PostStatus
+from app.schemas.review import TradeReviewState
 
 MAX_MESSAGE_LENGTH = 1000
 DEFAULT_MESSAGE_LIMIT = 50
@@ -105,6 +106,8 @@ class ConversationDetailResponse(ConversationResponse):
     # 내가 상대를 차단했는지. true면 화면에 "차단 해제"를 보여준다.
     # 상대가 나를 차단했는지는 따로 알려주지 않는다. (can_send만 false)
     blocked_by_me: bool
+    # 이 대화방 상대와 거래가 기록되어 있으면 후기 상태. 없으면 null.
+    trade: TradeReviewState | None = None
 
 
 class ConversationListResponse(BaseModel):

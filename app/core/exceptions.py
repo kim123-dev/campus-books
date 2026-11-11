@@ -41,6 +41,14 @@ class NoTradeToChangeError(ConflictError):
     message = "구매자를 고르지 않고 판매 완료한 글은 나중에 구매자를 지정할 수 없습니다."
 
 
+class TradeHasReviewsError(ConflictError):
+    message = "후기가 남은 거래는 구매자를 바꿀 수 없습니다."
+
+
+class DuplicateReviewError(ConflictError):
+    message = "이미 이 거래의 후기를 남겼습니다."
+
+
 class NotFoundError(DomainError):
     """요청한 데이터가 없음. main.py에서 404로 변환한다."""
 
@@ -69,6 +77,14 @@ class ConversationNotFoundError(NotFoundError):
     message = "대화방을 찾을 수 없습니다."
 
 
+class TradeNotFoundError(NotFoundError):
+    message = "거래를 찾을 수 없습니다."
+
+
+class WithdrawnRevieweeError(NotFoundError):
+    message = "탈퇴한 사용자에게는 후기를 남길 수 없습니다."
+
+
 class ForbiddenError(DomainError):
     """로그인은 했지만 권한이 없음. main.py에서 403으로 변환한다."""
 
@@ -88,6 +104,10 @@ class SuspendedUserError(ForbiddenError):
 
 class NotConversationParticipantError(ForbiddenError):
     message = "대화에 참여한 사용자만 볼 수 있습니다."
+
+
+class NotTradePartyError(ForbiddenError):
+    message = "거래한 두 사람만 후기를 남길 수 있습니다."
 
 
 class BadRequestError(DomainError):
@@ -191,6 +211,11 @@ class InvalidBuyerError(BadRequestError):
 
 class PostNotSoldError(BadRequestError):
     message = "판매 완료된 글만 구매자를 바꿀 수 있습니다."
+
+
+class ReviewPeriodOverError(BadRequestError):
+    # 기간은 서비스가 trade_service.REVIEW_PERIOD로 채운다.
+    message = "후기는 거래 후 14일 안에만 남길 수 있습니다."
 
 
 class PayloadTooLargeError(DomainError):

@@ -6,7 +6,7 @@
 //   내 메시지인지는 서버 응답의 is_mine을 그대로 쓴다.
 // - 토큰은 탭끼리 공유된다. 다른 탭에서 계정이 바뀌면 이 화면이 새 계정 토큰으로 폴링·전송하게 되어
 //   상대 메시지가 내 말풍선으로 그려지거나 다른 계정 이름으로 전송되므로, 계정이 바뀌면 멈춘다.
-import { blockUser, getConversation, listMessages, reportUser, sendMessage, unblockUser } from "../api.js";
+import { blockUser, createReview, getConversation, listMessages, reportUser, sendMessage, unblockUser } from "../api.js";
 import { redirectToLogin, refreshUnreadBadge, renderHeader, suspensionText } from "../auth.js";
 import {
   REPORT_DONE_TEXT,
@@ -17,10 +17,12 @@ import {
   openReportDialog,
 } from "../safety.js";
 import { getToken, onTokenChangedInOtherTab } from "../token.js";
+import { openReviewDialog } from "../trade.js";
 import {
   MOBILE_QUERY,
   clearFormErrors,
   el,
+  formatMonthDayTime,
   formatShortDate,
   readPostIdFromUrl,
   showFormErrors,
@@ -53,6 +55,7 @@ const sendError = document.getElementById("send-error");
 const chatActions = document.getElementById("chat-actions");
 const safetyNotice = document.getElementById("chat-safety-notice");
 const blockedNotice = document.getElementById("chat-blocked");
+const reviewBox = document.getElementById("chat-review");
 
 // 차단 관계면 false. 서버도 전송을 400으로 막지만, 화면은 입력창을 미리 잠근다.
 let canSend = true;
@@ -125,6 +128,7 @@ async function init() {
 
   renderChatHeader(conversation);
   applyBlockState(conversation);
+  renderReviewState(conversation);
   addMessages(first.items);
   hasOlder = first.has_more;
   updateOlderButton();
@@ -237,6 +241,47 @@ function renderChatHeader(conversation) {
       el("span", { className: "chat__role", text: roleText }),
       el("span", { className: "chat__post-deleted", text: "삭제된 글" }),
     );
+  }
+}
+
+// ---------- 거래 후기 ----------
+
+/**
+ * 판매자가 이 대화 상대를 구매자로 골라 판매 완료했으면 후기 줄을 보여준다.
+ * 후기는 차단 관계여도 남길 수 있다. 서버가 권한·기간을 다시 확인한다.
+ */
+function renderReviewState(conversation) {
+  const { trade, partner } = conversation;
+  // 거래 기록이 없거나 상대가 탈퇴했으면(쓸 수도, 볼 프로필도 없음) 줄을 숨긴다.
+  if (trade === null || trade === undefined || partner.withdrawn) {
+    reviewBox.hidden = true;
+    return;
+  }
+  const profileLink = el("a", { href: `/static/user.html?id=${encodeURIComponent(partner.id)}`, text: "상대 프로필" });
+  if (trade.can_write) {
+    const button = el("button", { type: "button", className: "button button--primary", text: "후기 남기기" });
+    button.addEventListener("click", () => onWriteReview(conversation));
+    reviewBox.replaceChildren(
+      el("span", { className: "chat__review-text", text: `거래 후기를 남겨 주세요 (${formatMonthDayTime(trade.deadline)}까지)` }),
+      button,
+    );
+  } else {
+    const text = trade.written ? "거래 후기를 남겼어요." : "후기를 남길 수 있는 기간이 지났어요.";
+    reviewBox.replaceChildren(el("span", { className: "chat__review-text", text }), profileLink);
+  }
+  reviewBox.hidden = false;
+}
+
+async function onWriteReview(conversation) {
+  const written = await openReviewDialog({
+    partnerNickname: conversation.partner.nickname,
+    send: (data) => createReview(conversation.trade.trade_id, data),
+  });
+  if (!written) return;
+  try {
+    renderReviewState(await getConversation(conversationId));
+  } catch (error) {
+    if (handleFatalError(error)) return;
   }
 }
 

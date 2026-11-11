@@ -29,7 +29,7 @@ from app.schemas.conversation import (
     MessageResponse,
     PartnerResponse,
 )
-from app.services import block_service, post_service, user_service
+from app.services import block_service, post_service, review_service, user_service
 
 
 @dataclass(frozen=True)
@@ -211,6 +211,8 @@ def _to_detail(db: Session, conversation: Conversation, viewer: User) -> Convers
         **base.model_dump(),
         can_send=not (i_blocked or they_blocked or partner_withdrawn),
         blocked_by_me=i_blocked,
+        # 후기는 차단 관계여도 남길 수 있어 차단과 상관없이 알려준다.
+        trade=review_service.state_for_conversation(db, conversation, viewer),
     )
 
 

@@ -1707,6 +1707,148 @@ a.button {
   display: none;
 }
 
+/* 거래 후기 줄. 판매자가 이 상대를 구매자로 골랐을 때만 보인다. */
+.chat__review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-fill);
+  font-size: 0.9375rem;
+}
+
+.chat__review[hidden] {
+  display: none;
+}
+
+.chat__review-text {
+  flex: 1 1 12em;
+}
+
+/* ---------- 프로필 ---------- */
+
+.profile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 24px;
+  padding: 22px 24px;
+}
+
+.profile__name {
+  margin: 0;
+  font-size: 1.5rem;
+  overflow-wrap: anywhere;
+}
+
+.profile__manner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile__manner p {
+  margin: 0;
+}
+
+.profile__ratio strong {
+  font-size: 1.375rem;
+}
+
+.profile__manner-note {
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+}
+
+.profile__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-section {
+  margin-bottom: 32px;
+}
+
+.profile-section__title {
+  margin: 0 0 4px;
+  font-size: 1.125rem;
+}
+
+/* 한 페이지뿐이면 페이지 이동 영역이 비는데, 그 빈 칸이 두 목록 사이를 벌리지 않게 한다. */
+.profile-section .pagination:empty {
+  display: none;
+}
+
+/* 좋아요·아쉬워요 표시. 색만으로 구분하지 않도록 항상 글자를 함께 쓴다. */
+.rating {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.rating--good {
+  background: #e7f6ec;
+  color: #1f7a3d;
+}
+
+.rating--bad {
+  background: #fdecec;
+  color: #b42318;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+}
+
+.review__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.review__role {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.review__content {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.review__meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+/* 상세 화면의 판매자 이름(프로필로 가는 링크) */
+.post-detail__seller-link {
+  font-weight: 600;
+}
+
 /* 차단 관계라 쪽지를 보낼 수 없을 때 입력창 위에 보이는 안내 */
 .chat__blocked {
   margin: 0;

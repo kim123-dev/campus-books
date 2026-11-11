@@ -29,7 +29,9 @@ from app.routers import (
     conversations,
     images,
     posts,
+    profiles,
     reports,
+    reviews,
     users,
     wishlist,
 )
@@ -74,6 +76,8 @@ app.include_router(blocks.router)
 app.include_router(reports.router)
 app.include_router(admin.router)
 app.include_router(alerts.router)
+app.include_router(profiles.router)
+app.include_router(reviews.router)
 
 # multipart 본문에는 파일 말고도 경계 문자열·헤더가 붙으므로 그만큼 여유를 둔다.
 MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024

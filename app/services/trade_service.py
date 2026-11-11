@@ -9,8 +9,8 @@ from datetime import timedelta
 from sqlalchemy import Select, delete, exists, select, update
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import InvalidBuyerError
-from app.models import Conversation, Message, Post, Trade, User, UserBlock
+from app.core.exceptions import InvalidBuyerError, TradeHasReviewsError
+from app.models import Conversation, Message, Post, Review, Trade, User, UserBlock
 from app.schemas.trade import BuyerCandidateResponse, PostBuyerResponse
 from app.services import user_service
 
@@ -55,30 +55,45 @@ def is_recorded_buyer(db: Session, post_id: int, buyer_id: int) -> bool:
     return trade is not None and trade.buyer_id == buyer_id
 
 
+def has_reviews(db: Session, trade_id: int) -> bool:
+    return db.scalar(select(exists().where(Review.trade_id == trade_id))) is True
+
+
 def buyer_info(db: Session, post: Post) -> PostBuyerResponse:
     """판매자 화면용: 지금 구매자, 고를 수 있는 후보, 바꿀 수 있는지."""
     trade = get_for_post(db, post.id)
     return PostBuyerResponse(
         buyer=BuyerCandidateResponse.model_validate(trade.buyer) if trade is not None else None,
         candidates=[BuyerCandidateResponse.model_validate(user) for user in list_candidates(db, post)],
-        changeable=trade is not None,
+        changeable=trade is not None and not has_reviews(db, trade.id),
     )
 
 
 def change_buyer(db: Session, post: Post, trade: Trade, buyer_id: int | None) -> None:
     """구매자를 다른 후보로 바꾸거나(buyer_id) 거래 기록을 지운다(None). 커밋 전.
+    순서: 409 후기가 있음 → 400 후보 아님.
 
     거래 시각(created_at)은 그대로 둬서, 구매자를 바꿔도 후기 작성 기간이 늘어나지 않는다.
     """
-    if buyer_id is None:
-        db.execute(delete(Trade).where(Trade.id == trade.id))
-        return
+    # 후기가 하나라도 있으면 거래 상대가 확정된 것으로 본다. 바꾸면 남은 후기의 대상이 어긋난다.
+    if has_reviews(db, trade.id):
+        raise TradeHasReviewsError()
     if buyer_id == trade.buyer_id:
         return
-    conversation_id = _candidate_conversation_id(db, post, buyer_id)
-    db.execute(
-        update(Trade).where(Trade.id == trade.id).values(buyer_id=buyer_id, conversation_id=conversation_id)
-    )
+    # 확인과 변경 사이에 후기가 저장되는 경우를 막으려고, 변경 문장에도 "후기가 없을 때만" 조건을 붙인다.
+    no_review = ~exists().where(Review.trade_id == trade.id)
+    if buyer_id is None:
+        result = db.execute(delete(Trade).where(Trade.id == trade.id, no_review))
+    else:
+        conversation_id = _candidate_conversation_id(db, post, buyer_id)
+        result = db.execute(
+            update(Trade)
+            .where(Trade.id == trade.id, no_review)
+            .values(buyer_id=buyer_id, conversation_id=conversation_id)
+        )
+    if result.rowcount != 1:
+        db.rollback()
+        raise TradeHasReviewsError()
 
 
 def detach_post(db: Session, post_id: int) -> None:

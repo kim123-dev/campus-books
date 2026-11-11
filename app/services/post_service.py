@@ -198,6 +198,15 @@ def list_posts_by_seller(
     return _paginate(db, page, size, Post.seller_id == seller_id)
 
 
+def list_selling_posts_by_seller(
+    db: Session, seller_id: int, page: int, size: int
+) -> tuple[list[Post], int]:
+    """프로필용: 판매 중·예약 중인 글만(최신순). 판매 완료된 글은 빼서 지금 살 수 있는 글만 보여준다."""
+    return _paginate(
+        db, page, size, Post.seller_id == seller_id, Post.status.in_([PostStatus.ON_SALE, PostStatus.RESERVED])
+    )
+
+
 def _search_conditions(search: PostSearchParams) -> list[ColumnElement[bool]]:
     """검색 조건을 WHERE 절 조건 목록으로 바꾼다. 보내지 않은 조건은 건너뛴다."""
     conditions: list[ColumnElement[bool]] = []

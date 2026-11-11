@@ -130,11 +130,21 @@ function renderDetail(post) {
   const updated = formatDate(post.updated_at);
 
   const info = el("dl", { className: "post-detail__info" });
-  const addInfo = (label, value) => info.append(el("dt", { text: label }), el("dd", { text: value }));
+  // value: 글자 또는 요소(판매자 프로필 링크)
+  const addInfo = (label, value) =>
+    info.append(el("dt", { text: label }), typeof value === "string" ? el("dd", { text: value }) : el("dd", {}, value));
   addInfo("교재명", post.book_title);
   if (post.course_name) addInfo("과목명", post.course_name);
   addInfo("책 상태", CONDITION_LABELS[post.condition] ?? post.condition);
-  addInfo("판매자", post.seller.nickname);
+  // 판매자 이름을 누르면 프로필(매너 점수·받은 후기)로 간다.
+  addInfo(
+    "판매자",
+    el("a", {
+      className: "post-detail__seller-link",
+      href: `/static/user.html?id=${encodeURIComponent(post.seller.id)}`,
+      text: post.seller.nickname,
+    }),
+  );
   addInfo("작성", created);
   // 분 단위로 같으면 작성 직후라 수정 표시를 하지 않는다.
   if (updated !== created) addInfo("수정됨", updated);

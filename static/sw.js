@@ -5,7 +5,7 @@
 // - 새 버전을 배포할 때 VERSION을 바꾸면, 새 서비스 워커가 켜지면서 이전 버전 캐시를 모두 지운다.
 //   (브라우저는 이 파일이 한 글자라도 바뀌면 새 서비스 워커로 보고 다시 설치한다)
 
-const VERSION = "2026-11-11.1";
+const VERSION = "2026-11-11.2";
 const CACHE_PREFIX = "campus-books-static-";
 const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;
 

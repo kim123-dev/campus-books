@@ -185,6 +185,28 @@ export function reportUser(userId, data) {
   return request(`/users/${encodeURIComponent(userId)}/reports`, { method: "POST", json: data });
 }
 
+// ---------- 거래 후기·프로필 ----------
+
+/** 거래 후기 작성. data: {rating: "GOOD"|"BAD", content}. 409(이미 작성), 400(기간 지남), 404(상대 탈퇴) */
+export function createReview(tradeId, data) {
+  return request(`/trades/${encodeURIComponent(tradeId)}/reviews`, { method: "POST", json: data });
+}
+
+/** 프로필(닉네임, 매너 점수). 로그인하지 않아도 볼 수 있다. 없거나 탈퇴한 사용자는 404. */
+export function getProfile(userId) {
+  return request(`/users/${encodeURIComponent(userId)}/profile`);
+}
+
+/** 프로필의 판매 중·예약 중인 글. params: page, size */
+export function listProfilePosts(userId, params) {
+  return request(`/users/${encodeURIComponent(userId)}/posts`, { query: params });
+}
+
+/** 프로필의 받은 후기(최신순). params: page, size */
+export function listProfileReviews(userId, params) {
+  return request(`/users/${encodeURIComponent(userId)}/reviews`, { query: params });
+}
+
 // ---------- 쪽지 ----------
 
 /** 판매글 문의 시작. 이미 대화방이 있으면 그 방을 돌려준다. (새 방 201, 기존 방 200) */
