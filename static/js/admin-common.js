@@ -10,6 +10,7 @@ const HOME_PAGE = "/static/index.html";
 export const ADMIN_PAGES = [
   { href: "/static/admin-dashboard.html", label: "대시보드" },
   { href: "/static/admin.html", label: "신고" },
+  { href: "/static/admin-users.html", label: "사용자" },
   { href: "/static/admin-log.html", label: "기록" },
 ];
 
@@ -102,6 +103,32 @@ function showPageError(message) {
 export function userLabel(user) {
   if (!user) return "(없음)";
   return user.withdrawn ? `탈퇴한 사용자 #${user.id}` : user.nickname;
+}
+
+/** 관리 화면의 사용자 이름을 사용자 상세로 가는 링크로. 사용자가 없으면 글자만. */
+export function adminUserLink(user, fallback = "(탈퇴한 사용자)") {
+  if (!user) return el("span", { text: fallback });
+  return el("a", { className: "admin-user-link", href: adminUserHref(user.id), text: userLabel(user) });
+}
+
+export function adminUserHref(userId) {
+  return `/static/admin-user.html?id=${encodeURIComponent(userId)}`;
+}
+
+/** 계정 상태 이름표. 색만으로 구분하지 않도록 글자로 적는다. (사용자 목록·상세) */
+export function userBadges(user) {
+  const badges = [];
+  if (user.withdrawn) badges.push(el("span", { className: "admin-badge", text: "탈퇴" }));
+  if (user.role === "ADMIN") badges.push(el("span", { className: "admin-badge admin-badge--admin", text: "관리자" }));
+  if (user.suspended_until) {
+    badges.push(
+      el("span", {
+        className: "admin-badge admin-badge--suspend",
+        text: `${formatMonthDayTime(user.suspended_until)}까지 정지`,
+      }),
+    );
+  }
+  return badges;
 }
 
 /** 관리 기록의 추가 정보(detail)를 사람이 읽는 문장 목록으로 바꾼다. */

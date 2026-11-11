@@ -18,12 +18,14 @@ from app.services import admin_dashboard_service, admin_log_service, admin_servi
 
 # 관리자 검사를 라우터 전체에 건다. 여기에 API를 추가하면 따로 적지 않아도 관리자만 쓸 수 있다.
 # (테스트가 /admin으로 시작하는 모든 경로에 대해 401·403을 확인한다)
-router = APIRouter(
-    prefix="/admin",
-    tags=["admin"],
-    dependencies=[Depends(require_admin)],
-    responses={401: {"description": "로그인 필요"}, 403: {"description": "관리자가 아님"}},
-)
+# 관리자 라우터 공통 설정. 사용자 관리·글·후기 라우터(admin_users.py, admin_content.py)도 같은 설정을 쓴다.
+ADMIN_ROUTER_OPTIONS = {
+    "prefix": "/admin",
+    "tags": ["admin"],
+    "dependencies": [Depends(require_admin)],
+    "responses": {401: {"description": "로그인 필요"}, 403: {"description": "관리자가 아님"}},
+}
+router = APIRouter(**ADMIN_ROUTER_OPTIONS)
 
 
 @router.get("/dashboard", response_model=AdminDashboardResponse, summary="대시보드 (가입자·글·미처리 신고 수)")
@@ -39,8 +41,9 @@ def list_reports(
     status: Annotated[
         ReportStatus | None, Query(description="PENDING(미처리) / RESOLVED(처리됨), 생략하면 전체")
     ] = None,
+    reported_user_id: Annotated[int | None, Query(ge=1, description="이 사용자가 신고당한 것만")] = None,
 ) -> AdminReportListResponse:
-    items, total = admin_service.list_reports(db, page, size, status)
+    items, total = admin_service.list_reports(db, page, size, status, reported_user_id)
     return AdminReportListResponse(items=items, total=total, page=page, size=size)
 
 

@@ -23,6 +23,8 @@ from app.core.exceptions import (
 from app.core.static_assets import StaticAssets
 from app.routers import (
     admin,
+    admin_content,
+    admin_users,
     alerts,
     auth,
     blocks,
@@ -75,6 +77,8 @@ app.include_router(wishlist.router)
 app.include_router(blocks.router)
 app.include_router(reports.router)
 app.include_router(admin.router)
+app.include_router(admin_users.router)
+app.include_router(admin_content.router)
 app.include_router(alerts.router)
 app.include_router(profiles.router)
 app.include_router(reviews.router)

@@ -185,6 +185,26 @@ export function getAdminDashboard() {
   return request("/admin/dashboard");
 }
 
+/** 관리자: 사용자 목록·검색. params: {status, q, page, size} */
+export function listAdminUsers(params) {
+  return request("/admin/users", { query: params });
+}
+
+/** 관리자: 사용자 상세 (이메일, 글·신고·후기 수, 정지 이력) */
+export function getAdminUser(userId) {
+  return request(`/admin/users/${encodeURIComponent(userId)}`);
+}
+
+/** 관리자: 글 목록. params: {q, status, seller_id, page, size} */
+export function listAdminPosts(params) {
+  return request("/admin/posts", { query: params });
+}
+
+/** 관리자: 후기 목록. params: {hidden, reviewee_id, reviewer_id, page, size} */
+export function listAdminReviews(params) {
+  return request("/admin/reviews", { query: params });
+}
+
 /** 관리자: 관리 기록. params: {action, admin_id, target_user_id, page, size} */
 export function listAdminActions(params) {
   return request("/admin/actions", { query: params });

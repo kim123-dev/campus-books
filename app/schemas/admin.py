@@ -1,6 +1,7 @@
 """관리자 API의 요청·응답. 이메일은 사용자 관리 API(/admin/users)에만 담는다."""
 
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -8,11 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.models import (
     AdminActionType,
     AdminTargetType,
+    PostStatus,
     ReportAction,
     ReportReason,
     ReportStatus,
     ReportTargetType,
     ReviewRating,
+    UserRole,
 )
 
 MAX_RESOLUTION_NOTE_LENGTH = 500
@@ -224,3 +227,89 @@ class AdminDashboardResponse(BaseModel):
     signups: DashboardPeriodCounts
     new_posts: DashboardPeriodCounts
     pending_reports: int
+
+
+# ---------- 사용자 관리 ----------
+
+
+class AdminUserFilter(StrEnum):
+    """사용자 목록 필터. 생략하면 탈퇴한 계정을 뺀 전체."""
+
+    SUSPENDED = "SUSPENDED"  # 지금 정지 중
+    ADMIN = "ADMIN"
+    WITHDRAWN = "WITHDRAWN"  # 탈퇴한 계정 (스스로 탈퇴 + 강제 탈퇴)
+
+
+class AdminUserItem(BaseModel):
+    """사용자 목록의 한 줄. 이메일은 관리자 API 중 사용자 관리에만 담는다. 탈퇴한 계정은 이메일이 null이다."""
+
+    id: int
+    email: str | None
+    nickname: str  # 탈퇴했으면 "탈퇴한 사용자"
+    role: UserRole
+    created_at: datetime
+    suspended_until: datetime | None  # 지금 정지 중이면 종료 시각(UTC)
+    withdrawn: bool
+    post_count: int
+    pending_report_count: int  # 이 사용자에 대한 미처리 신고 수
+
+
+class AdminUserListResponse(BaseModel):
+    items: list[AdminUserItem]
+    total: int
+    page: int
+    size: int
+
+
+class AdminUserCounts(BaseModel):
+    posts: int
+    reports_received: int
+    reports_pending: int
+    reviews_received: int
+    reviews_hidden: int  # 받은 후기 중 숨긴 것
+    reviews_written: int
+
+
+class AdminUserDetail(AdminUserItem):
+    counts: AdminUserCounts
+    # 정지·정지 해제 이력 (관리 기록에서, 최신순). 관리 기록 기능 전의 정지는 남아 있지 않다.
+    suspensions: list[AdminActionResponse]
+
+
+# ---------- 글·후기 관리 ----------
+
+
+class AdminPostItem(BaseModel):
+    id: int
+    title: str
+    book_title: str
+    price: int
+    status: PostStatus
+    created_at: datetime
+    seller: AdminUserRef
+    pending_report_count: int  # 이 글에 대한 미처리 신고 수
+
+
+class AdminPostListResponse(BaseModel):
+    items: list[AdminPostItem]
+    total: int
+    page: int
+    size: int
+
+
+class AdminReviewItem(BaseModel):
+    id: int
+    rating: ReviewRating
+    content: str | None
+    book_title: str
+    reviewer: AdminUserRef  # 후기를 쓴 사람
+    reviewee: AdminUserRef  # 후기를 받은 사람
+    created_at: datetime
+    hidden_at: datetime | None  # 숨겼으면 숨긴 시각
+
+
+class AdminReviewListResponse(BaseModel):
+    items: list[AdminReviewItem]
+    total: int
+    page: int
+    size: int

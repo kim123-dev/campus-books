@@ -1,7 +1,8 @@
 // 신고 관리 화면 (관리자 전용): 신고 카드 목록과 처리(기각·글 삭제·기간 정지·후기 숨김).
 // 로그인·권한 확인과 관리 메뉴는 admin-common.js가 맡는다.
 // 상태 탭과 페이지 번호는 주소창(?status=RESOLVED&page=2)에 저장한다.
-import { handleAuthError, startAdminPage } from "../admin-common.js";
+// 사용자 상세에서 오면 ?reported_user_id=3 으로 그 사용자가 신고당한 것만 보여준다.
+import { adminUserHref, adminUserLink, handleAuthError, startAdminPage } from "../admin-common.js";
 import { listAdminReports, resolveReport } from "../api.js";
 import { REPORT_REASONS } from "../safety.js";
 import { el, formatDate, formatMonthDayTime, renderPagination } from "../ui.js";
@@ -23,6 +24,7 @@ const main = document.getElementById("admin-main");
 const notice = document.getElementById("admin-notice");
 const summary = document.getElementById("result-summary");
 const listError = document.getElementById("list-error");
+const filterUser = document.getElementById("filter-user");
 const list = document.getElementById("report-list");
 const pagination = document.getElementById("pagination");
 
@@ -42,13 +44,15 @@ async function init() {
 function readQuery() {
   const params = new URLSearchParams(window.location.search);
   const status = STATUSES.includes(params.get("status")) ? params.get("status") : "PENDING";
-  return { status, page: params.get("page") ?? "1" };
+  const reportedUserId = /^\d+$/.test(params.get("reported_user_id") ?? "") ? params.get("reported_user_id") : "";
+  return { status, page: params.get("page") ?? "1", reportedUserId };
 }
 
 async function load() {
   const requestId = ++latestRequestId;
-  const { status, page } = readQuery();
-  markTab(status);
+  const { status, page, reportedUserId } = readQuery();
+  markTab(status, reportedUserId);
+  renderUserFilter(reportedUserId);
   summary.textContent = "불러오는 중…";
   listError.hidden = true;
   list.replaceChildren();
@@ -56,7 +60,12 @@ async function load() {
 
   let data;
   try {
-    data = await listAdminReports({ status: status === "ALL" ? undefined : status, page, size: PAGE_SIZE });
+    data = await listAdminReports({
+      status: status === "ALL" ? undefined : status,
+      reported_user_id: reportedUserId,
+      page,
+      size: PAGE_SIZE,
+    });
   } catch (error) {
     if (requestId !== latestRequestId) return;
     if (handleAuthError(error)) return;
@@ -67,11 +76,28 @@ async function load() {
   render(data);
 }
 
-function markTab(status) {
+function markTab(status, reportedUserId) {
   for (const tab of document.querySelectorAll(".tabs__item")) {
     if (tab.dataset.status === status) tab.setAttribute("aria-current", "page");
     else tab.removeAttribute("aria-current");
+    // 사용자 필터가 걸려 있으면 탭을 바꿔도 유지한다.
+    const params = new URLSearchParams({ status: tab.dataset.status });
+    if (reportedUserId) params.set("reported_user_id", reportedUserId);
+    tab.setAttribute("href", `?${params}`);
   }
+}
+
+function renderUserFilter(reportedUserId) {
+  filterUser.hidden = !reportedUserId;
+  if (!reportedUserId) return;
+  const params = new URLSearchParams(window.location.search);
+  params.delete("reported_user_id");
+  params.delete("page");
+  filterUser.replaceChildren(
+    el("a", { href: adminUserHref(reportedUserId), text: `사용자 #${reportedUserId}` }),
+    "가 신고당한 것만 보는 중 · ",
+    el("a", { href: `?${params}`, text: "전체 보기" }),
+  );
 }
 
 function render({ items, total, page, size }) {
@@ -138,12 +164,13 @@ function renderReportCard(report) {
 }
 
 function renderPeople({ reporter, reported_user: reported }) {
-  const reportedText = reported ? reported.nickname : "(탈퇴한 사용자)";
   const people = el(
     "p",
     { className: "report-card__people" },
-    `신고자 ${reporter ? reporter.nickname : "(탈퇴한 사용자)"} → 대상 `,
-    el("strong", { text: reportedText }),
+    "신고자 ",
+    adminUserLink(reporter),
+    " → 대상 ",
+    el("strong", {}, adminUserLink(reported)),
   );
   if (reported?.suspended_until) {
     people.append(

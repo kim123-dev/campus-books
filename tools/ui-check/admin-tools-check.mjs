@@ -1,4 +1,4 @@
-// 관리 화면(메뉴·대시보드·신고 처리 사유·관리 기록)을 모바일 폭(기본 375px)으로 확인한다.
+// 관리 화면(메뉴·대시보드·신고 처리 사유·관리 기록·사용자 관리)을 모바일 폭(기본 375px)으로 확인한다.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { api, loginApi, makeAdmin, readSeed, startBrowser } from "./lib.mjs";
@@ -97,6 +97,48 @@ try {
   check("기록: 조치 필터(정지만 1건)", (await text("#result-summary")) === "총 1건", await text("#result-summary"));
   const tab = await evaluate(`document.querySelector(".tab-bar [aria-current=page]")?.textContent ?? ""`);
   check("하단 탭 바: 관리 화면은 '내 정보' 탭", tab.includes("내 정보"), tab);
+
+  // 4) 관리 기록의 대상 사용자 → 사용자 상세
+  await evaluate(`document.querySelector("#log-list .admin-user-link").click()`);
+  await waitUntil("location.pathname === '/static/admin-user.html' && !document.getElementById('user-detail').hidden");
+  check("기록의 대상 이름 → 사용자 상세", (await text("#user-title")) === "판매자민수", await text("#user-title"));
+
+  // 5) 사용자 목록: 이메일, 상태 이름표, 검색·필터
+  await goto("/static/admin-users.html", "document.querySelectorAll('#user-list li').length === 3");
+  check("사용자 목록: 3명, 메뉴 현재 화면", (await navInfo()).current === "사용자");
+  const sellerCard = await evaluate(`[...document.querySelectorAll("#user-list li")].find((li) => li.textContent.includes("판매자민수")).textContent`);
+  check("사용자 목록: 이메일·정지 이름표·글 수", sellerCard.includes("seller@uicheck.ac.kr") && sellerCard.includes("까지 정지") && sellerCard.includes("글 2개"), sellerCard);
+  check("사용자 목록 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-users-${W}.png`);
+  await evaluate(`(() => { const s = document.getElementById("filter-status"); s.value = "SUSPENDED"; s.dispatchEvent(new Event("change")); })()`);
+  await waitUntil("location.search.includes('status=SUSPENDED') && document.querySelectorAll('#user-list li').length === 1");
+  check("상태 필터: 정지 중 1명", (await text("#user-list li .admin-card__title")) === "판매자민수");
+  await evaluate(`document.getElementById("filter-status").value = ""; document.getElementById("search-q").value = "BUYER@uicheck"; document.querySelector("#user-search button[type=submit]").click()`);
+  await waitUntil("location.search.includes('q=') && document.querySelectorAll('#user-list li').length === 1");
+  check("이메일 검색(대소문자 무시)", (await text("#user-list li .admin-card__title")) === "구매자지은");
+  await evaluate(`document.getElementById("search-q").value = "없는사람"; document.querySelector("#user-search button[type=submit]").click()`);
+  await waitUntil("document.getElementById('result-summary').textContent.includes('없습니다')");
+  check("검색 결과 없음 안내", (await text("#result-summary")) === "조건에 맞는 사용자가 없습니다.");
+
+  // 6) 사용자 상세: 계정 정보, 활동 수, 정지 이력, 신고 화면 필터로 이어짐
+  await goto("/static/admin-users.html?q=판매자", "document.querySelectorAll('#user-list li').length === 1");
+  await evaluate(`document.querySelector("#user-list .admin-card__title").click()`);
+  await waitUntil("!document.getElementById('user-detail').hidden");
+  const infoText = await text("#user-info");
+  check("상세: 이메일·번호", infoText.includes("seller@uicheck.ac.kr") && infoText.includes("#"), infoText);
+  const counts = await evaluate(`Object.fromEntries([...document.querySelectorAll("#user-counts .stat-tile")].map((t) => [t.querySelector(".stat-tile__label").textContent, t.querySelector(".stat-tile__value").textContent]))`);
+  check("상세: 글 2·받은 신고 1·미처리 0", counts["작성한 글"] === "2" && counts["받은 신고"] === "1" && counts["미처리 신고"] === "0", JSON.stringify(counts));
+  const history = await text("#suspension-list");
+  check("상세: 정지 이력(사유 포함)", history.includes("기간 정지") && history.includes("광고 글 반복"), history);
+  check("상세: 메뉴는 '사용자'가 아님(상세는 메뉴에 없음)", (await navInfo()).current === null);
+  check("상세 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-user-${W}.png`);
+  await evaluate(`[...document.querySelectorAll("#user-counts a")].find((a) => a.textContent.includes("받은 신고")).click()`);
+  await waitUntil("location.pathname === '/static/admin.html' && document.querySelectorAll('.report-card').length === 1");
+  check("받은 신고 → 그 사용자 신고만", (await text("#filter-user")).includes("신고당한 것만 보는 중"), await text("#filter-user"));
+  const tabHref = await evaluate(`document.querySelector('.tabs__item[data-status=PENDING]').getAttribute('href')`);
+  check("신고 탭이 사용자 필터를 유지", tabHref.includes("reported_user_id="), tabHref);
+  check("신고 카드의 대상 이름은 상세 링크", (await evaluate(`document.querySelector(".report-card__people strong a")?.getAttribute("href") ?? ""`)).startsWith("/static/admin-user.html?id="));
 
   check("자바스크립트 오류 없음", exceptions.length === 0, exceptions.join(" | "));
 } catch (error) {

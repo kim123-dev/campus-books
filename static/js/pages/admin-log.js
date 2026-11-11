@@ -1,6 +1,13 @@
 // 관리 기록 화면 (관리자 전용): 누가·언제·누구에게·무엇을·왜.
 // 조치 종류·대상 사용자·페이지는 주소창(?action=SUSPEND&target_user_id=3&page=2)에 저장한다.
-import { ADMIN_ACTION_LABELS, describeDetail, handleAuthError, startAdminPage, userLabel } from "../admin-common.js";
+import {
+  ADMIN_ACTION_LABELS,
+  adminUserLink,
+  describeDetail,
+  handleAuthError,
+  startAdminPage,
+  userLabel,
+} from "../admin-common.js";
 import { listAdminActions } from "../api.js";
 import { el, formatDate, renderPagination } from "../ui.js";
 
@@ -124,15 +131,11 @@ function renderEntry(entry) {
       "p",
       { className: "admin-card__line" },
       `${userLabel(entry.admin)} → `,
-      entry.target_user ? userLink(entry.target_user) : el("span", { text: targetText(entry) }),
+      entry.target_user ? adminUserLink(entry.target_user) : el("span", { text: targetText(entry) }),
     ),
     el("p", { className: "admin-card__reason", text: entry.reason ? `사유: ${entry.reason}` : "사유 없음" }),
     details.length ? el("p", { className: "admin-card__meta", text: details.join(" · ") }) : null,
   );
-}
-
-function userLink(user) {
-  return el("strong", { text: userLabel(user) });
 }
 
 // 사용자와 관계없는 조치(재가입 차단 해제 등)의 대상 표시

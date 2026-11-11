@@ -46,12 +46,14 @@ from app.services import admin_log_service, image_storage, post_service, user_se
 
 
 def list_reports(
-    db: Session, page: int, size: int, status: ReportStatus | None = None
+    db: Session, page: int, size: int, status: ReportStatus | None = None, reported_user_id: int | None = None
 ) -> tuple[list[AdminReportResponse], int]:
     """신고 목록. 미처리 먼저, 그 안에서 최신순. 쿼리 수는 신고 수와 상관없이 5번 이하다.
     (개수 + 목록·사용자 JOIN + 남아 있는 글 + 신고된 후기 + 피신고자별 미처리 수)
     """
     conditions = [Report.status == status] if status is not None else []
+    if reported_user_id is not None:
+        conditions.append(Report.reported_user_id == reported_user_id)
     total = db.scalar(select(func.count()).select_from(Report).where(*conditions)) or 0
 
     pending_first = case((Report.status == ReportStatus.PENDING, 0), else_=1)

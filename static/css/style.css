@@ -3132,3 +3132,52 @@ a.button {
     transform: none;
   }
 }
+
+/* 사용자 관리: 검색 버튼, 이메일, 상세의 계정 정보, 목록으로 돌아가기 */
+.admin-filter__submit {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+.admin-card__email {
+  color: var(--color-sub);
+  font-size: 0.9375rem;
+}
+
+.admin-card a.admin-card__title {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 700;
+}
+
+.admin-badge--admin {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.admin-back {
+  margin: 0 0 4px;
+}
+
+.admin-back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.admin-info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 0;
+}
+
+.admin-info dt {
+  color: var(--color-muted);
+}
+
+.admin-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

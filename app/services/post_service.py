@@ -212,7 +212,7 @@ def _search_conditions(search: PostSearchParams) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = []
 
     if search.q is not None:
-        pattern = f"%{_escape_like(search.q)}%"
+        pattern = f"%{escape_like(search.q)}%"
         # 대소문자를 무시해 SQLite와 MySQL의 결과를 같게 맞춘다.
         conditions.append(
             or_(
@@ -233,9 +233,9 @@ def _search_conditions(search: PostSearchParams) -> list[ColumnElement[bool]]:
     return conditions
 
 
-# 사용자가 입력한 %, _ 가 와일드카드로 동작하지 않게 한다.
+# 사용자가 입력한 %, _ 가 와일드카드로 동작하지 않게 한다. (관리자 검색도 같은 규칙을 쓴다)
 # 이스케이프 문자 자체도 먼저 바꿔야 "\%" 같은 입력이 잘못 해석되지 않는다.
-def _escape_like(text: str) -> str:
+def escape_like(text: str) -> str:
     return (
         text.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
         .replace("%", LIKE_ESCAPE + "%")
