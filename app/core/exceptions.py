@@ -57,6 +57,10 @@ class UserNotSuspendedError(ConflictError):
     message = "정지 중인 사용자가 아닙니다."
 
 
+class ReviewNotHiddenError(ConflictError):
+    message = "숨긴 후기가 아닙니다."
+
+
 class NotFoundError(DomainError):
     """요청한 데이터가 없음. main.py에서 404로 변환한다."""
 

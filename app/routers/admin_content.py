@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.deps import AdminUser
 from app.models import PostStatus
 from app.routers.admin import ADMIN_ROUTER_OPTIONS
-from app.schemas.admin import AdminPostListResponse, AdminReviewListResponse
+from app.schemas.admin import AdminPostListResponse, AdminReasonRequest, AdminReviewListResponse
 from app.schemas.post import PageQuery, SizeQuery
 from app.services import admin_content_service
 
@@ -40,3 +41,19 @@ def list_reviews(
         db, page, size, hidden=hidden, reviewee_id=reviewee_id, reviewer_id=reviewer_id
     )
     return AdminReviewListResponse(items=items, total=total, page=page, size=size)
+
+
+@router.post(
+    "/reviews/{review_id}/unhide",
+    status_code=204,
+    summary="후기 숨김 해제. 사유 필수",
+    responses={
+        404: {"description": "없는 후기"},
+        409: {"description": "숨긴 후기가 아님"},
+        422: {"description": "사유 형식 오류"},
+    },
+)
+def unhide_review(
+    review_id: int, data: AdminReasonRequest, admin: AdminUser, db: Annotated[Session, Depends(get_db)]
+) -> None:
+    admin_content_service.unhide_review(db, admin, review_id, data)

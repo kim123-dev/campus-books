@@ -1,10 +1,22 @@
-"""관리자 글·후기 목록. 신고가 없어도 관리자가 직접 찾아 조치할 수 있게 한다."""
+"""관리자 글·후기 관리: 목록과 조치(후기 숨김 해제). 신고가 없어도 관리자가 직접 찾아 조치할 수 있게 한다."""
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Post, PostStatus, Report, ReportStatus, ReportTargetType, Review
-from app.schemas.admin import AdminPostItem, AdminReviewItem
+from app.core.exceptions import ReviewNotFoundError, ReviewNotHiddenError
+from app.models import (
+    AdminActionType,
+    AdminTargetType,
+    Post,
+    PostStatus,
+    Report,
+    ReportStatus,
+    ReportTargetType,
+    Review,
+    User,
+)
+from app.schemas.admin import AdminPostItem, AdminReasonRequest, AdminReviewItem
+from app.services import admin_log_service, user_service
 from app.services.admin_log_service import user_ref
 from app.services.post_service import LIKE_ESCAPE, escape_like
 
@@ -106,3 +118,32 @@ def list_reviews(
         for review in rows
     ]
     return items, total
+
+
+def unhide_review(db: Session, admin: User, review_id: int, data: AdminReasonRequest) -> None:
+    """숨긴 후기를 다시 보이게 한다. 순서: 404 없음 → 409 숨긴 후기가 아님.
+    다시 보이면 받은 사람의 후기 목록과 매너 점수에 바로 다시 들어간다. (숨김 여부만 보고 세기 때문)
+    """
+    review = db.get(Review, review_id)
+    if review is None:
+        raise ReviewNotFoundError()
+    if review.hidden_at is None:
+        raise ReviewNotHiddenError()
+    hidden_at = review.hidden_at
+    # 두 관리자가 동시에 풀어도 한쪽만 성공하고 기록도 한 줄만 남도록 "아직 숨겨진 경우에만" 바꾼다.
+    result = db.execute(
+        update(Review)
+        .where(Review.id == review.id, Review.hidden_at.is_not(None))
+        .values(hidden_at=None)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise ReviewNotHiddenError()
+    # 숨김과 같이 대상 사용자는 후기를 쓴 사람이다. (조치가 그 사람의 글에 대한 것이므로)
+    admin_log_service.record(
+        db, admin, AdminActionType.UNHIDE_REVIEW, AdminTargetType.REVIEW, review.id,
+        target_user_id=review.reviewer_id, reason=data.reason,
+        detail={"book_title": review.trade.book_title_snapshot, "hidden_at": user_service.as_utc(hidden_at).isoformat()},
+    )
+    db.commit()

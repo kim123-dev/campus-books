@@ -69,10 +69,10 @@ function render(user) {
     countTile("미처리 신고", counts.reports_pending, `/static/admin.html?status=PENDING&reported_user_id=${id}`, {
       alert: counts.reports_pending > 0 ? "처리 필요" : null,
     }),
-    countTile("받은 후기", counts.reviews_received, null, {
+    countTile("받은 후기", counts.reviews_received, `/static/admin-reviews.html?status=ALL&reviewee_id=${id}`, {
       note: counts.reviews_hidden > 0 ? `숨긴 후기 ${counts.reviews_hidden}개 포함` : null,
     }),
-    countTile("쓴 후기", counts.reviews_written),
+    countTile("쓴 후기", counts.reviews_written, `/static/admin-reviews.html?status=ALL&reviewer_id=${id}`),
   );
 
   renderActions(user);

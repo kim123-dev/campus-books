@@ -11,6 +11,7 @@ export const ADMIN_PAGES = [
   { href: "/static/admin-dashboard.html", label: "대시보드" },
   { href: "/static/admin.html", label: "신고" },
   { href: "/static/admin-users.html", label: "사용자" },
+  { href: "/static/admin-reviews.html", label: "후기" },
   { href: "/static/admin-log.html", label: "기록" },
 ];
 
@@ -192,6 +193,7 @@ export function describeDetail(detail) {
   if (detail.suspended_until) lines.push(`${formatMonthDayTime(detail.suspended_until)}까지`);
   if (detail.previous_until) lines.push(`원래 ${formatMonthDayTime(detail.previous_until)}까지였음`);
   if (detail.post_title) lines.push(`글: ${detail.post_title}${detail.book_title ? ` (${detail.book_title})` : ""}`);
+  else if (detail.book_title) lines.push(`교재: ${detail.book_title}`);
   if (detail.email_banned) lines.push("이메일 재가입 차단");
   return lines;
 }

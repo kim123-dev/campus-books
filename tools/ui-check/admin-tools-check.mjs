@@ -164,6 +164,36 @@ try {
   await waitUntil("!document.getElementById('user-detail').hidden");
   check("관리자 상세: 조치 칸 없음", await evaluate(`document.getElementById("user-actions").hidden`));
 
+  // 8) 후기 관리: 숨긴 후기 → 숨김 해제
+  // 준비(API): 판매자 정지를 풀고, p1을 구매자에게 판매 완료 → 구매자 후기 → 판매자가 신고 → 관리자가 숨김
+  const sellerId = (await api("GET", "/users/me", seed.seller_token)).body.id;
+  const buyerId = (await api("GET", "/users/me", seed.buyer_token)).body.id;
+  await api("POST", `/admin/users/${sellerId}/unsuspend`, admin, { reason: "후기 확인 준비" });
+  await api("PATCH", `/posts/${seed.p1}/status`, seed.seller_token, { status: "SOLD", buyer_id: buyerId });
+  const tradeId = (await api("GET", `/conversations/${seed.c1}`, seed.buyer_token)).body.trade.trade_id;
+  const reviewId = (await api("POST", `/trades/${tradeId}/reviews`, seed.buyer_token, { rating: "BAD", content: "약속 시간에 늦었어요" })).body.id;
+  const r3 = (await api("POST", `/reviews/${reviewId}/reports`, seed.seller_token, { reason: "ABUSE" })).body.id;
+  const hid = await api("POST", `/admin/reports/${r3}/resolve`, admin, { action: "HIDE_REVIEW", note: "욕설 의심" });
+  check("준비: 후기 숨김", hid.status === 200, JSON.stringify(hid.body));
+  await goto("/static/admin-reviews.html", "document.querySelectorAll('#review-list li').length === 1");
+  check("후기 관리: 메뉴 현재 화면 '후기', 기본은 숨긴 후기", (await navInfo()).current === "후기" && (await text(".tabs__item[aria-current=page]")) === "숨긴 후기");
+  const reviewCard = await text("#review-list li");
+  check("후기 카드: 작성자 → 받은 사람, 내용, 숨김 표시", reviewCard.includes("구매자지은 → 판매자민수") && reviewCard.includes("약속 시간에 늦었어요") && reviewCard.includes("숨김"), reviewCard);
+  check("후기 관리 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-reviews-${W}.png`);
+  await autoConfirm();
+  await evaluate(`window.lastConfirm = null; document.querySelector("#unhide-${reviewId} button[type=submit]").click()`);
+  check("사유 없이 숨김 해제: 안내", (await text(`#unhide-${reviewId} .form-error`)) === "사유를 입력해 주세요." && (await evaluate("window.lastConfirm")) === null);
+  await evaluate(`document.getElementById("unhide-${reviewId}-reason").value = "욕설 아님"; document.querySelector("#unhide-${reviewId} button[type=submit]").click()`);
+  await waitUntil("!document.getElementById('admin-notice').hidden && document.getElementById('result-summary').textContent === '숨긴 후기가 없습니다.'");
+  check("숨김 해제 → 안내, 숨긴 후기 목록에서 빠짐", (await text("#admin-notice")).includes("숨김을 해제했습니다"));
+  const profileReviews = (await api("GET", `/users/${sellerId}/reviews`, null)).body.items.length;
+  check("숨김 해제 → 프로필 후기에 다시 보임", profileReviews === 1, String(profileReviews));
+  await goto(`/static/admin-user.html?id=${sellerId}`, "!document.getElementById('user-detail').hidden");
+  await evaluate(`[...document.querySelectorAll("#user-counts a")].find((a) => a.textContent.includes("받은 후기")).click()`);
+  await waitUntil("location.pathname === '/static/admin-reviews.html' && document.querySelectorAll('#review-list li').length === 1");
+  check("상세 '받은 후기' → 그 사용자 후기(전체 탭)", (await text(".tabs__item[aria-current=page]")) === "전체" && (await text("#filter-user")).includes("받은 후기만"));
+
   check("자바스크립트 오류 없음", exceptions.length === 0, exceptions.join(" | "));
 } catch (error) {
   results.push(`ERROR  ${error.stack ?? error}`);
