@@ -94,6 +94,12 @@ class AdminReasonRequest(BaseModel):
         return _clean_text(value)
 
 
+class AdminSuspendRequest(AdminReasonRequest):
+    """사용자 직접 정지. 신고 없이도 관리자가 정지할 수 있다."""
+
+    days: int = Field(ge=1, le=MAX_SUSPEND_DAYS, description="정지 일수 (1~365)")
+
+
 # ---------- 응답 ----------
 
 
@@ -313,3 +319,8 @@ class AdminReviewListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class AdminSuspendResponse(BaseModel):
+    # 정지 종료 시각(UTC). 이미 더 늦게 끝나는 정지가 있으면 그 시각이다. 정지 해제면 null.
+    suspended_until: datetime | None

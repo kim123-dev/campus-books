@@ -140,6 +140,30 @@ try {
   check("신고 탭이 사용자 필터를 유지", tabHref.includes("reported_user_id="), tabHref);
   check("신고 카드의 대상 이름은 상세 링크", (await evaluate(`document.querySelector(".report-card__people strong a")?.getAttribute("href") ?? ""`)).startsWith("/static/admin-user.html?id="));
 
+  // 7) 사용자 상세에서 정지 해제·직접 정지 (사유 필수, 확인 창)
+  await goto("/static/admin-users.html?q=판매자", "document.querySelectorAll('#user-list li').length === 1");
+  await evaluate(`document.querySelector("#user-list .admin-card__title").click()`);
+  await waitUntil("!document.getElementById('user-detail').hidden");
+  check("상세(정지 중): 정지·정지 해제 폼", Boolean(await evaluate(`document.getElementById("suspend-form") && document.getElementById("unsuspend-form")`)));
+  await autoConfirm();
+  await evaluate(`window.lastConfirm = null; document.querySelector("#unsuspend-form button[type=submit]").click()`);
+  check("사유 없이 해제: 보내기 전에 안내", (await text("#unsuspend-form .form-error")) === "사유를 입력해 주세요." && (await evaluate("window.lastConfirm")) === null);
+  await evaluate(`document.getElementById("unsuspend-form-reason").value = "소명 확인"; document.querySelector("#unsuspend-form button[type=submit]").click()`);
+  await waitUntil("!document.getElementById('action-notice').hidden");
+  check("정지 해제 → 안내·해제 폼 사라짐·이름표 없음", (await text("#action-notice")) === "정지를 해제했습니다." && !(await evaluate(`Boolean(document.getElementById("unsuspend-form"))`)) && (await text("#user-badges")) === "", await text("#action-notice"));
+  check("정지 이력: 해제가 맨 위", (await text("#suspension-list li:first-child")).includes("정지 해제") && (await text("#suspension-list li:first-child")).includes("소명 확인"));
+  await evaluate(`document.getElementById("suspend-days").value = "7"; document.getElementById("suspend-form-reason").value = "거래 약속 반복 파기"; document.querySelector("#suspend-form button[type=submit]").click()`);
+  await waitUntil("document.getElementById('action-notice').textContent.includes('까지 정지했습니다')");
+  check("직접 정지: 확인 창에 기간·사유", (await evaluate("window.lastConfirm")).includes("7일 정지") && (await evaluate("window.lastConfirm")).includes("거래 약속 반복 파기"));
+  check("직접 정지 → 정지 이름표", (await text("#user-badges")).includes("까지 정지"));
+  check("상세(조치 폼) 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-user-actions-${W}.png`);
+  // 관리자 상세에는 조치가 없다.
+  await goto("/static/admin-users.html?status=ADMIN", "document.querySelectorAll('#user-list li').length === 1");
+  await evaluate(`document.querySelector("#user-list .admin-card__title").click()`);
+  await waitUntil("!document.getElementById('user-detail').hidden");
+  check("관리자 상세: 조치 칸 없음", await evaluate(`document.getElementById("user-actions").hidden`));
+
   check("자바스크립트 오류 없음", exceptions.length === 0, exceptions.join(" | "));
 } catch (error) {
   results.push(`ERROR  ${error.stack ?? error}`);

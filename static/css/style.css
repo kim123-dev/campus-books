@@ -3181,3 +3181,39 @@ a.button {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* 관리자 조치 폼 (사유 필수). 폼이 여러 개면 선으로 나눈다. */
+.admin-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-action-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-action-form + .admin-action-form {
+  padding-top: 16px;
+  border-top: 1px solid var(--color-divider);
+}
+
+.admin-action-form .field {
+  margin: 0;
+}
+
+.admin-action-form .button {
+  align-self: flex-start;
+  min-height: 44px;
+}
+
+.admin-action-form__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-action-form textarea {
+  min-height: 72px;
+}

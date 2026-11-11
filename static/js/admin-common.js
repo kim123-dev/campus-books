@@ -105,6 +105,58 @@ export function userLabel(user) {
   return user.withdrawn ? `탈퇴한 사용자 #${user.id}` : user.nickname;
 }
 
+/**
+ * 사유를 꼭 적는 관리자 조치 폼. 사유가 비면 보내지 않고, 확인 창을 거쳐 onSubmit(사유)를 부른다.
+ * 실패하면 서버 메시지를 폼 안에 보여주고 다시 누를 수 있게 한다. (409: 다른 관리자가 먼저 처리 등)
+ * @param {{id: string, submitText: string, danger?: boolean, fields?: Node[], confirm: (reason: string) => string|null,
+ *          onSubmit: (reason: string) => Promise<void>, reasonLabel?: string}} options
+ */
+export function reasonForm({ id, submitText, danger = false, fields = [], confirm, onSubmit, reasonLabel = "사유 (필수)" }) {
+  const reason = el("textarea", { id: `${id}-reason`, rows: 2, maxLength: MAX_REASON });
+  const errorText = el("p", { className: "form-error", attrs: { role: "alert" }, hidden: true });
+  const submit = el("button", {
+    type: "submit",
+    className: `button ${danger ? "button--danger" : "button--primary"}`,
+    text: submitText,
+  });
+  const form = el(
+    "form",
+    { className: "admin-action-form", id, noValidate: true },
+    ...fields,
+    el("div", { className: "field" }, el("label", { htmlFor: reason.id, text: reasonLabel }), reason),
+    errorText,
+    submit,
+  );
+  const showError = (message) => {
+    errorText.textContent = message;
+    errorText.hidden = false;
+  };
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    errorText.hidden = true;
+    const text = reason.value.trim();
+    // 서버가 422로 막는 내용을 보내기 전에 알려준다.
+    if (text === "") {
+      showError("사유를 입력해 주세요.");
+      reason.focus();
+      return;
+    }
+    const message = confirm(text);
+    if (message === null || !window.confirm(message)) return;
+    submit.disabled = true;
+    submit.textContent = "처리 중…";
+    try {
+      await onSubmit(text);
+    } catch (error) {
+      if (handleAuthError(error)) return;
+      showError(Object.values(error.fieldErrors ?? {})[0] ?? error.message);
+      submit.disabled = false;
+      submit.textContent = submitText;
+    }
+  });
+  return form;
+}
+
 /** 관리 화면의 사용자 이름을 사용자 상세로 가는 링크로. 사용자가 없으면 글자만. */
 export function adminUserLink(user, fallback = "(탈퇴한 사용자)") {
   if (!user) return el("span", { text: fallback });

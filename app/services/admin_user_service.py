@@ -1,15 +1,23 @@
-"""관리자 사용자 관리: 사용자 목록·검색과 상세.
+"""관리자 사용자 관리: 사용자 목록·검색·상세, 정지·정지 해제.
 
 이메일은 관리 화면 중 사용자 관리에서만 보여준다. 탈퇴한 계정은 이메일이 지워져(임의 값) 있으므로 null로 내보낸다.
 """
 
-from sqlalchemy import func, or_, select
+from datetime import datetime, timedelta
+
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import UserNotFoundError
+from app.core.exceptions import (
+    CannotSuspendAdminError,
+    UserNotFoundError,
+    UserNotSuspendedError,
+    UserWithdrawnError,
+)
 from app.models import (
     AdminAction,
     AdminActionType,
+    AdminTargetType,
     Post,
     Report,
     ReportStatus,
@@ -17,7 +25,14 @@ from app.models import (
     User,
     UserRole,
 )
-from app.schemas.admin import AdminUserCounts, AdminUserDetail, AdminUserFilter, AdminUserItem
+from app.schemas.admin import (
+    AdminReasonRequest,
+    AdminSuspendRequest,
+    AdminUserCounts,
+    AdminUserDetail,
+    AdminUserFilter,
+    AdminUserItem,
+)
 from app.services import admin_dashboard_service, admin_log_service, user_service
 from app.services.post_service import LIKE_ESCAPE, escape_like
 
@@ -138,3 +153,74 @@ def _to_item(user: User, post_count: int, pending: int, now) -> AdminUserItem:
         post_count=post_count or 0,
         pending_report_count=pending or 0,
     )
+
+
+# ---------- 정지·정지 해제 ----------
+
+
+def suspend(db: Session, admin: User, user_id: int, data: AdminSuspendRequest) -> datetime:
+    """신고 없이 직접 정지한다. 순서: 404 없음 → 409 탈퇴 → 400 관리자(자기 자신 포함).
+    이미 더 늦게 끝나는 정지가 있으면 줄이지 않는다. (신고 처리의 정지와 같은 규칙)
+    """
+    user = _get_target(db, user_id)
+    if user.role == UserRole.ADMIN:
+        raise CannotSuspendAdminError()
+    now = user_service.utc_now()
+    previous = user_service.active_suspension_end(user, now)
+    end = max(now + timedelta(days=data.days), previous) if previous else now + timedelta(days=data.days)
+    # 같은 순간 강제 탈퇴·관리자 지정과 겹쳐도 그 상태의 계정을 정지하지 않도록 조건을 걸고 바뀐 행 수를 확인한다.
+    # (DB에는 시간대 없는 UTC로 저장한다. user_service.suspend와 같은 형식)
+    _guarded_update(db, user, {"suspended_until": end.replace(tzinfo=None)}, User.role != UserRole.ADMIN)
+    detail = {"days": data.days, "suspended_until": end.isoformat()}
+    if previous is not None:
+        detail["previous_until"] = previous.isoformat()
+    admin_log_service.record(
+        db, admin, AdminActionType.SUSPEND, AdminTargetType.USER, user.id,
+        target_user_id=user.id, reason=data.reason, detail=detail,
+    )
+    db.commit()
+    return end
+
+
+def unsuspend(db: Session, admin: User, user_id: int, data: AdminReasonRequest) -> None:
+    """정지를 바로 푼다. 순서: 404 없음 → 409 탈퇴 → 409 정지 중이 아님."""
+    user = _get_target(db, user_id)
+    now = user_service.utc_now()
+    previous = user_service.active_suspension_end(user, now)
+    if previous is None:
+        raise UserNotSuspendedError()
+    # 두 관리자가 동시에 풀어도 한쪽만 성공하고 기록도 한 줄만 남도록, "아직 정지 중인 경우에만" 바꾼다.
+    _guarded_update(
+        db, user, {"suspended_until": None},
+        User.suspended_until > admin_dashboard_service.db_time(db, now),
+        error=UserNotSuspendedError,
+    )
+    admin_log_service.record(
+        db, admin, AdminActionType.UNSUSPEND, AdminTargetType.USER, user.id,
+        target_user_id=user.id, reason=data.reason, detail={"previous_until": previous.isoformat()},
+    )
+    db.commit()
+
+
+def _get_target(db: Session, user_id: int) -> User:
+    user = db.get(User, user_id)
+    if user is None:
+        raise UserNotFoundError()
+    if user_service.is_withdrawn(user):
+        raise UserWithdrawnError()
+    return user
+
+
+def _guarded_update(db: Session, user: User, values: dict, condition, error=UserWithdrawnError) -> None:
+    """탈퇴하지 않았고 condition에 맞을 때만 바꾼다. 0행이면 롤백하고 error를 낸다."""
+    result = db.execute(
+        update(User)
+        .where(User.id == user.id, User.password_hash != user_service.WITHDRAWN_PASSWORD_HASH, condition)
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise error()
+    # 조건부 UPDATE는 세션의 객체를 바꾸지 않으므로, 이후 응답·기록이 새 값을 읽도록 다시 읽게 한다.
+    db.expire(user, ["suspended_until"])

@@ -4,8 +4,16 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.deps import AdminUser
 from app.routers.admin import ADMIN_ROUTER_OPTIONS
-from app.schemas.admin import AdminUserDetail, AdminUserFilter, AdminUserListResponse
+from app.schemas.admin import (
+    AdminReasonRequest,
+    AdminSuspendRequest,
+    AdminSuspendResponse,
+    AdminUserDetail,
+    AdminUserFilter,
+    AdminUserListResponse,
+)
 from app.schemas.post import PageQuery, SizeQuery
 from app.services import admin_user_service
 
@@ -36,3 +44,37 @@ def list_users(
 )
 def get_user(user_id: int, db: Annotated[Session, Depends(get_db)]) -> AdminUserDetail:
     return admin_user_service.get_user(db, user_id)
+
+
+@router.post(
+    "/users/{user_id}/suspend",
+    response_model=AdminSuspendResponse,
+    summary="기간 정지 (신고 없이 직접). 사유 필수, 더 긴 정지가 있으면 줄이지 않는다",
+    responses={
+        400: {"description": "관리자(자기 자신 포함)는 정지할 수 없음"},
+        404: {"description": "없는 사용자"},
+        409: {"description": "탈퇴한 사용자"},
+        422: {"description": "일수(1~365)·사유 형식 오류"},
+    },
+)
+def suspend_user(
+    user_id: int, data: AdminSuspendRequest, admin: AdminUser, db: Annotated[Session, Depends(get_db)]
+) -> AdminSuspendResponse:
+    return AdminSuspendResponse(suspended_until=admin_user_service.suspend(db, admin, user_id, data))
+
+
+@router.post(
+    "/users/{user_id}/unsuspend",
+    response_model=AdminSuspendResponse,
+    summary="정지 해제. 사유 필수",
+    responses={
+        404: {"description": "없는 사용자"},
+        409: {"description": "탈퇴한 사용자, 정지 중이 아님"},
+        422: {"description": "사유 형식 오류"},
+    },
+)
+def unsuspend_user(
+    user_id: int, data: AdminReasonRequest, admin: AdminUser, db: Annotated[Session, Depends(get_db)]
+) -> AdminSuspendResponse:
+    admin_user_service.unsuspend(db, admin, user_id, data)
+    return AdminSuspendResponse(suspended_until=None)

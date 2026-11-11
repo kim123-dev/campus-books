@@ -195,6 +195,16 @@ export function getAdminUser(userId) {
   return request(`/admin/users/${encodeURIComponent(userId)}`);
 }
 
+/** 관리자: 직접 정지. data: {days, reason} */
+export function suspendUser(userId, data) {
+  return request(`/admin/users/${encodeURIComponent(userId)}/suspend`, { method: "POST", json: data });
+}
+
+/** 관리자: 정지 해제. data: {reason} */
+export function unsuspendUser(userId, data) {
+  return request(`/admin/users/${encodeURIComponent(userId)}/unsuspend`, { method: "POST", json: data });
+}
+
 /** 관리자: 글 목록. params: {q, status, seller_id, page, size} */
 export function listAdminPosts(params) {
   return request("/admin/posts", { query: params });

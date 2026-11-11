@@ -49,6 +49,14 @@ class DuplicateReviewError(ConflictError):
     message = "이미 이 거래의 후기를 남겼습니다."
 
 
+class UserWithdrawnError(ConflictError):
+    message = "이미 탈퇴한 사용자입니다."
+
+
+class UserNotSuspendedError(ConflictError):
+    message = "정지 중인 사용자가 아닙니다."
+
+
 class NotFoundError(DomainError):
     """요청한 데이터가 없음. main.py에서 404로 변환한다."""
 

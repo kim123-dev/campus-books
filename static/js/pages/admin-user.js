@@ -1,30 +1,40 @@
-// 사용자 상세 화면 (관리자 전용): 계정 정보(이메일 포함), 활동 수, 정지 이력.
+// 사용자 상세 화면 (관리자 전용): 계정 정보(이메일 포함), 조치(정지·정지 해제), 활동 수, 정지 이력.
 // 숫자는 그 목록을 볼 수 있는 화면으로 이어진다. 주소: /static/admin-user.html?id=3
 import {
   ADMIN_ACTION_LABELS,
   describeDetail,
   handleAuthError,
+  reasonForm,
   startAdminPage,
   userBadges,
   userLabel,
 } from "../admin-common.js";
-import { getAdminUser } from "../api.js";
-import { el, formatDate } from "../ui.js";
+import { getAdminUser, suspendUser, unsuspendUser } from "../api.js";
+import { el, formatDate, formatMonthDayTime } from "../ui.js";
+
+const SUSPEND_DAY_OPTIONS = [1, 3, 7, 30, 90, 365];
 
 const main = document.getElementById("admin-main");
 const title = document.getElementById("user-title");
 const listError = document.getElementById("list-error");
 const detail = document.getElementById("user-detail");
+const notice = document.getElementById("action-notice");
+let userId = "";
 
 init();
 
 async function init() {
   if ((await startAdminPage(main)) === null) return;
-  const userId = new URLSearchParams(window.location.search).get("id") ?? "";
+  userId = new URLSearchParams(window.location.search).get("id") ?? "";
   if (!/^\d+$/.test(userId)) {
     showError("사용자 번호가 올바르지 않습니다.");
     return;
   }
+  await load();
+}
+
+// 조치 뒤에도 다시 불러 서버 기준(정지 종료 시각, 이력)으로 그린다.
+async function load() {
   let user;
   try {
     user = await getAdminUser(userId);
@@ -65,6 +75,7 @@ function render(user) {
     countTile("쓴 후기", counts.reviews_written),
   );
 
+  renderActions(user);
   document.getElementById("log-link").href = `/static/admin-log.html?target_user_id=${id}`;
   const history = document.getElementById("suspension-list");
   history.replaceChildren(
@@ -73,6 +84,75 @@ function render(user) {
       : [el("li", { className: "admin-card__meta", text: "정지 이력이 없습니다." })]),
   );
   detail.hidden = false;
+}
+
+// ---------- 조치 ----------
+
+function renderActions(user) {
+  const section = document.getElementById("user-actions");
+  // 탈퇴한 계정과 관리자는 정지할 수 없다. (서버도 409·400으로 막는다)
+  const forms = [];
+  if (!user.withdrawn && user.role !== "ADMIN") {
+    forms.push(suspendForm(user));
+    if (user.suspended_until) forms.push(unsuspendForm(user));
+  }
+  section.hidden = forms.length === 0;
+  document.getElementById("action-forms").replaceChildren(...forms);
+}
+
+function suspendForm(user) {
+  const days = el(
+    "select",
+    { id: "suspend-days" },
+    ...SUSPEND_DAY_OPTIONS.map((day) => el("option", { value: String(day), text: `${day}일` })),
+  );
+  const fields = [
+    el("h3", { className: "admin-action-form__title", text: "기간 정지" }),
+    user.suspended_until
+      ? el("p", {
+          className: "admin-card__meta",
+          text: `지금 ${formatMonthDayTime(user.suspended_until)}까지 정지 중입니다. 더 짧은 기간을 고르면 지금 정지가 그대로 유지돼요.`,
+        })
+      : null,
+    el("div", { className: "field" }, el("label", { htmlFor: "suspend-days", text: "정지 기간" }), days),
+  ];
+  return reasonForm({
+    id: "suspend-form",
+    submitText: "정지하기",
+    danger: true,
+    fields,
+    confirm: (reason) =>
+      `${userLabel(user)}님을 ${days.value}일 정지할까요?
+정지 중에는 글쓰기·쪽지·찜·신고를 할 수 없어요.
+
+사유: ${reason}`,
+    onSubmit: async (reason) => {
+      const result = await suspendUser(user.id, { days: Number(days.value), reason });
+      await afterAction(`${formatMonthDayTime(result.suspended_until)}까지 정지했습니다.`);
+    },
+  });
+}
+
+function unsuspendForm(user) {
+  return reasonForm({
+    id: "unsuspend-form",
+    submitText: "정지 해제",
+    fields: [el("h3", { className: "admin-action-form__title", text: "정지 해제" })],
+    confirm: (reason) => `${userLabel(user)}님의 정지를 지금 풀까요?
+
+사유: ${reason}`,
+    onSubmit: async (reason) => {
+      await unsuspendUser(user.id, { reason });
+      await afterAction("정지를 해제했습니다.");
+    },
+  });
+}
+
+async function afterAction(message) {
+  await load();
+  notice.textContent = message;
+  notice.hidden = false;
+  notice.scrollIntoView({ block: "nearest" });
 }
 
 function info(label, value) {
