@@ -205,6 +205,21 @@ export function unsuspendUser(userId, data) {
   return request(`/admin/users/${encodeURIComponent(userId)}/unsuspend`, { method: "POST", json: data });
 }
 
+/** 관리자: 강제 탈퇴. data: {reason, ban_email} */
+export function forceWithdrawUser(userId, data) {
+  return request(`/admin/users/${encodeURIComponent(userId)}/withdraw`, { method: "POST", json: data });
+}
+
+/** 관리자: 재가입 차단 목록 (차단 시각·사유만). params: {page, size} */
+export function listEmailBans(params) {
+  return request("/admin/email-bans", { query: params });
+}
+
+/** 관리자: 재가입 차단 해제. data: {email, reason}. 성공하면 204(null) */
+export function unbanEmail(data) {
+  return request("/admin/email-bans/unban", { method: "POST", json: data });
+}
+
 /** 관리자: 글 목록. params: {q, status, seller_id, page, size} */
 export function listAdminPosts(params) {
   return request("/admin/posts", { query: params });

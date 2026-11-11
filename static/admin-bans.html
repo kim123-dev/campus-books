@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>재가입 차단 | Campus Books</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <!-- 홈 화면 앱(PWA): 앱 정보·아이콘, 아이폰 홈 화면 아이콘과 이름, 서비스 워커 등록 -->
+    <meta name="theme-color" content="#5b3fd6" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <link rel="icon" href="/static/img/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Campus Books" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <script type="module" src="/static/js/pwa.js"></script>
+    <script type="module" src="/static/js/pages/admin-bans.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <!-- 관리자만 쓰는 화면. 관리자가 아니면 admin-common.js가 목록 화면으로 보낸다. 실제 권한 검사는 서버가 한다. -->
+    <main class="container" id="admin-main" hidden>
+      <nav id="admin-nav" class="admin-nav" aria-label="관리 메뉴"></nav>
+      <p class="admin-back"><a href="/static/admin-users.html">← 사용자 목록</a></p>
+      <h1 class="page-title">재가입 차단</h1>
+      <p class="page-description">
+        강제 탈퇴하면서 막은 이메일입니다. 이메일 원문은 저장하지 않아 목록에는 차단 시각과 사유만 보입니다.
+        풀려면 이메일을 직접 입력하세요.
+      </p>
+
+      <p id="admin-notice" class="safety-notice" role="status" hidden></p>
+      <section class="card admin-card" aria-labelledby="unban-heading">
+        <h2 class="dashboard__heading" id="unban-heading">차단 해제</h2>
+        <div id="unban-box"></div>
+      </section>
+
+      <h2 class="dashboard__heading admin-section-heading">차단 목록</h2>
+      <p id="result-summary" class="result-summary" aria-live="polite">불러오는 중…</p>
+      <p id="list-error" class="form-error" role="alert" hidden></p>
+      <ul id="ban-list" class="admin-list"></ul>
+      <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
+    </main>
+  </body>
+</html>

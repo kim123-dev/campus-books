@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from functools import lru_cache
 from typing import Literal
 
@@ -11,6 +13,8 @@ _PSYCOPG_PREFIX = "postgresql+psycopg://"
 
 # 운영 키가 이보다 짧으면 JWT 위조를 막기 어렵다. (HS256 권장 최소 길이 32바이트)
 MIN_PRODUCTION_SECRET_KEY_LENGTH = 32
+# 재가입 차단 이메일 해시 키의 운영 최소 길이. 짧으면 흔한 이메일을 대입해 해시를 맞춰 볼 수 있다.
+MIN_PRODUCTION_EMAIL_HASH_KEY_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -31,6 +35,16 @@ class Settings(BaseSettings):
     # bcrypt 작업 비용(2의 거듭제곱 횟수). 운영 기본값 12는 bcrypt 라이브러리 기본값과 같다.
     # 테스트만 4(허용 최솟값)로 낮춰 가입·로그인이 많은 테스트를 빠르게 한다. (tests/conftest.py)
     BCRYPT_ROUNDS: int = Field(default=12, ge=4, le=31)
+    # 강제 탈퇴한 이메일의 재가입 차단에 쓰는 HMAC 키. 이메일 원문 대신 이 키로 만든 해시만 저장한다.
+    # SECRET_KEY와 따로 두는 이유: 토큰 키를 바꿔도(유출 대응 등) 차단 목록이 그대로 맞아야 하기 때문이다.
+    # 운영에서는 필수다. 개발·테스트에서 비워 두면 SECRET_KEY에서 만든 값을 쓴다.
+    EMAIL_HASH_KEY: str | None = None
+
+    @property
+    def email_hash_key(self) -> bytes:
+        if self.EMAIL_HASH_KEY:
+            return self.EMAIL_HASH_KEY.encode()
+        return hmac.new(self.SECRET_KEY.encode(), b"email-ban", hashlib.sha256).digest()
 
     @property
     def is_production(self) -> bool:
@@ -56,6 +70,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"운영(production) SECRET_KEY는 {MIN_PRODUCTION_SECRET_KEY_LENGTH}자 이상이어야 합니다."
             )
+        if len(self.EMAIL_HASH_KEY or "") < MIN_PRODUCTION_EMAIL_HASH_KEY_LENGTH:
+            raise ValueError(
+                f"운영(production)에서는 EMAIL_HASH_KEY를 {MIN_PRODUCTION_EMAIL_HASH_KEY_LENGTH}자 이상으로 넣어야 합니다."
+            )
+        if self.EMAIL_HASH_KEY == self.SECRET_KEY:
+            raise ValueError("EMAIL_HASH_KEY는 SECRET_KEY와 다른 값이어야 합니다.")
         return self
 
 

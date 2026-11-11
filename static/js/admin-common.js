@@ -155,16 +155,16 @@ export function reasonForm({
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorText.hidden = true;
-    const text = reason.value.trim();
-    // 서버가 422로 막는 내용을 보내기 전에 알려준다.
-    if (text === "") {
-      showError("사유를 입력해 주세요.");
-      reason.focus();
-      return;
-    }
+    // 서버가 422로 막는 내용을 보내기 전에 알려준다. 화면 순서대로(추가 입력 칸 → 사유) 확인한다.
     const invalid = validate();
     if (invalid) {
       showError(invalid);
+      return;
+    }
+    const text = reason.value.trim();
+    if (text === "") {
+      showError("사유를 입력해 주세요.");
+      reason.focus();
       return;
     }
     const message = confirm(text);

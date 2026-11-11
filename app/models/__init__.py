@@ -1,5 +1,6 @@
 # 모델을 여기서 import해야 Base.metadata에 등록되어 create_all 대상이 된다.
 from app.models.admin_action import AdminAction, AdminActionType, AdminTargetType
+from app.models.banned_email import BannedEmail
 from app.models.block import UserBlock
 from app.models.book_alert import MAX_ALERTS_PER_USER, AlertNotification, BookAlert
 from app.models.conversation import Conversation, Message
@@ -15,6 +16,7 @@ __all__ = [
     "AdminAction",
     "AdminActionType",
     "AdminTargetType",
+    "BannedEmail",
     "MAX_ALERTS_PER_USER",
     "AlertNotification",
     "BookAlert",

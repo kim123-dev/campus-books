@@ -6,11 +6,12 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import create_engine
 
-from app.core.config import MIN_PRODUCTION_SECRET_KEY_LENGTH, Settings
+from app.core.config import MIN_PRODUCTION_EMAIL_HASH_KEY_LENGTH, MIN_PRODUCTION_SECRET_KEY_LENGTH, Settings
 from app.main import api_docs_urls
 
 PG_URL = "postgresql://user:pw@db.internal:5432/railway"
 PRODUCTION_KEY = "k" * MIN_PRODUCTION_SECRET_KEY_LENGTH
+EMAIL_KEY = "e" * MIN_PRODUCTION_EMAIL_HASH_KEY_LENGTH
 
 
 def make_settings(**values: str) -> Settings:
@@ -42,9 +43,12 @@ def test_development_is_default() -> None:
 
 
 def test_production_accepts_valid_settings() -> None:
-    settings = make_settings(ENVIRONMENT="production", SECRET_KEY=PRODUCTION_KEY, DATABASE_URL=PG_URL)
+    settings = make_settings(
+        ENVIRONMENT="production", SECRET_KEY=PRODUCTION_KEY, EMAIL_HASH_KEY=EMAIL_KEY, DATABASE_URL=PG_URL
+    )
 
     assert settings.is_production is True
+    assert settings.email_hash_key == EMAIL_KEY.encode()
 
 
 def test_production_rejects_sqlite() -> None:
@@ -55,6 +59,23 @@ def test_production_rejects_sqlite() -> None:
 def test_production_rejects_short_secret_key() -> None:
     with pytest.raises(ValidationError, match="SECRET_KEY"):
         make_settings(ENVIRONMENT="production", SECRET_KEY="change-me", DATABASE_URL=PG_URL)
+
+
+@pytest.mark.parametrize("email_key", [None, "short", PRODUCTION_KEY])
+def test_production_requires_separate_email_hash_key(email_key) -> None:
+    # 없거나 짧거나 SECRET_KEY와 같으면 시작하지 않는다. (토큰 키를 바꿔도 재가입 차단이 유지되도록 따로 둔다)
+    values = {"ENVIRONMENT": "production", "SECRET_KEY": PRODUCTION_KEY, "DATABASE_URL": PG_URL}
+    if email_key is not None:
+        values["EMAIL_HASH_KEY"] = email_key
+    with pytest.raises(ValidationError, match="EMAIL_HASH_KEY"):
+        make_settings(**values)
+
+
+def test_development_email_hash_key_falls_back_to_secret_key() -> None:
+    first = make_settings(SECRET_KEY="dev-key").email_hash_key
+    assert first == make_settings(SECRET_KEY="dev-key").email_hash_key
+    assert first != make_settings(SECRET_KEY="other-key").email_hash_key
+    assert first != b"dev-key"  # SECRET_KEY를 그대로 쓰지 않는다
 
 
 # ---------- API 문서 ----------

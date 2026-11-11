@@ -2376,12 +2376,13 @@ a.button {
 /* ---------- 관리 화면 공통 (관리자) ---------- */
 
 /* 관리 메뉴. 좁은 화면에서는 가로로 넘겨 보고, 누르는 곳은 44px 이상이다. */
+/* 관리 메뉴. 항목이 늘어 한 줄에 다 안 들어가면 옆으로 숨기지 않고 다음 줄로 내린다. (모든 메뉴가 늘 보이게) */
 .admin-nav {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
   margin: 0 0 20px;
   padding-bottom: 4px;
-  overflow-x: auto;
   border-bottom: 1px solid var(--color-divider);
 }
 
@@ -2389,8 +2390,10 @@ a.button {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 44px;
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: var(--radius-control);
   color: var(--color-sub);
   font-weight: 600;
@@ -3231,4 +3234,16 @@ a.button {
 .admin-dialog .admin-action-form {
   gap: 14px;
   padding: var(--gap);
+}
+
+.admin-section-heading {
+  margin-top: 24px;
+}
+
+/* 강제 탈퇴 창: 재가입 차단 선택 */
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
 }

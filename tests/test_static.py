@@ -109,8 +109,8 @@ def test_admin_pages_are_served_with_menu(client: TestClient, html: Path) -> Non
 def test_admin_menu_lists_every_admin_page() -> None:
     source = ADMIN_COMMON_JS.read_text(encoding="utf-8")
     menu = set(re.findall(r'href: "/static/(admin[\w-]*\.html)"', source))
-    # 상세 화면(admin-user.html)처럼 목록에서 들어가는 화면은 메뉴에 두지 않는다.
-    detail_pages = {"admin-user.html"}
+    # 상세 화면(admin-user.html)이나 재가입 차단 목록(사용자 관리에서 들어감)은 메뉴에 두지 않는다.
+    detail_pages = {"admin-user.html", "admin-bans.html"}
     assert menu == {html.name for html in ADMIN_HTML} - detail_pages
 
 

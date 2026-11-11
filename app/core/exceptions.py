@@ -101,6 +101,10 @@ class ReviewNotFoundError(NotFoundError):
     message = "후기를 찾을 수 없습니다."
 
 
+class EmailBanNotFoundError(NotFoundError):
+    message = "재가입 차단 목록에 없는 이메일입니다."
+
+
 class ForbiddenError(DomainError):
     """로그인은 했지만 권한이 없음. main.py에서 403으로 변환한다."""
 
@@ -208,6 +212,15 @@ class ReportedUserNotFoundError(BadRequestError):
 
 class CannotSuspendAdminError(BadRequestError):
     message = "관리자는 정지할 수 없습니다."
+
+
+class CannotWithdrawAdminError(BadRequestError):
+    message = "관리자는 강제 탈퇴할 수 없습니다."
+
+
+class BannedEmailError(BadRequestError):
+    # 차단 사유는 알려주지 않는다. (관리자 메모가 본인에게 그대로 노출되지 않게)
+    message = "이 이메일로는 가입할 수 없습니다."
 
 
 class WrongPasswordError(BadRequestError):

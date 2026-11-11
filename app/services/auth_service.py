@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
+    BannedEmailError,
     DuplicateEmailError,
     DuplicateNicknameError,
     InvalidCredentialsError,
@@ -11,7 +12,7 @@ from app.core.exceptions import (
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
 from app.schemas.user import LoginForm, UserCreate
-from app.services import user_service
+from app.services import email_ban_service, user_service
 
 
 # 미리 중복을 확인해 어떤 값이 겹쳤는지 구분된 에러를 돌려준다.
@@ -23,8 +24,10 @@ def _ensure_unique(db: Session, email: str, nickname: str) -> None:
 
 
 def signup(db: Session, data: UserCreate) -> User:
-    """회원가입. 중복이면 DuplicateEmailError / DuplicateNicknameError를 던진다."""
+    """회원가입. 순서: 409 이메일·닉네임 중복 → 400 재가입이 막힌 이메일(강제 탈퇴)."""
     _ensure_unique(db, data.email, data.nickname)
+    if email_ban_service.is_banned(db, data.email):
+        raise BannedEmailError()
 
     user = User(
         email=data.email,

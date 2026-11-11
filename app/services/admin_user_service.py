@@ -1,4 +1,4 @@
-"""관리자 사용자 관리: 사용자 목록·검색·상세, 정지·정지 해제.
+"""관리자 사용자 관리: 사용자 목록·검색·상세, 정지·정지 해제, 강제 탈퇴.
 
 이메일은 관리 화면 중 사용자 관리에서만 보여준다. 탈퇴한 계정은 이메일이 지워져(임의 값) 있으므로 null로 내보낸다.
 """
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
     CannotSuspendAdminError,
+    CannotWithdrawAdminError,
     UserNotFoundError,
     UserNotSuspendedError,
     UserWithdrawnError,
@@ -32,8 +33,16 @@ from app.schemas.admin import (
     AdminUserDetail,
     AdminUserFilter,
     AdminUserItem,
+    AdminWithdrawRequest,
 )
-from app.services import admin_dashboard_service, admin_log_service, user_service
+from app.services import (
+    account_service,
+    admin_dashboard_service,
+    admin_log_service,
+    email_ban_service,
+    image_storage,
+    user_service,
+)
 from app.services.post_service import LIKE_ESCAPE, escape_like
 
 # 상세 화면에 보여줄 정지 이력 개수. 그보다 오래된 것은 관리 기록 화면에서 본다.
@@ -200,6 +209,47 @@ def unsuspend(db: Session, admin: User, user_id: int, data: AdminReasonRequest) 
         target_user_id=user.id, reason=data.reason, detail={"previous_until": previous.isoformat()},
     )
     db.commit()
+
+
+# ---------- 강제 탈퇴 ----------
+
+
+def force_withdraw(db: Session, admin: User, user_id: int, data: AdminWithdrawRequest) -> tuple[bool, int]:
+    """관리자가 계정을 탈퇴시킨다. 순서: 404 없음 → 409 이미 탈퇴 → 400 관리자(자기 자신 포함).
+    지우는 규칙은 본인 탈퇴와 같다(account_service.erase_account). (재가입 차단 여부, 지운 글 수)를 돌려준다.
+    기록에는 닉네임·이메일을 남기지 않는다. 탈퇴로 지운 개인정보가 기록에 다시 남지 않게 하기 위해서다.
+    """
+    user = _get_target(db, user_id)
+    if user.role == UserRole.ADMIN:
+        raise CannotWithdrawAdminError()
+    # 개인정보를 지우기 전에 차단에 쓸 이메일과 지울 글 수를 읽어 둔다.
+    email = user.email
+    post_count = db.scalar(select(func.count()).select_from(Post).where(Post.seller_id == user.id)) or 0
+    # 두 관리자가 동시에 탈퇴시키거나 그사이 관리자로 지정돼도 한쪽만 진행되도록, 먼저 조건부로 "탈퇴 표시"를 한다.
+    result = db.execute(
+        update(User)
+        .where(
+            User.id == user.id,
+            User.password_hash != user_service.WITHDRAWN_PASSWORD_HASH,
+            User.role != UserRole.ADMIN,
+        )
+        .values(password_hash=user_service.WITHDRAWN_PASSWORD_HASH)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise UserWithdrawnError()
+    image_names = account_service.erase_account(db, user)
+    if data.ban_email:
+        email_ban_service.ban(db, admin, email, data.reason)
+    admin_log_service.record(
+        db, admin, AdminActionType.WITHDRAW_USER, AdminTargetType.USER, user.id,
+        target_user_id=user.id, reason=data.reason,
+        detail={"email_banned": data.ban_email, "deleted_posts": post_count},
+    )
+    db.commit()
+    image_storage.remove_files(image_names)
+    return data.ban_email, post_count
 
 
 def _get_target(db: Session, user_id: int) -> User:

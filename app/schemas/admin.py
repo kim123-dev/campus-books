@@ -4,7 +4,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.models import (
     AdminActionType,
@@ -92,6 +92,18 @@ class AdminReasonRequest(BaseModel):
     @classmethod
     def clean_reason(cls, value: Any) -> Any:
         return _clean_text(value)
+
+
+class AdminWithdrawRequest(AdminReasonRequest):
+    """강제 탈퇴. 기본으로 같은 이메일의 재가입도 막는다."""
+
+    ban_email: bool = Field(default=True, description="같은 이메일로 다시 가입하지 못하게 막기")
+
+
+class AdminEmailUnbanRequest(AdminReasonRequest):
+    """재가입 차단 해제. 목록에는 이메일이 없으므로 관리자가 이메일을 직접 입력한다."""
+
+    email: EmailStr
 
 
 class AdminSuspendRequest(AdminReasonRequest):
@@ -329,3 +341,23 @@ class AdminSuspendResponse(BaseModel):
 class AdminPostDeleteResponse(BaseModel):
     # 지운 글에 대한 미처리 신고 중 함께 처리한 신고 번호
     resolved_report_ids: list[int]
+
+
+class AdminWithdrawResponse(BaseModel):
+    email_banned: bool
+    deleted_posts: int
+
+
+class AdminEmailBanItem(BaseModel):
+    """재가입 차단 목록의 한 줄. 이메일은 해시로만 저장하므로 보여줄 수 없다."""
+
+    id: int
+    created_at: datetime
+    reason: str | None
+
+
+class AdminEmailBanListResponse(BaseModel):
+    items: list[AdminEmailBanItem]
+    total: int
+    page: int
+    size: int

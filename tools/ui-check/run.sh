@@ -22,6 +22,7 @@ export UI_CHECK_BASE="${UI_CHECK_BASE:-http://127.0.0.1:$UI_CHECK_PORT}"
 export DATABASE_URL="sqlite:///$OUT/ui-check.db"
 export UPLOAD_DIR="$OUT/uploads-check"
 export SECRET_KEY="${UI_CHECK_SECRET_KEY:-$("$PYTHON" -c 'import secrets; print(secrets.token_hex(32))')}"
+export EMAIL_HASH_KEY="$("$PYTHON" -c 'import secrets; print(secrets.token_hex(32))')"
 
 rm -rf "$OUT/ui-check.db" "$OUT/chrome-profile" "$OUT/uploads-check"
 cd "$ROOT"

@@ -227,6 +227,53 @@ try {
   await waitUntil("!document.querySelector('dialog.admin-dialog')");
   check("삭제 창 취소 → 글 그대로", (await evaluate(`document.querySelectorAll('#post-list li').length`)) === 3);
 
+  // 10) 강제 탈퇴: 창 → 닉네임 직접 입력 → 확인 창, 재가입 차단 → 차단 목록 → 이메일로 해제
+  const VICTIM = "victim@uicheck.ac.kr";
+  await api("POST", "/auth/signup", null, { email: VICTIM, password: PASSWORD, nickname: "탈퇴대상" });
+  const victim = await loginApi(VICTIM, PASSWORD);
+  await api("POST", "/posts", victim, { title: "탈퇴 전 글", book_title: "미적분학", condition: "GOOD", price: 1000 });
+  await goto("/static/admin-users.html?q=탈퇴대상", "document.querySelectorAll('#user-list li').length === 1");
+  check("사용자 목록: 재가입 차단 목록 링크", Boolean(await evaluate(`document.querySelector('a[href="/static/admin-bans.html"]')`)));
+  await evaluate(`document.querySelector("#user-list .admin-card__title").click()`);
+  await waitUntil("!document.getElementById('user-detail').hidden");
+  await autoConfirm();
+  await evaluate(`[...document.querySelectorAll("#action-forms button")].find((b) => b.textContent === "강제 탈퇴").click()`);
+  await waitUntil("document.querySelector('dialog.admin-dialog')?.open === true");
+  check("강제 탈퇴 창: 재가입 차단 기본 선택", await evaluate(`document.getElementById("withdraw-ban").checked`));
+  await evaluate(`window.lastConfirm = null; document.getElementById("withdraw-nickname").value = "탈퇴대"; document.getElementById("admin-dialog-form-reason").value = "사기 거래 반복"; document.querySelector("#admin-dialog-form button[type=submit]").click()`);
+  check("닉네임이 다르면 진행 안 함(확인 창 없음)", (await text("#admin-dialog-form .form-error")) === "닉네임이 일치하지 않습니다." && (await evaluate("window.lastConfirm")) === null);
+  check("강제 탈퇴 창 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-withdraw-dialog-${W}.png`);
+  await evaluate(`document.getElementById("withdraw-nickname").value = "탈퇴대상"; document.querySelector("#admin-dialog-form button[type=submit]").click()`);
+  await waitUntil("!document.querySelector('dialog.admin-dialog') && document.getElementById('action-notice').textContent.includes('강제 탈퇴했습니다')");
+  const lastWithdrawConfirm = await evaluate("window.lastConfirm");
+  check("마지막 확인 창: 되돌릴 수 없음·재가입 차단·사유", lastWithdrawConfirm.includes("되돌릴 수 없어요") && lastWithdrawConfirm.includes("다시 가입할 수 없게") && lastWithdrawConfirm.includes("사기 거래 반복"), lastWithdrawConfirm);
+  check("강제 탈퇴 → 안내(글 1개 삭제, 재가입 차단)", (await text("#action-notice")).includes("글 1개") && (await text("#action-notice")).includes("재가입을 막았습니다"), await text("#action-notice"));
+  check("탈퇴 후: 이름 '탈퇴한 사용자', 탈퇴 이름표, 조치 칸 없음", (await text("#user-title")) === "탈퇴한 사용자 #" + (await evaluate(`new URLSearchParams(location.search).get("id")`)) && (await text("#user-badges")).includes("탈퇴") && (await evaluate(`document.getElementById("user-actions").hidden`)));
+  check("탈퇴한 토큰은 401", (await api("GET", "/users/me", victim)).status === 401);
+  const resignup = await api("POST", "/auth/signup", null, { email: VICTIM, password: PASSWORD, nickname: "다시가입" });
+  check("같은 이메일 재가입 → 400", resignup.status === 400 && resignup.body.detail === "이 이메일로는 가입할 수 없습니다.", JSON.stringify(resignup.body));
+
+  await goto("/static/admin-bans.html", "document.querySelectorAll('#ban-list li').length === 1");
+  const banText = await text("#ban-list li");
+  check("차단 목록: 사유만 있고 이메일 없음", banText.includes("사기 거래 반복") && !(await evaluate(`document.body.textContent.includes("victim@")`)), banText);
+  check("차단 목록 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-bans-${W}.png`);
+  await autoConfirm();
+  // 차단되지 않은 이메일은 404 (브라우저 콘솔에 404가 남지 않도록 API로 확인)
+  const notBanned = await api("POST", "/admin/email-bans/unban", admin, { email: "nobody@uicheck.ac.kr", reason: "확인" });
+  check("차단되지 않은 이메일 → 404", notBanned.status === 404 && notBanned.body.detail === "재가입 차단 목록에 없는 이메일입니다.");
+  await evaluate(`document.querySelector("#unban-form button[type=submit]").click()`);
+  check("이메일 없이 해제: 안내", (await text("#unban-form .form-error")) === "이메일을 입력해 주세요.");
+  await evaluate(`document.getElementById("unban-email").value = "VICTIM@uicheck.ac.kr"; document.getElementById("unban-form-reason").value = "소명 확인"; document.querySelector("#unban-form button[type=submit]").click()`);
+  await waitUntil("!document.getElementById('admin-notice').hidden && document.getElementById('result-summary').textContent === '재가입을 막은 이메일이 없습니다.'");
+  check("해제 → 안내, 목록 비고, 입력한 이메일 지움", (await evaluate(`document.getElementById("unban-email").value`)) === "");
+  check("해제 후 재가입 가능", (await api("POST", "/auth/signup", null, { email: VICTIM, password: PASSWORD, nickname: "다시가입" })).status === 201);
+  await goto("/static/admin-log.html", "document.querySelectorAll('#log-list li').length > 0");
+  const topLogs = await evaluate(`[...document.querySelectorAll("#log-list .admin-badge")].slice(0, 2).map((b) => b.textContent)`);
+  check("관리 기록: 재가입 차단 해제 → 강제 탈퇴", JSON.stringify(topLogs) === JSON.stringify(["재가입 차단 해제", "강제 탈퇴"]), JSON.stringify(topLogs));
+  check("관리 기록: 이메일 없음", !(await evaluate(`document.body.textContent.includes("@uicheck.ac.kr")`)));
+
   check("자바스크립트 오류 없음", exceptions.length === 0, exceptions.join(" | "));
 } catch (error) {
   results.push(`ERROR  ${error.stack ?? error}`);

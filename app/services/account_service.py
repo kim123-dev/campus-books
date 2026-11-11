@@ -41,6 +41,16 @@ def withdraw(db: Session, user: User, data: WithdrawRequest) -> None:
         raise AdminCannotWithdrawError()
     _check_password(user, data.password)
 
+    image_names = erase_account(db, user)
+    db.commit()
+    # 파일은 DB 커밋이 성공한 뒤에 지운다. (글 삭제와 같은 순서)
+    image_storage.remove_files(image_names)
+
+
+def erase_account(db: Session, user: User) -> list[str]:
+    """탈퇴 처리의 본체(커밋 전). 본인 탈퇴와 관리자의 강제 탈퇴가 같은 규칙으로 지우도록 한 곳에 모았다.
+    커밋 뒤에 지울 사진 파일 이름을 돌려준다.
+    """
     # 글 삭제 규칙(대화방 연결 끊기, 다른 사람의 찜 삭제, 사진 행 삭제)은 글 삭제 기능과 같게 맞춘다.
     image_names: list[str] = []
     for post in db.scalars(select(Post).where(Post.seller_id == user.id)).all():
@@ -55,15 +65,14 @@ def withdraw(db: Session, user: User, data: WithdrawRequest) -> None:
     db.execute(update(Report).where(Report.reported_user_id == user.id).values(reported_user_id=None))
 
     # 이메일·닉네임은 추측할 수 없는 값으로 바꿔 개인정보를 지우고, 같은 이메일·닉네임으로 다시 가입할 수 있게 한다.
+    # (강제 탈퇴에서 재가입을 막을 때는 이메일 해시를 차단 목록에 따로 남긴다. email_ban_service)
     # 비밀번호 해시가 바뀌므로 이 사용자의 기존 토큰도 모두 401이 된다.
     token = secrets.token_hex(8)
     user.email = f"withdrawn-{token}@withdrawn.invalid"
     user.nickname = f"withdrawn-{token}"
     user.password_hash = user_service.WITHDRAWN_PASSWORD_HASH
     user.suspended_until = None
-    db.commit()
-    # 파일은 DB 커밋이 성공한 뒤에 지운다. (글 삭제와 같은 순서)
-    image_storage.remove_files(image_names)
+    return image_names
 
 
 def _check_password(user: User, password: str) -> None:
