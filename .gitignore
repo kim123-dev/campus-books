@@ -16,3 +16,6 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Railway IaC SDK (npm)
+node_modules/
