@@ -51,6 +51,9 @@ def report_user(client: TestClient, target_id: int, headers: dict) -> int:
 
 
 def resolve(client: TestClient, report_id: int, headers: dict, **body):
+    # 기각 외의 조치는 사유가 필수라, 따로 정하지 않으면 테스트용 사유를 넣는다.
+    if body.get("action") not in (None, "DISMISS"):
+        body.setdefault("note", "테스트 사유")
     return client.post(f"/admin/reports/{report_id}/resolve", json=body, headers=headers)
 
 

@@ -87,12 +87,49 @@ def test_header_links_to_wishlist() -> None:
     assert '"/static/wishlist.html"' in (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
 
 
-def test_admin_page_is_served(client: TestClient) -> None:
-    response = client.get("/static/admin.html")
+ADMIN_HTML = sorted(STATIC_DIR.glob("admin*.html"))
+ADMIN_COMMON_JS = STATIC_DIR / "js" / "admin-common.js"
+
+
+@pytest.mark.parametrize("html", ADMIN_HTML, ids=lambda path: path.name)
+def test_admin_pages_are_served_with_menu(client: TestClient, html: Path) -> None:
+    response = client.get(f"/static/{html.name}")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "/static/js/pages/admin.js" in response.text
+    # 화면 1개 = 스크립트 1개. 관리 메뉴 자리와, 관리자 확인 전에는 숨겨 둔 <main>이 있다.
+    assert f"/static/js/pages/{html.stem}.js" in response.text
+    assert 'id="admin-nav"' in response.text
+    assert '<main class="container" id="admin-main" hidden>' in response.text
+    # 화면 스크립트는 공통 시작 함수로 로그인·관리자 여부를 확인한다.
+    script = (STATIC_DIR / "js" / "pages" / f"{html.stem}.js").read_text(encoding="utf-8")
+    assert "startAdminPage(" in script
+
+
+def test_admin_menu_lists_every_admin_page() -> None:
+    source = ADMIN_COMMON_JS.read_text(encoding="utf-8")
+    menu = set(re.findall(r'href: "/static/(admin[\w-]*\.html)"', source))
+    # 상세 화면(admin-user.html)처럼 목록에서 들어가는 화면은 메뉴에 두지 않는다.
+    detail_pages = {"admin-user.html"}
+    assert menu == {html.name for html in ADMIN_HTML} - detail_pages
+
+
+def test_admin_action_labels_match_server() -> None:
+    from app.models import AdminActionType
+    from app.schemas.admin import MAX_REASON_LENGTH
+
+    source = ADMIN_COMMON_JS.read_text(encoding="utf-8")
+    block = re.search(r"ADMIN_ACTION_LABELS = \{(.*?)\};", source, re.S).group(1)
+    assert set(re.findall(r"^\s*(\w+):", block, re.M)) == {action.value for action in AdminActionType}
+    assert f"MAX_REASON = {MAX_REASON_LENGTH};" in source
+
+
+def test_report_reason_required_actions_match_server() -> None:
+    from app.schemas.admin import REASON_REQUIRED_ACTIONS
+
+    source = (STATIC_DIR / "js" / "pages" / "admin.js").read_text(encoding="utf-8")
+    block = re.search(r"const REASON_REQUIRED = new Set\(\[(.*?)\]\);", source).group(1)
+    assert set(re.findall(r'"(\w+)"', block)) == {action.value for action in REASON_REQUIRED_ACTIONS}
 
 
 def test_header_links_to_admin_only_for_admin() -> None:

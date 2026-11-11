@@ -19,7 +19,18 @@ from app.core.exceptions import (
     ReportNotFoundError,
     ReviewNotFoundError,
 )
-from app.models import Post, Report, ReportAction, ReportStatus, ReportTargetType, Review, User, UserRole
+from app.models import (
+    AdminActionType,
+    AdminTargetType,
+    Post,
+    Report,
+    ReportAction,
+    ReportStatus,
+    ReportTargetType,
+    Review,
+    User,
+    UserRole,
+)
 from app.schemas.admin import (
     AdminReportResponse,
     AdminReviewBrief,
@@ -28,7 +39,7 @@ from app.schemas.admin import (
     ReportResolution,
     ReportResolveRequest,
 )
-from app.services import image_storage, post_service, user_service
+from app.services import admin_log_service, image_storage, post_service, user_service
 
 
 # ---------- 목록 ----------
@@ -165,7 +176,7 @@ def resolve_report(
     db: Session, report_id: int, admin: User, data: ReportResolveRequest
 ) -> tuple[list[int], datetime | None]:
     """신고를 처리하고 (처리된 신고 번호들, 정지 종료 시각)을 돌려준다.
-    순서: 404 없는 신고 → 409 이미 처리 → 400 조치 규칙 위반. 처리 기록과 조치는 한 트랜잭션으로 저장한다.
+    순서: 404 없는 신고 → 409 이미 처리 → 400 조치 규칙 위반. 처리 기록·관리 기록·조치는 한 트랜잭션으로 저장한다.
     글 삭제는 글 신고에만, 후기 숨김은 후기 신고에만 쓸 수 있다. 정지는 모든 신고에 쓸 수 있다(후기는 작성자 정지).
     """
     report = db.get(Report, report_id)
@@ -225,25 +236,50 @@ def resolve_report(
             .execution_options(synchronize_session=False)
         )
 
-    image_names: list[str] = []
-    suspended_until = None
-    if post is not None:
-        image_names = post_service.delete_post_rows(db, post)
-    if target_user is not None and data.suspend_days is not None:
-        suspended_until = user_service.suspend(target_user, data.suspend_days)
-    # 행은 지우지 않고 숨긴 시각만 남긴다. 신고 기록이 가리키는 원문을 관리자가 계속 볼 수 있게 하기 위해서다.
-    if review is not None and review.hidden_at is None:
-        review.hidden_at = user_service.utc_now()
-    db.commit()
-    # 사진 파일은 커밋이 성공한 뒤에 지운다. (작성자 삭제와 같은 순서)
-    image_storage.remove_files(image_names)
-
     together_ids = list(
         db.scalars(
             select(Report.id).where(Report.resolved_with_report_id == report.id).order_by(Report.id)
         )
     )
-    return [report.id, *together_ids], suspended_until
+    resolved_ids = [report.id, *together_ids]
+    detail: dict = {"report_id": report.id}
+    if together_ids:
+        detail["resolved_ids"] = resolved_ids
+
+    image_names: list[str] = []
+    suspended_until = None
+    if post is not None:
+        # 글은 지워지므로 무엇을 지웠는지 기록에 사본을 남긴다.
+        detail |= {"post_title": post.title, "book_title": post.book_title}
+        admin_log_service.record(
+            db, admin, AdminActionType.DELETE_POST, AdminTargetType.POST, post.id,
+            target_user_id=post.seller_id, reason=data.note, detail=detail,
+        )
+        image_names = post_service.delete_post_rows(db, post)
+    elif target_user is not None and data.suspend_days is not None:
+        suspended_until = user_service.suspend(target_user, data.suspend_days)
+        detail |= {"days": data.suspend_days, "suspended_until": suspended_until.isoformat()}
+        admin_log_service.record(
+            db, admin, AdminActionType.SUSPEND, AdminTargetType.USER, target_user.id,
+            target_user_id=target_user.id, reason=data.note, detail=detail,
+        )
+    elif review is not None:
+        # 행은 지우지 않고 숨긴 시각만 남긴다. 신고 기록이 가리키는 원문을 관리자가 계속 볼 수 있게 하기 위해서다.
+        if review.hidden_at is None:
+            review.hidden_at = user_service.utc_now()
+        admin_log_service.record(
+            db, admin, AdminActionType.HIDE_REVIEW, AdminTargetType.REVIEW, review.id,
+            target_user_id=review.reviewer_id, reason=data.note, detail=detail,
+        )
+    else:
+        admin_log_service.record(
+            db, admin, AdminActionType.DISMISS_REPORT, AdminTargetType.REPORT, report.id,
+            target_user_id=report.reported_user_id, reason=data.note, detail=detail,
+        )
+    db.commit()
+    # 사진 파일은 커밋이 성공한 뒤에 지운다. (작성자 삭제와 같은 순서)
+    image_storage.remove_files(image_names)
+    return resolved_ids, suspended_until
 
 
 def _reports_to_resolve_together(report: Report, data: ReportResolveRequest):

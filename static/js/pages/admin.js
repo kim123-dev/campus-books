@@ -1,13 +1,11 @@
-// 신고 관리 화면 (관리자 전용): 신고 카드 목록과 처리(기각·글 삭제·기간 정지).
-// 관리자가 아니면 목록 화면으로 보낸다. 화면을 숨기는 것은 편의일 뿐이고, 권한은 서버가 /admin API마다 확인한다.
+// 신고 관리 화면 (관리자 전용): 신고 카드 목록과 처리(기각·글 삭제·기간 정지·후기 숨김).
+// 로그인·권한 확인과 관리 메뉴는 admin-common.js가 맡는다.
 // 상태 탭과 페이지 번호는 주소창(?status=RESOLVED&page=2)에 저장한다.
+import { handleAuthError, startAdminPage } from "../admin-common.js";
 import { listAdminReports, resolveReport } from "../api.js";
-import { redirectToLogin, renderHeader } from "../auth.js";
 import { REPORT_REASONS } from "../safety.js";
-import { getToken } from "../token.js";
 import { el, formatDate, formatMonthDayTime, renderPagination } from "../ui.js";
 
-const HOME_PAGE = "/static/index.html";
 const PAGE_SIZE = 20;
 const STATUSES = ["PENDING", "RESOLVED", "ALL"];
 // 신고 창의 "기타 (설명 필수)" 같은 입력 안내는 관리 화면에서 필요 없으므로 괄호 부분을 뺀다.
@@ -18,6 +16,8 @@ const TARGET_LABELS = { POST: "글 신고", USER: "사용자 신고", REVIEW: "�
 const RATING_TEXT = { GOOD: "좋아요", BAD: "아쉬워요" };
 const SUSPEND_DAY_OPTIONS = [1, 3, 7, 30];
 const MAX_NOTE = 500;
+// 사유를 꼭 적어야 하는 조치. 서버와 같은 규칙이다. (app/schemas/admin.py REASON_REQUIRED_ACTIONS)
+const REASON_REQUIRED = new Set(["DELETE_POST", "SUSPEND", "HIDE_REVIEW"]);
 
 const main = document.getElementById("admin-main");
 const notice = document.getElementById("admin-notice");
@@ -32,32 +32,9 @@ let latestRequestId = 0;
 init();
 
 async function init() {
-  if (!getToken()) {
-    redirectToLogin();
-    return;
-  }
-  const me = await renderHeader(document.getElementById("site-header"));
-  if (me === null) {
-    if (!getToken()) {
-      redirectToLogin();
-    } else {
-      main.hidden = false;
-      showError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
-    }
-    return;
-  }
-  if (me.role !== "ADMIN") {
-    leave();
-    return;
-  }
-  main.hidden = false;
+  if ((await startAdminPage(main)) === null) return;
   window.addEventListener("popstate", load);
   load();
-}
-
-// 관리자가 아니면 이 화면을 기록에 남기지 않고 목록으로 보낸다. (뒤로 가기로 다시 오지 않게)
-function leave() {
-  window.location.replace(HOME_PAGE);
 }
 
 // ---------- 불러오기와 그리기 ----------
@@ -82,14 +59,7 @@ async function load() {
     data = await listAdminReports({ status: status === "ALL" ? undefined : status, page, size: PAGE_SIZE });
   } catch (error) {
     if (requestId !== latestRequestId) return;
-    if (error.status === 401) {
-      redirectToLogin();
-      return;
-    }
-    if (error.status === 403) {
-      leave();
-      return;
-    }
+    if (handleAuthError(error)) return;
     showError(error.fieldErrors?.page ?? error.message);
     return;
   }
@@ -282,6 +252,7 @@ function renderActions(report) {
     el("span", { text: `같은 사용자의 미처리 신고 ${report.other_pending_count}건도 함께 처리` }),
   );
   const note = el("textarea", { id: `${prefix}-note`, rows: 2, maxLength: MAX_NOTE });
+  const noteLabel = el("label", { htmlFor: `${prefix}-note`, text: "처리 사유 (기각은 선택)" });
   const errorText = el("p", { className: "form-error", attrs: { role: "alert" }, hidden: true });
   const submit = el("button", { type: "submit", className: "button button--primary", text: "처리하기" });
 
@@ -296,7 +267,7 @@ function renderActions(report) {
     ),
     daysField,
     togetherField,
-    el("div", { className: "field" }, el("label", { htmlFor: `${prefix}-note`, text: "처리 메모 (선택)" }), note),
+    el("div", { className: "field" }, noteLabel, note),
     errorText,
     submit,
   );
@@ -305,6 +276,7 @@ function renderActions(report) {
   form.addEventListener("change", () => {
     const action = form.elements[`${prefix}-action`].value;
     daysField.hidden = action !== "SUSPEND";
+    noteLabel.textContent = REASON_REQUIRED.has(action) ? "처리 사유 (필수)" : "처리 사유 (기각은 선택)";
     togetherField.hidden = !(report.other_pending_count > 0 && (action === "DISMISS" || action === "SUSPEND"));
     if (togetherField.hidden) together.checked = false;
   });
@@ -315,6 +287,12 @@ function renderActions(report) {
     const action = form.elements[`${prefix}-action`].value;
     if (!action) {
       showFormError(errorText, "조치를 골라 주세요.");
+      return;
+    }
+    // 서버가 422로 막는 내용을 보내기 전에 알려준다.
+    if (REASON_REQUIRED.has(action) && note.value.trim() === "") {
+      showFormError(errorText, `${ACTION_LABELS[action]}은(는) 처리 사유를 입력해 주세요.`);
+      note.focus();
       return;
     }
     const data = { action, note: note.value.trim() || null, include_same_user: together.checked };
@@ -334,14 +312,7 @@ function renderActions(report) {
       // 함께 처리된 카드도 바뀌므로 목록을 서버 기준으로 다시 그린다.
       load();
     } catch (error) {
-      if (error.status === 401) {
-        redirectToLogin();
-        return;
-      }
-      if (error.status === 403) {
-        leave();
-        return;
-      }
+      if (handleAuthError(error)) return;
       // 409(다른 관리자가 먼저 처리), 400(그사이 글이 삭제됨 등)은 서버 메시지를 보여준다.
       showFormError(errorText, error.message);
       submit.disabled = false;

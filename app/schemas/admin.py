@@ -1,14 +1,25 @@
-"""관리자 신고 처리 API의 요청·응답. 사용자 정보는 닉네임까지만 담고 이메일은 넣지 않는다."""
+"""관리자 API의 요청·응답. 이메일은 사용자 관리 API(/admin/users)에만 담는다."""
 
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import ReportAction, ReportReason, ReportStatus, ReportTargetType, ReviewRating
+from app.models import (
+    AdminActionType,
+    AdminTargetType,
+    ReportAction,
+    ReportReason,
+    ReportStatus,
+    ReportTargetType,
+    ReviewRating,
+)
 
 MAX_RESOLUTION_NOTE_LENGTH = 500
 MAX_SUSPEND_DAYS = 365
+MAX_REASON_LENGTH = 500
+# 사유를 꼭 적어야 하는 신고 처리. 기각은 조치가 없으므로 선택이다.
+REASON_REQUIRED_ACTIONS = {ReportAction.DELETE_POST, ReportAction.SUSPEND, ReportAction.HIDE_REVIEW}
 
 
 # ---------- 요청 ----------
@@ -25,7 +36,11 @@ class ReportResolveRequest(BaseModel):
     suspend_days: int | None = Field(
         default=None, ge=1, le=MAX_SUSPEND_DAYS, description="정지 일수 (SUSPEND일 때만, 필수)"
     )
-    note: str | None = Field(default=None, max_length=MAX_RESOLUTION_NOTE_LENGTH, description="처리 메모 (선택)")
+    note: str | None = Field(
+        default=None,
+        max_length=MAX_RESOLUTION_NOTE_LENGTH,
+        description="처리 사유. 글 삭제·정지·후기 숨김은 필수, 기각은 선택",
+    )
     include_same_user: bool = Field(
         default=False,
         description="같은 피신고자의 다른 미처리 신고도 같은 조치로 함께 처리 (DISMISS·SUSPEND만)",
@@ -41,6 +56,9 @@ class ReportResolveRequest(BaseModel):
 
     @model_validator(mode="after")
     def check_action_options(self) -> "ReportResolveRequest":
+        # 강제 조치는 나중에 왜 했는지 확인할 수 있게 사유를 꼭 남긴다. (관리 기록에도 그대로 들어간다)
+        if self.action in REASON_REQUIRED_ACTIONS and self.note is None:
+            raise ValueError("글 삭제·정지·후기 숨김은 처리 사유를 입력해 주세요.")
         if self.action == ReportAction.SUSPEND and self.suspend_days is None:
             raise ValueError("정지 기간(일)을 입력해 주세요.")
         if self.action != ReportAction.SUSPEND and self.suspend_days is not None:
@@ -55,6 +73,24 @@ class ReportResolveRequest(BaseModel):
         return self
 
 
+def _clean_text(value: Any) -> Any:
+    # 공백만 보낸 사유는 "사유 없음"으로 보고 길이 검사(min_length=1)에서 422가 되게 한다.
+    return value.strip() if isinstance(value, str) else value
+
+
+class AdminReasonRequest(BaseModel):
+    """사유만 받는 관리자 조치 요청 (정지 해제, 후기 숨김 해제, 글 삭제, 강제 탈퇴 등)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=MAX_REASON_LENGTH, description="조치 사유 (필수)")
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def clean_reason(cls, value: Any) -> Any:
+        return _clean_text(value)
+
+
 # ---------- 응답 ----------
 
 
@@ -65,6 +101,12 @@ class AdminUserBrief(BaseModel):
 
     id: int
     nickname: str
+
+
+class AdminUserRef(AdminUserBrief):
+    """관리 화면의 사용자 표시. 탈퇴한 사용자는 닉네임 대신 "탈퇴한 사용자"이고 withdrawn이 true다."""
+
+    withdrawn: bool = False
 
 
 class ReportedUserBrief(AdminUserBrief):
@@ -130,3 +172,24 @@ class ReportResolveResponse(BaseModel):
     resolved_ids: list[int]
     # SUSPEND일 때 실제 정지 종료 시각(UTC). 이미 더 긴 정지가 있으면 그 시각이다.
     suspended_until: datetime | None = None
+
+
+class AdminActionResponse(BaseModel):
+    """관리 기록 한 줄."""
+
+    id: int
+    action: AdminActionType
+    admin: AdminUserRef | None  # 조치한 관리자. 계정이 지워졌으면 null
+    target_type: AdminTargetType
+    target_id: int
+    target_user: AdminUserRef | None  # 조치와 관련된 사용자. 없으면 null
+    reason: str | None  # 신고 기각만 비어 있을 수 있다
+    detail: dict[str, Any]  # 신고 번호, 정지 일수, 지운 글 제목 등
+    created_at: datetime
+
+
+class AdminActionListResponse(BaseModel):
+    items: list[AdminActionResponse]
+    total: int
+    page: int
+    size: int

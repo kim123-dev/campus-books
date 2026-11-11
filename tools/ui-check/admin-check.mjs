@@ -222,6 +222,7 @@ try {
   await evaluate(`(() => { const s = ${card(r2)}.querySelector('select'); s.value = '7'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   check("정지: '함께 처리' 문구에 남은 건수(1건)", ((await evaluate(`${card(r2)}.querySelector('.report-card__together').textContent`)) ?? "").includes("미처리 신고 1건도 함께 처리"));
   await evaluate(`${card(r2)}.querySelector('.report-card__together input').click()`);
+  await evaluate(`${card(r2)}.querySelector('textarea').value = '반복 사기'`);
   await evaluate(`${card(r2)}.querySelector('button[type=submit]').click()`);
   await waitUntil("document.querySelectorAll('.report-card').length === 1");
   const confirmText = await evaluate("window.lastConfirm ?? ''");
@@ -230,7 +231,7 @@ try {
   check("정지: 미처리에는 #4만 남음", JSON.stringify(await evaluate("[...document.querySelectorAll('.report-card__reason')].map(h => h.textContent.split(' ')[0])")) === JSON.stringify([`#${r4}`]));
 
   // 다른 관리자가 먼저 처리 → 409 안내
-  const otherAdminResolve = await call("POST", `/admin/reports/${r4}/resolve`, admin, { action: "SUSPEND", suspend_days: 1 });
+  const otherAdminResolve = await call("POST", `/admin/reports/${r4}/resolve`, admin, { action: "SUSPEND", suspend_days: 1, note: "다른 관리자 처리" });
   check("준비: 다른 곳에서 #4 먼저 정지 처리", otherAdminResolve.status === 200);
   await autoConfirm();
   await pick(r4, "DISMISS");

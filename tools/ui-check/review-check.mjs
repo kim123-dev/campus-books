@@ -89,6 +89,7 @@ try {
   await screenshot(`review-admin-${W}.png`);
   await evaluate("window.confirm = (m) => { window.lastConfirm = m; return true; }");
   await evaluate(`document.querySelector(".report-card input[value='HIDE_REVIEW']").click()`);
+  await evaluate(`document.querySelector(".report-card textarea").value = "욕설이 담긴 후기"`);
   await evaluate(`document.querySelector(".report-card form").requestSubmit()`);
   // 기본 탭은 미처리 신고만 보여 처리된 카드는 목록에서 빠진다. 처리 완료 안내로 확인한다.
   const hidden = await waitUntil(`document.body.textContent.includes("후기 숨김(으)로 처리했습니다")`);

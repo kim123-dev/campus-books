@@ -20,8 +20,9 @@
   <body>
     <header id="site-header" class="site-header"></header>
 
-    <!-- 관리자만 쓰는 화면. 관리자가 아니면 admin.js가 목록 화면으로 보낸다. 실제 권한 검사는 서버가 한다. -->
+    <!-- 관리자만 쓰는 화면. 관리자가 아니면 admin-common.js가 목록 화면으로 보낸다. 실제 권한 검사는 서버가 한다. -->
     <main class="container" id="admin-main" hidden>
+      <nav id="admin-nav" class="admin-nav" aria-label="관리 메뉴"></nav>
       <h1 class="page-title">신고 관리</h1>
       <p class="page-description">
         조치를 고르고 "처리하기"를 누르면 확인 후 바로 적용됩니다. 처리한 신고는 되돌릴 수 없어요.

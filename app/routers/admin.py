@@ -5,10 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import AdminUser, require_admin
-from app.models import ReportStatus
-from app.schemas.admin import AdminReportListResponse, ReportResolveRequest, ReportResolveResponse
+from app.models import AdminActionType, ReportStatus
+from app.schemas.admin import (
+    AdminActionListResponse,
+    AdminReportListResponse,
+    ReportResolveRequest,
+    ReportResolveResponse,
+)
 from app.schemas.post import PageQuery, SizeQuery
-from app.services import admin_service
+from app.services import admin_log_service, admin_service
 
 # 관리자 검사를 라우터 전체에 건다. 여기에 API를 추가하면 따로 적지 않아도 관리자만 쓸 수 있다.
 # (테스트가 /admin으로 시작하는 모든 경로에 대해 401·403을 확인한다)
@@ -36,7 +41,7 @@ def list_reports(
 @router.post(
     "/reports/{report_id}/resolve",
     response_model=ReportResolveResponse,
-    summary="신고 처리 (기각·글 삭제·기간 정지)",
+    summary="신고 처리 (기각·글 삭제·기간 정지·후기 숨김). 기각 외에는 사유(note) 필수",
     responses={
         400: {"description": "사용자 신고에 글 삭제, 이미 삭제된 글, 관리자 정지, 피신고자 없음"},
         404: {"description": "없는 신고"},
@@ -52,3 +57,18 @@ def resolve_report(
 ) -> ReportResolveResponse:
     resolved_ids, suspended_until = admin_service.resolve_report(db, report_id, admin, data)
     return ReportResolveResponse(action=data.action, resolved_ids=resolved_ids, suspended_until=suspended_until)
+
+
+@router.get("/actions", response_model=AdminActionListResponse, summary="관리 기록 (최신순)")
+def list_actions(
+    db: Annotated[Session, Depends(get_db)],
+    page: PageQuery = 1,
+    size: SizeQuery = 20,
+    action: Annotated[AdminActionType | None, Query(description="조치 종류, 생략하면 전체")] = None,
+    admin_id: Annotated[int | None, Query(ge=1, description="이 관리자가 한 조치만")] = None,
+    target_user_id: Annotated[int | None, Query(ge=1, description="이 사용자에 대한 조치만")] = None,
+) -> AdminActionListResponse:
+    items, total = admin_log_service.list_actions(
+        db, page, size, action=action, admin_id=admin_id, target_user_id=target_user_id
+    )
+    return AdminActionListResponse(items=items, total=total, page=page, size=size)

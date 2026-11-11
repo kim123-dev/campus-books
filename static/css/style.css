@@ -2373,6 +2373,132 @@ a.button {
   }
 }
 
+/* ---------- 관리 화면 공통 (관리자) ---------- */
+
+/* 관리 메뉴. 좁은 화면에서는 가로로 넘겨 보고, 누르는 곳은 44px 이상이다. */
+.admin-nav {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 20px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.admin-nav__item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
+  color: var(--color-sub);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.admin-nav__item:hover {
+  background: var(--color-fill);
+}
+
+.admin-nav__item[aria-current="page"] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.admin-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+}
+
+.admin-filter .field {
+  flex: 1 1 180px;
+  margin: 0;
+}
+
+.admin-filter__user {
+  margin: 0 0 12px;
+  color: var(--color-sub);
+  font-size: 0.9375rem;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  overflow-wrap: anywhere;
+}
+
+.admin-card p {
+  margin: 0;
+}
+
+.admin-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.admin-card__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.admin-card__meta {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.admin-card__reason {
+  white-space: pre-wrap;
+}
+
+.admin-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 조치 이름표. 되돌릴 수 없거나 사용자를 막는 조치는 빨강, 되돌리는 조치는 초록, 나머지는 회색. */
+.admin-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-sold-bg);
+  color: var(--color-sold);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.admin-badge--delete-post,
+.admin-badge--suspend,
+.admin-badge--hide-review,
+.admin-badge--withdraw-user {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.admin-badge--unsuspend,
+.admin-badge--unhide-review,
+.admin-badge--unban-email {
+  background: var(--color-on-sale-bg);
+  color: var(--color-on-sale);
+}
+
 /* ---------- 모바일 (768px 미만) ---------- */
 /* 휴대폰에서 쓰기 편하도록 바꾸는 규칙은 모두 여기에 모은다. 768px 이상(PC)은 위의 규칙 그대로다.
    기준값은 ui.js의 MOBILE_QUERY와 같아야 한다. (tests/test_static.py가 확인)

@@ -12,6 +12,8 @@ const MY_POSTS_PAGE = "/static/my-posts.html";
 const WISHLIST_PAGE = "/static/wishlist.html";
 const CONVERSATIONS_PAGE = "/static/conversations.html";
 const ADMIN_PAGE = "/static/admin.html";
+// 관리 화면(admin*.html)은 모두 하단 탭 바의 "내 정보" 탭 아래로 본다.
+const ADMIN_PAGE_PREFIX = "/static/admin";
 const BLOCKS_PAGE = "/static/blocks.html";
 const ALERTS_PAGE = "/static/alerts.html";
 const MAX_BADGE_COUNT = 99;
@@ -159,13 +161,13 @@ function alertBell() {
 
 // ---------- 모바일 하단 탭 바 ----------
 
-// also: 이 탭에서 들어가는 화면. 그 화면에서도 이 탭을 현재 탭으로 표시한다.
+// also: 이 탭에서 들어가는 화면. 그 화면에서도 이 탭을 현재 탭으로 표시한다. alsoPrefix는 주소 앞부분이 같은 화면들.
 const TABS = [
   { href: HOME_PAGE, label: "홈", icon: "home" },
   { href: WISHLIST_PAGE, label: "찜", icon: "heart" },
   { href: POST_FORM_PAGE, label: "글쓰기", icon: "plus", modifier: "write" },
   { href: CONVERSATIONS_PAGE, label: "쪽지", icon: "chat", id: "tab-messages", badgeId: "tab-unread" },
-  { href: MY_POSTS_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ADMIN_PAGE, ALERTS_PAGE] },
+  { href: MY_POSTS_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ALERTS_PAGE], alsoPrefix: ADMIN_PAGE_PREFIX },
 ];
 
 /**
@@ -177,7 +179,8 @@ function renderTabBar() {
   if (document.body.dataset.tabBar === "off" || document.querySelector(".tab-bar")) return;
   const here = window.location.pathname;
   const items = TABS.map((tab) => {
-    const current = here === tab.href || (tab.also ?? []).includes(here);
+    const current =
+      here === tab.href || (tab.also ?? []).includes(here) || (tab.alsoPrefix !== undefined && here.startsWith(tab.alsoPrefix));
     const attrs = {};
     if (tab.id) attrs.id = tab.id;
     if (current) attrs["aria-current"] = "page";

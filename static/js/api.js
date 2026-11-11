@@ -175,9 +175,14 @@ export function listAdminReports(params) {
   return request("/admin/reports", { query: params });
 }
 
-/** 관리자: 신고 처리. data: {action, suspend_days?, note?, include_same_user?}. 409(이미 처리) */
+/** 관리자: 신고 처리. data: {action, suspend_days?, note?, include_same_user?}. 기각 외에는 note 필수. 409(이미 처리) */
 export function resolveReport(reportId, data) {
   return request(`/admin/reports/${encodeURIComponent(reportId)}/resolve`, { method: "POST", json: data });
+}
+
+/** 관리자: 관리 기록. params: {action, admin_id, target_user_id, page, size} */
+export function listAdminActions(params) {
+  return request("/admin/actions", { query: params });
 }
 
 /** 거래 후기 신고. data: {reason, description}. 400(내가 쓴 후기), 404(숨긴 후기), 409, 429 */
