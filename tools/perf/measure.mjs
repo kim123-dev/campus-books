@@ -12,7 +12,8 @@
 //   CHROME_PATH Chrome 실행 파일, CDP_PORT 원격 디버깅 포트 (기본 9444)
 // 목록의 첫 글과 그 판매자로 상세·프로필 주소를 정한다. 글이 하나도 없으면 측정할 수 없다.
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const BASE = (process.env.BASE ?? "https://campus-books-production.up.railway.app").replace(/\/$/, "");
@@ -28,9 +29,13 @@ const CHROME =
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome",
   ].find((path) => existsSync(path));
-const PORT = Number(process.env.CDP_PORT ?? 9444);
+// Chrome을 띄울 때마다 다른 포트를 쓴다. (이전 Chrome이 늦게 꺼져도 겹치지 않게)
+let nextPort = Number(process.env.CDP_PORT ?? 9444);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 mkdirSync(OUT, { recursive: true });
+// Chrome 프로필은 짧은 임시 폴더에 둔다. Windows는 경로가 260자를 넘으면 서비스 워커 캐시 파일을 만들지 못해
+// 설치가 "Entry already exists"로 실패한다. (프로필 안 캐시 경로만 150자 가까이 된다)
+const PROFILES = mkdtempSync(join(tmpdir(), "cb-perf-"));
 
 // 화면별 "본문이 그려졌다" 조건 (불러오는 중 문구가 바뀌고 내용이 들어옴)
 const READY = {
@@ -44,6 +49,7 @@ const READY = {
 
 async function startChrome(profile, fresh = true) {
   if (fresh) rmSync(profile, { recursive: true, force: true });
+  const PORT = nextPort++;
   const proc = spawn(CHROME, ["--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"]);
   let wsUrl;
   for (let i = 0; i < 150 && !wsUrl; i++) {
@@ -79,10 +85,23 @@ async function startChrome(profile, fresh = true) {
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Network.enable");
+  // 서비스 워커 설치 실패를 결과에 남긴다. (설치가 안 되면 재방문도 네트워크로 가서 숫자가 크게 달라진다)
+  const swErrors = [];
+  listeners.push((m) => {
+    if (m.method === "ServiceWorker.workerErrorReported") swErrors.push(m.params.errorMessage?.errorMessage ?? JSON.stringify(m.params));
+  });
+  await send("ServiceWorker.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
   // 네트워크로 나가는 요청에만 지연이 붙는다. 서비스 워커 캐시·메모리 캐시에서 나오는 응답은 그대로다.
   if (LATENCY > 0) await send("Network.emulateNetworkConditions", { offline: false, latency: LATENCY, downloadThroughput: -1, uploadThroughput: -1 });
-  return { send, evaluate, listeners, close: () => { ws.close(); proc.kill(); } };
+  // 끌 때는 Chrome이 완전히 끝날 때까지 기다린다. (같은 프로필로 다시 열 때 이전 프로세스와 겹치지 않게)
+  const exited = new Promise((r) => proc.once("exit", r));
+  const close = async () => {
+    ws.close();
+    proc.kill();
+    await exited;
+  };
+  return { send, evaluate, listeners, swErrors, close };
 }
 
 async function visit(b, name, url) {
@@ -128,7 +147,15 @@ async function visit(b, name, url) {
       if (ready) break;
     } catch {}
   }
-  await sleep(1500); // 늦게 끝나는 요청(배지, 서비스 워커 등록)까지 모은다
+  // load 이벤트까지 기다린다. 서비스 워커는 load 뒤에 등록되므로(pwa.js), 이걸 기다리지 않고 다음 화면으로 가면
+  // 측정 도구에서는 등록이 시작되지 않는 경우가 있었다. 실제 사용자도 화면이 다 뜬 뒤에 옮긴다.
+  for (let i = 0; i < 200; i++) {
+    try {
+      if (await b.evaluate("document.readyState === 'complete'")) break;
+    } catch {}
+    await sleep(50);
+  }
+  await sleep(1500); // 늦게 끝나는 요청(배지, 서비스 워커 설치)까지 모은다
   b.listeners.splice(b.listeners.indexOf(on), 1);
   const list = [...reqs.values()].sort((a, c) => a.start - c.start);
   const base = list[0]?.start ?? 0;
@@ -145,7 +172,9 @@ async function visit(b, name, url) {
     enc: r.enc,
     initiator: (r.initiator || "").replace(BASE, ""),
   }));
-  return { name, url: url.replace(BASE, ""), ...ready, requests: rows };
+  // 이 화면을 서비스 워커가 맡았는지 (맡았으면 정적 파일이 서비스 워커 캐시에서 나온다)
+  const controlled = await b.evaluate("!!navigator.serviceWorker?.controller").catch(() => null);
+  return { name, url: url.replace(BASE, ""), ...ready, controlled, requests: rows };
 }
 
 async function flow(b, ids) {
@@ -161,7 +190,7 @@ const posts = await (await fetch(`${BASE}/posts?page=1&size=12`)).json();
 const ids = { post: posts.items[0].id, seller: posts.items[0].seller.id };
 const results = [];
 for (let run = 0; run < RUNS; run++) {
-  const b = await startChrome(join(OUT, `profile-${run}`));
+  const b = await startChrome(join(PROFILES, `p${run}`));
   if (TOKEN) {
     await b.send("Page.navigate", { url: `${BASE}/static/login.html` });
     await sleep(1500);
@@ -172,10 +201,10 @@ for (let run = 0; run < RUNS; run++) {
   }
   const first = await flow(b, ids);
   await sleep(1000);
-  const sw = await b.evaluate(`navigator.serviceWorker.getRegistrations().then(rs => rs.map(r => r.active?.state).join(',') || 'none')`);
+  const sw = await b.evaluate(`navigator.serviceWorker.getRegistration('/static/').then(r => (r?.active ? 'active' : 'none') + (navigator.serviceWorker.controller ? ' ctrl' : ''))`);
   const second = await flow(b, ids);
-  results.push({ run, sw, first, second });
-  b.close();
+  results.push({ run, sw, swErrors: [...b.swErrors], first, second });
+  await b.close();
   await sleep(800);
 }
 // 브라우저를 껐다가, 추정 캐시 기간(마지막 수정 후 경과의 10%)이 지난 뒤 같은 프로필로 다시 연다.
@@ -183,14 +212,15 @@ const WAIT = Number(process.env.COLD_WAIT ?? 150);
 console.log(`waiting ${WAIT}s for heuristic cache to expire`);
 await sleep(WAIT * 1000);
 for (const r of results) {
-  const b = await startChrome(join(OUT, `profile-${r.run}`), false);
+  const b = await startChrome(join(PROFILES, `p${r.run}`), false);
   r.cold = await flow(b, ids);
-  b.close();
+  await b.close();
   await sleep(800);
 }
 writeFileSync(join(OUT, "results.json"), JSON.stringify({ ids, results }, null, 2));
+rmSync(PROFILES, { recursive: true, force: true });
 for (const r of results) {
   for (const kind of ["first", "second", "cold"]) {
-    console.log(`run${r.run} ${kind}: ` + r[kind].map((v) => `${v.name}=${Math.round(v.ready)}ms(req ${v.requests.length})`).join("  "));
+    console.log(`run${r.run} ${kind}: ` + r[kind].map((v) => `${v.name}=${Math.round(v.ready)}ms(req ${v.requests.length}${v.controlled ? ", SW" : ""})`).join("  "));
   }
 }
