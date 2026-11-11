@@ -180,6 +180,11 @@ export function resolveReport(reportId, data) {
   return request(`/admin/reports/${encodeURIComponent(reportId)}/resolve`, { method: "POST", json: data });
 }
 
+/** 관리자: 대시보드 (가입자·글·미처리 신고 수) */
+export function getAdminDashboard() {
+  return request("/admin/dashboard");
+}
+
 /** 관리자: 관리 기록. params: {action, admin_id, target_user_id, page, size} */
 export function listAdminActions(params) {
   return request("/admin/actions", { query: params });

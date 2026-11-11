@@ -1,6 +1,6 @@
 """관리자 API의 요청·응답. 이메일은 사용자 관리 API(/admin/users)에만 담는다."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -193,3 +193,34 @@ class AdminActionListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+# ---------- 대시보드 ----------
+
+
+class DashboardUserCounts(BaseModel):
+    total: int  # 탈퇴하지 않은 가입자 (관리자 포함)
+    suspended: int  # 지금 정지 중
+    admins: int
+    withdrawn: int  # 탈퇴한 계정 (익명화되어 남은 행)
+
+
+class DashboardPostCounts(BaseModel):
+    total: int
+    on_sale: int
+    reserved: int
+    sold: int
+
+
+class DashboardPeriodCounts(BaseModel):
+    today: int  # 한국 시간 오늘 자정부터
+    last_7_days: int  # 오늘을 포함한 최근 7일
+
+
+class AdminDashboardResponse(BaseModel):
+    today: date  # 기준 날짜 (한국 시간)
+    users: DashboardUserCounts
+    posts: DashboardPostCounts
+    signups: DashboardPeriodCounts
+    new_posts: DashboardPeriodCounts
+    pending_reports: int

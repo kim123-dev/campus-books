@@ -1,4 +1,4 @@
-// 관리 화면(메뉴·신고 처리 사유·관리 기록)을 모바일 폭(기본 375px)으로 확인한다.
+// 관리 화면(메뉴·대시보드·신고 처리 사유·관리 기록)을 모바일 폭(기본 375px)으로 확인한다.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { api, loginApi, makeAdmin, readSeed, startBrowser } from "./lib.mjs";
@@ -37,6 +37,25 @@ try {
   await setToken(seed.buyer_token);
   await goto("/static/admin-log.html", "location.pathname === '/static/index.html'");
   check("일반 사용자: 관리 기록 → 목록으로", (await evaluate("location.pathname")) === "/static/index.html");
+
+  // 1-2) 대시보드: 헤더의 "관리" 링크, 숫자 타일
+  await setToken(admin);
+  await goto("/static/index.html", "document.querySelector('.site-nav a[href*=admin]')");
+  const adminLink = await evaluate(`document.querySelector('.site-nav a[href*=admin]').getAttribute('href')`);
+  check("헤더 '관리' 링크는 대시보드", adminLink === "/static/admin-dashboard.html", adminLink);
+  await goto("/static/admin-dashboard.html", "!document.getElementById('dashboard').hidden");
+  const tiles = await evaluate(`Object.fromEntries([...document.querySelectorAll(".stat-tile")].map((t) => [t.querySelector(".stat-tile__label").textContent, t.querySelector(".stat-tile__value").textContent]))`);
+  check("대시보드: 미처리 신고 2, 가입자 3, 전체 글 3, 판매 중 3", tiles["미처리 신고"] === "2" && tiles["가입자"] === "3" && tiles["전체 글"] === "3" && tiles["판매 중"] === "3", JSON.stringify(tiles));
+  check("대시보드: 오늘 가입 3·오늘 작성 3", tiles["오늘 가입"] === "3" && tiles["오늘 작성"] === "3", JSON.stringify(tiles));
+  check("대시보드: 미처리 신고에 '처리 필요' 이름표", (await text(".stat-tile--alert .stat-tile__alert")) === "처리 필요");
+  const grid = await evaluate(`(() => { const t = [...document.querySelectorAll("#stat-users .stat-tile")].map((x) => x.getBoundingClientRect()); return { cols: new Set(t.map((r) => Math.round(r.left))).size, minH: Math.min(...t.map((r) => Math.round(r.height))) }; })()`);
+  check("대시보드: 375px에서 타일 2열, 높이 44px 이상", grid.cols === 2 && grid.minH >= 44, JSON.stringify(grid));
+  check("대시보드: 관리 메뉴 현재 화면", (await navInfo()).current === "대시보드");
+  check("대시보드 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-dashboard-${W}.png`);
+  await evaluate(`document.querySelector(".stat-tile--link").click()`);
+  await waitUntil("location.pathname === '/static/admin.html'");
+  check("미처리 신고 타일 → 신고 화면", (await evaluate("location.pathname + location.search")) === "/static/admin.html?status=PENDING");
 
   // 2) 신고 화면: 관리 메뉴, 강제 조치의 사유 필수
   await setToken(admin);

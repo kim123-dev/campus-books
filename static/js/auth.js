@@ -11,7 +11,8 @@ const POST_FORM_PAGE = "/static/post-form.html";
 const MY_POSTS_PAGE = "/static/my-posts.html";
 const WISHLIST_PAGE = "/static/wishlist.html";
 const CONVERSATIONS_PAGE = "/static/conversations.html";
-const ADMIN_PAGE = "/static/admin.html";
+// 헤더의 "관리" 링크는 대시보드로 간다. (신고 화면 admin.html은 관리 메뉴에서)
+const ADMIN_PAGE = "/static/admin-dashboard.html";
 // 관리 화면(admin*.html)은 모두 하단 탭 바의 "내 정보" 탭 아래로 본다.
 const ADMIN_PAGE_PREFIX = "/static/admin";
 const BLOCKS_PAGE = "/static/blocks.html";

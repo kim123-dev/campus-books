@@ -135,7 +135,8 @@ def test_report_reason_required_actions_match_server() -> None:
 def test_header_links_to_admin_only_for_admin() -> None:
     # "관리" 링크는 role이 ADMIN일 때만 만든다. (권한 검사 자체는 서버의 /admin API가 한다)
     auth_js = (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
-    assert '"/static/admin.html"' in auth_js
+    # "관리" 링크는 대시보드로 간다.
+    assert 'const ADMIN_PAGE = "/static/admin-dashboard.html";' in auth_js
     assert 'me.role === "ADMIN"' in auth_js
 
 

@@ -8,6 +8,7 @@ const HOME_PAGE = "/static/index.html";
 
 // 관리 메뉴. 화면마다 HTML 1개 + 스크립트 1개를 두고, 이 메뉴로 오간다.
 export const ADMIN_PAGES = [
+  { href: "/static/admin-dashboard.html", label: "대시보드" },
   { href: "/static/admin.html", label: "신고" },
   { href: "/static/admin-log.html", label: "기록" },
 ];

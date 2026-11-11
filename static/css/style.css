@@ -2499,6 +2499,70 @@ a.button {
   color: var(--color-on-sale);
 }
 
+/* 대시보드 숫자 타일. 숫자는 본문 글자색으로 쓰고, 처리할 신고가 있을 때만 이름표와 함께 강조한다. */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.dashboard__heading {
+  margin: 0 0 10px;
+  font-size: 1.0625rem;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 88px;
+  padding: 14px 16px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.stat-tile--link:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.stat-tile__label {
+  color: var(--color-sub);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.stat-tile__value {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-tile__note {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.stat-tile--alert {
+  box-shadow: inset 0 0 0 2px var(--color-reserved), var(--shadow-card);
+}
+
+.stat-tile__alert {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-reserved-bg);
+  color: var(--color-reserved);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 /* ---------- 모바일 (768px 미만) ---------- */
 /* 휴대폰에서 쓰기 편하도록 바꾸는 규칙은 모두 여기에 모은다. 768px 이상(PC)은 위의 규칙 그대로다.
    기준값은 ui.js의 MOBILE_QUERY와 같아야 한다. (tests/test_static.py가 확인)

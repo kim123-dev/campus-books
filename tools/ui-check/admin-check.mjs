@@ -131,7 +131,7 @@ try {
   const autoConfirm = () => evaluate("window.confirm = (m) => { window.lastConfirm = m; return true; }");
   const loaded = "document.getElementById('result-summary') && document.getElementById('result-summary').textContent !== '불러오는 중…'";
   const card = (id) => `document.querySelector('[aria-labelledby="report-${id}-title"]')`;
-  const headerHasAdminLink = () => evaluate("!!document.querySelector('#site-header a[href=\"/static/admin.html\"]')");
+  const headerHasAdminLink = () => evaluate("!!document.querySelector('#site-header a[href=\"/static/admin-dashboard.html\"]')");
   const PASSWORD = "check-password-123";
 
   const sellerId = (await call("GET", "/users/me", seed.seller_token)).body.id;

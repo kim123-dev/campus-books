@@ -8,12 +8,13 @@ from app.core.deps import AdminUser, require_admin
 from app.models import AdminActionType, ReportStatus
 from app.schemas.admin import (
     AdminActionListResponse,
+    AdminDashboardResponse,
     AdminReportListResponse,
     ReportResolveRequest,
     ReportResolveResponse,
 )
 from app.schemas.post import PageQuery, SizeQuery
-from app.services import admin_log_service, admin_service
+from app.services import admin_dashboard_service, admin_log_service, admin_service
 
 # 관리자 검사를 라우터 전체에 건다. 여기에 API를 추가하면 따로 적지 않아도 관리자만 쓸 수 있다.
 # (테스트가 /admin으로 시작하는 모든 경로에 대해 401·403을 확인한다)
@@ -23,6 +24,11 @@ router = APIRouter(
     dependencies=[Depends(require_admin)],
     responses={401: {"description": "로그인 필요"}, 403: {"description": "관리자가 아님"}},
 )
+
+
+@router.get("/dashboard", response_model=AdminDashboardResponse, summary="대시보드 (가입자·글·미처리 신고 수)")
+def get_dashboard(db: Annotated[Session, Depends(get_db)]) -> AdminDashboardResponse:
+    return admin_dashboard_service.get_dashboard(db)
 
 
 @router.get("/reports", response_model=AdminReportListResponse, summary="신고 목록 (미처리 먼저, 최신순)")
