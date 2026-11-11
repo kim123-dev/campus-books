@@ -1146,6 +1146,22 @@ a.button {
   gap: 8px;
 }
 
+/* 판매 완료된 내 글의 "거래한 사람" 줄. 좁은 화면에서는 버튼이 다음 줄로 넘어간다. */
+.owner-panel__buyer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: -4px 0 12px;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.owner-panel__buyer-note {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
 /* ---------- 작성 · 수정 화면 ---------- */
 
 .form-card {
@@ -1707,7 +1723,7 @@ a.button {
   cursor: not-allowed;
 }
 
-/* 신고 창. 브라우저 기본 <dialog>를 화면 가운데 띄우고, 좁은 화면에서는 좌우 16px만 남긴다. */
+/* 신고 창(구매자 고르기·후기 작성 창도 같은 모양을 쓴다). 브라우저 기본 <dialog>를 화면 가운데 띄우고, 좁은 화면에서는 좌우 16px만 남긴다. */
 .report-dialog {
   width: min(480px, calc(100vw - 32px));
   max-width: none; /* 브라우저 기본 max-width가 좌우 여백을 더 넓히지 않게 한다. */

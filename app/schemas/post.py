@@ -122,6 +122,8 @@ class PostStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: PostStatus
+    # 판매 완료(SOLD)로 바꿀 때만 받는다. 생략하면 구매자 없이 완료한다(오프라인 거래 등).
+    buyer_id: int | None = Field(default=None, description="거래한 구매자 (SOLD일 때만, 선택)")
 
 
 class PostSearchParams(BaseModel):

@@ -33,6 +33,14 @@ class DuplicateAlertError(ConflictError):
     message = "이미 등록한 키워드입니다."
 
 
+class AlreadySoldError(ConflictError):
+    message = "이미 판매 완료된 글입니다. 구매자를 바꾸려면 구매자 변경을 이용해 주세요."
+
+
+class NoTradeToChangeError(ConflictError):
+    message = "구매자를 고르지 않고 판매 완료한 글은 나중에 구매자를 지정할 수 없습니다."
+
+
 class NotFoundError(DomainError):
     """요청한 데이터가 없음. main.py에서 404로 변환한다."""
 
@@ -171,6 +179,18 @@ class WithdrawnPartnerMessageError(BadRequestError):
 class TooManyAlertsError(BadRequestError):
     # 숫자는 서비스가 MAX_ALERTS_PER_USER로 채운다.
     message = "찾는 교재는 최대 10개까지 등록할 수 있습니다."
+
+
+class BuyerOnlyForSoldError(BadRequestError):
+    message = "구매자는 판매 완료로 바꿀 때만 고를 수 있습니다."
+
+
+class InvalidBuyerError(BadRequestError):
+    message = "이 글로 쪽지를 주고받은 사람만 구매자로 고를 수 있습니다."
+
+
+class PostNotSoldError(BadRequestError):
+    message = "판매 완료된 글만 구매자를 바꿀 수 있습니다."
 
 
 class PayloadTooLargeError(DomainError):

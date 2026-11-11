@@ -1,6 +1,16 @@
 // 상세 화면: 글 정보를 보여주고, 내 글이면 상태 변경과 삭제를 할 수 있게 한다.
 // 권한과 상태 규칙의 최종 판단은 서버가 한다. 화면은 누를 수 없는 버튼을 미리 숨기는 정도만 한다.
-import { blockUser, changePostStatus, deletePost, getPost, reportPost, startConversation, unblockUser } from "../api.js";
+import {
+  blockUser,
+  changePostBuyer,
+  changePostStatus,
+  deletePost,
+  getPost,
+  getPostBuyer,
+  reportPost,
+  startConversation,
+  unblockUser,
+} from "../api.js";
 import { LOGIN_PAGE, authPageUrl, redirectToLogin, renderHeader } from "../auth.js";
 import {
   REPORT_DONE_TEXT,
@@ -20,6 +30,7 @@ import {
   safeImageUrl,
   statusBadge,
 } from "../ui.js";
+import { openBuyerDialog } from "../trade.js";
 import { createWishlistButton } from "../wishlist-button.js";
 
 const HOME_PAGE = "/static/index.html";
@@ -476,23 +487,93 @@ function renderOwnerActions(post) {
       ? el("p", { className: "owner-panel__notice", text: "판매 완료된 글은 상태를 바꾸거나 수정할 수 없습니다." })
       : null;
 
+  // 판매 완료된 글은 거래한 사람(구매자)을 보여주고, 후기가 없으면 바꿀 수 있게 한다. (서버에서 따로 불러온다)
+  const buyerLine = post.status === "SOLD" ? el("div", { className: "owner-panel__buyer", attrs: { id: "buyer-line" } }) : null;
+
   ownerActions.replaceChildren(
-    ...[soldNotice, el("div", { className: "owner-actions__buttons" }, editLink, ...statusButtons, deleteButton)].filter(
-      Boolean,
-    ),
+    ...[
+      soldNotice,
+      buyerLine,
+      el("div", { className: "owner-actions__buttons" }, editLink, ...statusButtons, deleteButton),
+    ].filter(Boolean),
   );
+  if (buyerLine !== null) loadBuyerLine(post, buyerLine);
+}
+
+async function loadBuyerLine(post, line) {
+  let info;
+  try {
+    info = await getPostBuyer(post.id);
+  } catch {
+    // 구매자 정보는 보조 정보라, 불러오지 못해도 나머지 관리 기능은 그대로 쓰게 한다.
+    line.remove();
+    return;
+  }
+  const name = info.buyer === null ? "선택 안 함" : info.buyer.nickname;
+  const parts = [el("span", { text: `거래한 사람: ${name}` })];
+  if (info.changeable) {
+    const button = el("button", { type: "button", className: "link-button", text: "구매자 변경" });
+    button.addEventListener("click", () => onChangeBuyer(post, info));
+    parts.push(button);
+  } else if (info.buyer !== null) {
+    parts.push(el("span", { className: "owner-panel__buyer-note", text: "후기가 있어 바꿀 수 없어요." }));
+  }
+  line.replaceChildren(...parts);
 }
 
 // ---------- 동작 ----------
 
 function onChangeStatus(post, status) {
-  // 판매 완료는 되돌릴 수 없는 마지막 상태라 한 번 더 확인한다.
-  if (status === "SOLD" && !window.confirm("판매 완료로 바꾸면 다시 되돌릴 수 없습니다. 계속할까요?")) return;
-
+  if (status === "SOLD") {
+    onSell(post);
+    return;
+  }
   runAction(async () => {
     const updated = await changePostStatus(post.id, status);
     // 서버가 돌려준 최신 글로 배지, 버튼, 수정 시각, 연락 버튼을 다시 그린다.
     render(updated);
+  });
+}
+
+/** 판매 완료: 거래한 사람을 고르는 창을 띄운다. 되돌릴 수 없는 마지막 상태라 창 안에서 한 번 더 알린다. */
+function onSell(post) {
+  runAction(async () => {
+    const info = await getPostBuyer(post.id);
+    const updated = await openBuyerDialog({
+      heading: "판매 완료로 변경",
+      intro: "판매 완료로 바꾸면 되돌릴 수 없어요. 거래한 사람은 지금만 고를 수 있어요.",
+      candidates: info.candidates,
+      currentBuyer: null,
+      preselect: false,
+      submitText: "판매 완료",
+      send: (buyerId) => changePostStatus(post.id, "SOLD", buyerId),
+    });
+    // 취소했으면 그대로 두고 버튼만 다시 켠다.
+    if (updated === null) {
+      setBusy(false);
+      return;
+    }
+    render(updated);
+  });
+}
+
+/** 잘못 고른 구매자를 다른 사람이나 "선택 안 함"으로 바꾼다. 후기가 하나라도 있으면 서버가 409로 막는다. */
+function onChangeBuyer(post, info) {
+  runAction(async () => {
+    const changed = await openBuyerDialog({
+      heading: "구매자 변경",
+      intro: "후기가 남기 전까지만 바꿀 수 있어요. 후기를 쓸 수 있는 기간은 처음 판매 완료한 날부터 계산돼요.",
+      candidates: info.candidates,
+      currentBuyer: info.buyer,
+      preselect: true,
+      submitText: "변경",
+      send: (buyerId) => changePostBuyer(post.id, buyerId),
+    });
+    if (changed === null) {
+      setBusy(false);
+      return;
+    }
+    render(await getPost(post.id));
   });
 }
 

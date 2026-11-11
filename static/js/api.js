@@ -93,9 +93,23 @@ export function updatePost(postId, data) {
   return request(`/posts/${encodeURIComponent(postId)}`, { method: "PATCH", json: data });
 }
 
-/** 판매 상태 변경. 바뀐 글 전체를 돌려받아 화면을 다시 그리는 데 쓴다. */
-export function changePostStatus(postId, status) {
-  return request(`/posts/${encodeURIComponent(postId)}/status`, { method: "PATCH", json: { status } });
+/**
+ * 판매 상태 변경. 바뀐 글 전체를 돌려받아 화면을 다시 그리는 데 쓴다.
+ * buyerId: 판매 완료(SOLD)로 바꿀 때 거래한 사람. 생략하면 구매자 없이 완료한다.
+ */
+export function changePostStatus(postId, status, buyerId = null) {
+  const json = buyerId === null ? { status } : { status, buyer_id: buyerId };
+  return request(`/posts/${encodeURIComponent(postId)}/status`, { method: "PATCH", json });
+}
+
+/** 판매자용 구매자 정보. 응답: {buyer: {id, nickname} | null, candidates: [...], changeable} */
+export function getPostBuyer(postId) {
+  return request(`/posts/${encodeURIComponent(postId)}/buyer`);
+}
+
+/** 판매 완료된 글의 구매자 변경. buyerId가 null이면 "선택 안 함". 409(후기가 있음·구매자 없이 완료) */
+export function changePostBuyer(postId, buyerId) {
+  return request(`/posts/${encodeURIComponent(postId)}/buyer`, { method: "PUT", json: { buyer_id: buyerId } });
 }
 
 /** 판매글 삭제. 성공하면 본문 없이 204가 오므로 null을 돌려준다. */

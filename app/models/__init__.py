@@ -5,6 +5,7 @@ from app.models.conversation import Conversation, Message
 from app.models.post import BookCondition, Post, PostStatus
 from app.models.post_image import MAX_IMAGES_PER_POST, PostImage
 from app.models.report import Report, ReportAction, ReportReason, ReportStatus, ReportTargetType
+from app.models.trade import Trade
 from app.models.user import User, UserRole
 from app.models.wishlist import Wishlist
 
@@ -24,6 +25,7 @@ __all__ = [
     "ReportReason",
     "ReportStatus",
     "ReportTargetType",
+    "Trade",
     "User",
     "UserRole",
     "UserBlock",

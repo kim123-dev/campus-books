@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import ActiveUser, OptionalCurrentUser
+from app.core.deps import ActiveUser, CurrentUser, OptionalCurrentUser
 from app.models import Post
 from app.schemas.post import (
     PageQuery,
@@ -16,6 +16,7 @@ from app.schemas.post import (
     PostUpdate,
     SizeQuery,
 )
+from app.schemas.trade import BuyerUpdate, PostBuyerResponse
 from app.services import block_service, post_service, wishlist_service
 
 router = APIRouter(prefix="/posts", tags=["posts"])
@@ -97,7 +98,11 @@ def update_post(
     "/{post_id}/status",
     response_model=PostDetailResponse,
     summary="판매 상태 변경",
-    responses={**OWNER_ONLY_RESPONSES, 400: {"description": "판매 완료된 글의 상태 변경"}},
+    responses={
+        **OWNER_ONLY_RESPONSES,
+        400: {"description": "판매 완료된 글의 상태 변경, SOLD가 아닌데 구매자 지정, 구매자 후보가 아님"},
+        409: {"description": "이미 판매 완료된 글에 다른 구매자 지정"},
+    },
 )
 def change_post_status(
     post_id: int,
@@ -105,7 +110,39 @@ def change_post_status(
     current_user: ActiveUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> Post:
-    return post_service.change_status(db, post_id, current_user, data.status)
+    return post_service.change_status(db, post_id, current_user, data.status, data.buyer_id)
+
+
+# 판매 완료 창(후보 고르기)과 판매 완료 뒤 구매자 변경 창이 함께 쓴다. 읽기라 정지 중에도 볼 수 있다.
+@router.get(
+    "/{post_id}/buyer",
+    response_model=PostBuyerResponse,
+    summary="구매자 정보와 후보 (판매자만)",
+    responses=OWNER_ONLY_RESPONSES,
+)
+def read_post_buyer(
+    post_id: int, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> PostBuyerResponse:
+    return post_service.get_buyer(db, post_id, current_user)
+
+
+@router.put(
+    "/{post_id}/buyer",
+    response_model=PostBuyerResponse,
+    summary="구매자 변경 또는 선택 안 함으로 되돌리기 (판매 완료된 글, 후기가 없을 때만)",
+    responses={
+        **OWNER_ONLY_RESPONSES,
+        400: {"description": "판매 완료되지 않은 글, 구매자 후보가 아님"},
+        409: {"description": "구매자를 고르지 않고 완료한 글, 이미 후기가 있는 거래"},
+    },
+)
+def change_post_buyer(
+    post_id: int,
+    data: BuyerUpdate,
+    current_user: ActiveUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> PostBuyerResponse:
+    return post_service.change_buyer(db, post_id, current_user, data.buyer_id)
 
 
 # 삭제 성공 시 돌려줄 내용이 없으므로 본문 없는 204를 쓴다.

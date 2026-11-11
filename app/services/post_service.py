@@ -1,15 +1,21 @@
 from sqlalchemy import ColumnElement, delete, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import (
+    AlreadySoldError,
+    BuyerOnlyForSoldError,
     InvalidStatusTransitionError,
+    NoTradeToChangeError,
     NotPostOwnerError,
     PostNotFoundError,
+    PostNotSoldError,
     SoldPostNotEditableError,
 )
 from app.models import Conversation, Post, PostStatus, User, Wishlist
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
-from app.services import alert_service, block_service, image_storage
+from app.schemas.trade import PostBuyerResponse
+from app.services import alert_service, block_service, image_storage, trade_service
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
@@ -78,17 +84,59 @@ def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post
     return _commit_and_refresh(db, post)
 
 
-def change_status(db: Session, post_id: int, user: User, new_status: PostStatus) -> Post:
-    """판매 상태 변경. 허용되지 않은 전이는 InvalidStatusTransitionError(400)."""
+def change_status(
+    db: Session, post_id: int, user: User, new_status: PostStatus, buyer_id: int | None = None
+) -> Post:
+    """판매 상태 변경. 판매 완료로 바꿀 때 구매자(buyer_id)를 함께 기록할 수 있다.
+    순서: 404 → 403 → 400 SOLD가 아닌데 구매자 → 409 이미 판매 완료(다른 구매자) → 400 전이 불가 → 400 후보 아님.
+    상태 변경과 거래 기록은 한 트랜잭션으로 저장한다.
+    """
     post = _get_own_post(db, post_id, user)
+    if buyer_id is not None and new_status != PostStatus.SOLD:
+        raise BuyerOnlyForSoldError()
     # 같은 상태 요청은 재시도해도 안전하도록 에러 없이 그대로 돌려준다(SOLD → SOLD 포함).
+    # 다만 이미 판매 완료된 글에 다른 구매자를 보내면, 조용히 무시하지 않고 구매자 변경 기능으로 안내한다.
     if post.status == new_status:
+        if buyer_id is not None and not trade_service.is_recorded_buyer(db, post.id, buyer_id):
+            raise AlreadySoldError()
         return post
     if new_status not in ALLOWED_TRANSITIONS[post.status]:
         raise InvalidStatusTransitionError()
 
+    if buyer_id is not None:
+        trade_service.record(db, post, buyer_id)
     post.status = new_status
-    return _commit_and_refresh(db, post)
+    try:
+        db.commit()
+    except IntegrityError:
+        # 같은 글을 동시에 판매 완료하며 둘 다 구매자를 기록하려 했다. (글당 거래 하나 unique 제약)
+        db.rollback()
+        raise AlreadySoldError() from None
+    db.refresh(post)
+    return post
+
+
+def get_buyer(db: Session, post_id: int, user: User) -> PostBuyerResponse:
+    """판매자용 구매자 정보와 후보. 순서: 404 → 403."""
+    post = _get_own_post(db, post_id, user)
+    return trade_service.buyer_info(db, post)
+
+
+def change_buyer(db: Session, post_id: int, user: User, buyer_id: int | None) -> PostBuyerResponse:
+    """판매 완료된 글의 구매자를 바꾸거나 "선택 안 함"(None)으로 되돌린다.
+    순서: 404 → 403 → 400 판매 완료 아님 → 409 구매자를 고르지 않은 글 → 400 후보 아님.
+    """
+    post = _get_own_post(db, post_id, user)
+    if post.status != PostStatus.SOLD:
+        raise PostNotSoldError()
+    trade = trade_service.get_for_post(db, post.id)
+    # 구매자 없이 완료한 글에 나중에 구매자를 붙이면, 아무 대화 상대에게나 후기 자격을 줄 수 있어 막는다.
+    if trade is None:
+        raise NoTradeToChangeError()
+    trade_service.change_buyer(db, post, trade, buyer_id)
+    db.commit()
+    db.expire_all()
+    return trade_service.buyer_info(db, post)
 
 
 def get_editable_post(db: Session, post_id: int, user: User) -> Post:
@@ -115,6 +163,8 @@ def delete_post_rows(db: Session, post: Post) -> list[str]:
     # 대화 기록은 거래 분쟁 때 필요하므로 지우지 않고 글 연결만 끊는다.
     # FK의 ondelete="SET NULL"은 SQLite가 FK를 검사하지 않아 동작하지 않으므로 직접 바꾼다.
     db.execute(update(Conversation).where(Conversation.post_id == post.id).values(post_id=None))
+    # 거래와 후기도 같은 이유로 남기고 글 연결만 끊는다.
+    trade_service.detach_post(db, post.id)
     # 찜은 글이 없으면 의미가 없으므로 함께 지운다. (SQLite는 FK의 CASCADE를 실행하지 않는다)
     db.execute(delete(Wishlist).where(Wishlist.post_id == post.id))
     # 찾는 교재 알림도 글이 없으면 의미가 없으므로 함께 지운다.
