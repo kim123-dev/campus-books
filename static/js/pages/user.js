@@ -23,6 +23,10 @@ if (userId === null) {
 }
 
 async function init(id) {
+  // 프로필·글·후기를 한꺼번에 요청한다. 글·후기는 숨겨 둔 칸에 먼저 그려지고, 프로필이 오면 함께 보인다.
+  // 없거나 탈퇴한 사용자면 세 요청 모두 404이고, 화면은 프로필의 오류만 보여준다.
+  loadPosts(1);
+  loadReviews(1);
   let data;
   try {
     data = await getProfile(id);
@@ -36,8 +40,6 @@ async function init(id) {
   renderManner(data.manner);
   pageStatus.hidden = true;
   profile.hidden = false;
-  loadPosts(1);
-  loadReviews(1);
 }
 
 /** 매너 점수. 후기가 3개 미만이면 서버가 비율을 비워 보내므로(null) 개수만 보여준다. */

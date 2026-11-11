@@ -26,20 +26,13 @@ async function init() {
     return;
   }
 
-  const me = await renderHeader(document.getElementById("site-header"));
-  if (me === null) {
-    // renderHeader는 401이면 토큰을 지우고 null을, 서버 연결 실패면 토큰을 남긴 채 null을 돌려준다.
-    if (!getToken()) {
-      redirectToLogin();
-    } else {
-      showError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
-    }
-    return;
-  }
-
+  // 헤더(/users/me)를 기다리지 않고 목록을 함께 요청한다. 왕복 한 번만큼 빨리 뜬다.
+  // 토큰이 만료됐으면 목록이 401을 받아 load가 로그인 화면으로 보내고, 서버 연결 실패도 load가 안내한다.
   // 뒤로 가기/앞으로 가기로 주소가 바뀌면 그 페이지를 다시 불러온다.
   window.addEventListener("popstate", load);
-  load();
+  const [me] = await Promise.all([renderHeader(document.getElementById("site-header")), load()]);
+  // renderHeader는 401이면 토큰을 지우고 null을 돌려준다. (목록 요청보다 늦게 알게 된 경우)
+  if (me === null && !getToken()) redirectToLogin();
 }
 
 // ---------- 불러오기와 그리기 ----------

@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  모델을 등록해야 create_all이 테이블을 만든다.
 from app.core.config import get_settings
@@ -21,6 +20,7 @@ from app.core.exceptions import (
     TooManyRequestsError,
     UnprocessableError,
 )
+from app.core.static_assets import StaticAssets
 from app.routers import (
     admin,
     alerts,
@@ -99,8 +99,8 @@ async def reject_large_upload(
     return await call_next(request)
 
 # 프론트 화면은 API와 같은 서버(같은 출처)에서 제공해 CORS 설정 없이 API를 호출한다.
-# API 경로와 섞이지 않도록 /static 아래에만 둔다.
-app.mount("/static", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+# API 경로와 섞이지 않도록 /static 아래에만 둔다. Cache-Control과 서비스 워커 버전은 StaticAssets가 정한다.
+app.mount("/static", StaticAssets(directory=STATIC_DIR, html=True), name="static")
 
 
 # 주소창에 서버 주소만 입력해도 목록 화면이 열리게 한다. API 문서에는 노출하지 않는다.

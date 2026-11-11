@@ -415,32 +415,23 @@ def test_pages_link_manifest_and_apple_meta(html: Path) -> None:
     assert '<script type="module" src="/static/js/pwa.js"></script>' in text
 
 
-def test_service_worker_is_served_as_javascript(client: TestClient) -> None:
-    response = client.get("/static/sw.js")
-    assert response.status_code == 200
-    assert "javascript" in response.headers["content-type"]
-
-
 def test_service_worker_caches_only_static_files() -> None:
     source = SW_JS.read_text(encoding="utf-8")
     # /static/ 밖(API·/images)과 다른 사이트 요청은 손대지 않고 돌려보낸다.
     assert re.search(r'url\.origin !== self\.location\.origin \|\| !url\.pathname\.startsWith\("/static/"\)', source)
     assert 'request.method !== "GET"' in source
-    # 미리 받는 목록도 정적 파일뿐이다.
-    precache = re.search(r"const PRECACHE = \[(.*?)\];", source, re.S)
-    assert precache
-    paths = re.findall(r'"([^"]+)"', precache.group(1))
-    assert paths and all(path.startswith("/static/") for path in paths)
-    for path in paths:
-        assert (STATIC_DIR / path.removeprefix("/static/")).is_file(), path
+    # 미리 받는 목록은 서버가 static/ 파일로 채운다. (목록 내용은 test_static_assets.py에서 확인)
+    assert 'const PRECACHE = "__PRECACHE__";' in source
 
 
 def test_service_worker_cache_has_version_key() -> None:
-    # 배포 때 VERSION을 바꾸면 새 캐시를 만들고 이전 버전 캐시를 지운다.
+    # 버전은 서버가 파일 내용 해시로 넣는다. 버전이 바뀌면 새 캐시를 만들고 이전 버전 캐시를 지운다.
     source = SW_JS.read_text(encoding="utf-8")
-    assert re.search(r'const VERSION = "[^"]+";', source)
+    assert 'const VERSION = "__STATIC_VERSION__";' in source
     assert "const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;" in source
     assert "name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME" in source
+    # 설치할 때 브라우저 HTTP 캐시의 옛 파일을 담지 않는다.
+    assert 'new Request(path, { cache: "no-cache" })' in source
 
 
 def test_install_guide_is_dismissable_and_skips_standalone() -> None:
