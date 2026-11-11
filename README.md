@@ -136,7 +136,8 @@ campus-books/
 ├── tools/ui-check/       # 헤드리스 Chrome 화면 확인 스크립트 (run.sh, 화면별 *-check.mjs)
 ├── uploads/               # 올린 사진 (서버가 만듦, .gitignore 대상, static/ 밖)
 ├── Dockerfile             # 배포 이미지 (python:3.14-slim, uvicorn)
-├── railway.json           # Railway 빌드·헬스 체크·재시작 설정
+├── .railway/railway.ts    # Railway 설정 코드 (빌드·헬스 체크·재시작·볼륨)
+├── package.json           # railway.ts용 Railway SDK (개발 의존성만)
 ├── .dockerignore          # .env·DB·사진·테스트를 이미지에서 제외
 ├── .env.example
 └── requirements.txt
@@ -530,7 +531,7 @@ python -m app.cli make-admin admin@campus.ac.kr
 
 ## 배포 (Railway)
 
-> 배포 주소: **(준비 중, 배포 후 여기에 적습니다)**
+> 배포 주소: **https://campus-books-production.up.railway.app**
 
 [Railway](https://railway.com)에 GitHub 저장소를 연결해 배포하도록 구성했습니다. 앱 서비스 하나, PostgreSQL 서비스 하나, 사진용 볼륨 하나로 이루어집니다.
 
@@ -547,15 +548,33 @@ flowchart LR
 | 파일 | 내용 |
 |---|---|
 | `Dockerfile` | `python:3.14-slim`(개발과 같은 버전). 의존성을 먼저 설치해 코드만 바뀐 배포는 캐시로 빨리 빌드. `app/`, `static/`만 복사. `uvicorn`을 `exec`로 실행해 재배포 종료 신호를 바로 받음. 포트는 Railway가 넣는 `PORT`를 씀 |
-| `railway.json` | Dockerfile로 빌드, 헬스 체크 `GET /health`(100초), 실패 시 재시작(최대 10번) |
+| `.railway/railway.ts` | Railway 설정을 코드로 관리(IaC). Dockerfile로 빌드, 헬스 체크 `GET /health`(100초), 실패 시 재시작(최대 10번), 볼륨 `campus-books-volume`을 `/data`에 연결. 환경 변수는 관리하지 않음(`unmanaged`) |
 | `.dockerignore` | `.env`, `*.db`, `*.bak`, `uploads/`, `tests/`, `docs/`, `.git/` 등을 이미지에서 제외. 비밀값·로컬 DB·사용자 사진이 이미지에 섞이지 않게 함 |
 
 - 프록시(HTTPS 종료) 뒤에서 동작하므로 `--proxy-headers --forwarded-allow-ips='*'`로 `X-Forwarded-*` 헤더를 믿게 했습니다. 그래야 리다이렉트 주소가 `https://`로 만들어집니다.
 - 컨테이너는 root로 실행합니다. Railway 볼륨이 root 소유로 붙어서, 다른 사용자로 바꾸면 사진을 저장하지 못하기 때문입니다.
 
+### Railway 설정 코드 (`railway.ts`)
+
+예전에는 `railway.json`(Config as Code)을 썼지만, 이 방식은 2026-12-01부터 읽히지 않아 `.railway/railway.ts`로 옮겼습니다. Railway는 배포할 때 `.railway/`를 읽지 않으므로, 바꾼 내용은 CLI로 직접 반영해야 합니다.
+
+```bash
+npm install                 # railway.ts가 쓰는 Railway SDK 설치
+railway config plan         # 바뀔 내용 미리보기 (destructive 0건인지 확인)
+railway config apply        # 실제 반영
+```
+
+- **Windows(Git Bash)에서 plan이 "CLI 5.42.1 이상 필요"로 실패할 때:** SDK가 `$_` 경로로 CLI 버전을 다시 확인하는데, `railway` 셸 래퍼를 거치면 이 경로가 실행할 수 없는 값이 됩니다. exe를 직접 실행하고 그 경로를 넘깁니다.
+  ```bash
+  R="$(npm root -g)/@railway/cli/bin/railway.exe"; _="$(cygpath -w "$R")" "$R" config plan
+  ```
+- **대시보드 Builder를 직접 `Dockerfile`로 맞춘 이유:** railway.json의 값은 그 배포에만 쓰이고 서비스 설정에는 저장되지 않아, 대시보드에는 기본값 Railpack이 남아 있었습니다. apply는 IaC 쪽 값만 바꾸므로, railway.json을 지우기 전에 대시보드에서 Builder를 Dockerfile로 맞추고 첫 배포가 Dockerfile로 빌드되는지 확인했습니다.
+- **plan에 재시작 정책 변경이 계속 남는 이유:** `ON_FAILURE`/최대 10번은 Railway 기본값이라 IaC 쪽에서는 빈 값(null)으로 읽힙니다. 그래서 apply 뒤에도 plan이 `null → ON_FAILURE`, `null → 10`을 보여 줍니다. 실제 서비스와 배포에는 이미 적용돼 있어 무시해도 됩니다. 이 두 줄 외의 변경이 나오면 확인합니다.
+- **볼륨은 region(`sfo`)과 크기(500MB)까지 적어 둡니다.** 빼면 plan이 볼륨 연결을 떼거나 값을 지우려 합니다(destructive).
+
 ### 배포 순서
 
-1. Railway에서 새 프로젝트를 만들고 GitHub 저장소를 연결합니다. `railway.json`을 읽어 Dockerfile로 빌드합니다.
+1. Railway에서 새 프로젝트를 만들고 GitHub 저장소를 연결합니다. 서비스 Settings의 Builder를 `Dockerfile`로 둡니다. 빌드·헬스 체크·재시작 설정은 `railway config apply`로 반영합니다([Railway 설정 코드](#railway-설정-코드-railwayts)).
 2. 같은 프로젝트에 **PostgreSQL** 서비스를 추가합니다.
 3. 앱 서비스에 **볼륨**을 추가하고 마운트 경로를 `/data`로 둡니다. 사진은 그 아래 `/data/uploads/posts/`에 저장됩니다. 컨테이너 디스크는 재배포 때 초기화되므로 볼륨이 없으면 사진이 사라집니다.
 4. 앱 서비스의 **Variables**에 아래 환경 변수를 넣습니다.
