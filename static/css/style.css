@@ -3217,3 +3217,18 @@ a.button {
 .admin-action-form textarea {
   min-height: 72px;
 }
+
+.admin-action-form__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-action-form__buttons .button {
+  align-self: auto;
+}
+
+.admin-dialog .admin-action-form {
+  gap: 14px;
+  padding: var(--gap);
+}

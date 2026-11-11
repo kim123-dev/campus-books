@@ -194,6 +194,39 @@ try {
   await waitUntil("location.pathname === '/static/admin-reviews.html' && document.querySelectorAll('#review-list li').length === 1");
   check("상세 '받은 후기' → 그 사용자 후기(전체 탭)", (await text(".tabs__item[aria-current=page]")) === "전체" && (await text("#filter-user")).includes("받은 후기만"));
 
+  // 9) 글 관리: 검색, 미처리 신고 표시, 삭제 창(사유 필수) → 확인 창 → 삭제, 신고 함께 처리
+  const p4 = (await api("POST", "/posts", seed.buyer_token, { title: "수상한 교재 판매", book_title: "회로이론", condition: "GOOD", price: 5000 })).body.id;
+  const r4 = (await api("POST", `/posts/${p4}/reports`, seed.seller_token, { reason: "FRAUD" })).body.id;
+  check("준비: 글 p4와 신고", Boolean(p4 && r4));
+  await goto("/static/admin-posts.html", "document.querySelectorAll('#post-list li').length === 4");
+  const postNav = await navInfo();
+  check("글 관리: 메뉴 6개·현재 화면 '글'", postNav.labels.length === 6 && postNav.current === "글", JSON.stringify(postNav));
+  check("글 관리 가로 넘침 없음(메뉴 6개)", await noHorizontalScroll());
+  await evaluate(`document.getElementById("search-q").value = "회로"; document.querySelector("#post-search button[type=submit]").click()`);
+  await waitUntil("location.search.includes('q=') && document.querySelectorAll('#post-list li').length === 1");
+  check("글 검색(교재명)", (await text("#post-list li")).includes("수상한 교재 판매") && (await text("#post-list li")).includes("미처리 신고 1건"), await text("#post-list li"));
+  await screenshot(`admin-tools-posts-${W}.png`);
+  await evaluate(`document.querySelector("#post-list li .button--danger").click()`);
+  await waitUntil("document.querySelector('dialog.admin-dialog')?.open === true");
+  await autoConfirm();
+  await evaluate(`window.lastConfirm = null; document.querySelector("#admin-dialog-form button[type=submit]").click()`);
+  check("삭제 창: 사유 없이 → 안내, 확인 창 없음", (await text("#admin-dialog-form .form-error")) === "사유를 입력해 주세요." && (await evaluate("window.lastConfirm")) === null);
+  check("삭제 창 가로 넘침 없음", await noHorizontalScroll());
+  await screenshot(`admin-tools-post-dialog-${W}.png`);
+  await evaluate(`document.getElementById("admin-dialog-form-reason").value = "사기 의심 글"; document.querySelector("#admin-dialog-form button[type=submit]").click()`);
+  await waitUntil("!document.querySelector('dialog.admin-dialog') && !document.getElementById('admin-notice').hidden");
+  check("삭제 확인 창: 신고 함께 처리 안내·사유", (await evaluate("window.lastConfirm")).includes("미처리 신고 1건") && (await evaluate("window.lastConfirm")).includes("사기 의심 글"));
+  check("삭제 → 안내(신고 1건 함께 처리)", (await text("#admin-notice")).includes("미처리 신고 1건을 함께 처리"), await text("#admin-notice"));
+  await waitUntil("document.getElementById('result-summary').textContent === '조건에 맞는 글이 없습니다.'");
+  check("삭제한 글은 목록에서 빠짐", (await api("GET", `/posts/${p4}`, null)).status === 404);
+  // 취소: 창을 닫으면 아무 일도 없다.
+  await goto("/static/admin-posts.html", "document.querySelectorAll('#post-list li').length === 3");
+  await evaluate(`document.querySelector("#post-list li .button--danger").click()`);
+  await waitUntil("document.querySelector('dialog.admin-dialog')?.open === true");
+  await evaluate(`[...document.querySelectorAll("#admin-dialog-form button")].find((b) => b.textContent === "취소").click()`);
+  await waitUntil("!document.querySelector('dialog.admin-dialog')");
+  check("삭제 창 취소 → 글 그대로", (await evaluate(`document.querySelectorAll('#post-list li').length`)) === 3);
+
   check("자바스크립트 오류 없음", exceptions.length === 0, exceptions.join(" | "));
 } catch (error) {
   results.push(`ERROR  ${error.stack ?? error}`);

@@ -11,6 +11,7 @@ export const ADMIN_PAGES = [
   { href: "/static/admin-dashboard.html", label: "대시보드" },
   { href: "/static/admin.html", label: "신고" },
   { href: "/static/admin-users.html", label: "사용자" },
+  { href: "/static/admin-posts.html", label: "글" },
   { href: "/static/admin-reviews.html", label: "후기" },
   { href: "/static/admin-log.html", label: "기록" },
 ];
@@ -110,9 +111,21 @@ export function userLabel(user) {
  * 사유를 꼭 적는 관리자 조치 폼. 사유가 비면 보내지 않고, 확인 창을 거쳐 onSubmit(사유)를 부른다.
  * 실패하면 서버 메시지를 폼 안에 보여주고 다시 누를 수 있게 한다. (409: 다른 관리자가 먼저 처리 등)
  * @param {{id: string, submitText: string, danger?: boolean, fields?: Node[], confirm: (reason: string) => string|null,
- *          onSubmit: (reason: string) => Promise<void>, reasonLabel?: string}} options
+ *          onSubmit: (reason: string) => Promise<void>, reasonLabel?: string,
+ *          validate?: () => string|null, cancel?: () => void}} options
+ *   validate: 사유 말고 더 확인할 것이 있으면 오류 문구를 돌려준다. cancel: 있으면 "취소" 버튼을 함께 둔다. (창 안의 폼)
  */
-export function reasonForm({ id, submitText, danger = false, fields = [], confirm, onSubmit, reasonLabel = "사유 (필수)" }) {
+export function reasonForm({
+  id,
+  submitText,
+  danger = false,
+  fields = [],
+  confirm,
+  onSubmit,
+  reasonLabel = "사유 (필수)",
+  validate = () => null,
+  cancel = null,
+}) {
   const reason = el("textarea", { id: `${id}-reason`, rows: 2, maxLength: MAX_REASON });
   const errorText = el("p", { className: "form-error", attrs: { role: "alert" }, hidden: true });
   const submit = el("button", {
@@ -126,7 +139,14 @@ export function reasonForm({ id, submitText, danger = false, fields = [], confir
     ...fields,
     el("div", { className: "field" }, el("label", { htmlFor: reason.id, text: reasonLabel }), reason),
     errorText,
-    submit,
+    cancel
+      ? el(
+          "div",
+          { className: "admin-action-form__buttons" },
+          el("button", { type: "button", className: "button", text: "취소", onclick: cancel }),
+          submit,
+        )
+      : submit,
   );
   const showError = (message) => {
     errorText.textContent = message;
@@ -140,6 +160,11 @@ export function reasonForm({ id, submitText, danger = false, fields = [], confir
     if (text === "") {
       showError("사유를 입력해 주세요.");
       reason.focus();
+      return;
+    }
+    const invalid = validate();
+    if (invalid) {
+      showError(invalid);
       return;
     }
     const message = confirm(text);
@@ -156,6 +181,47 @@ export function reasonForm({ id, submitText, danger = false, fields = [], confir
     }
   });
   return form;
+}
+
+/**
+ * 사유를 받는 관리자 조치 창(<dialog>). 조치가 끝나면 true, 취소하면 false로 끝난다.
+ * 창을 한 번 더 거치는 것은 목록에서 잘못 눌러 바로 지우는 일을 막기 위해서다. (보내기 전 확인 창도 따로 뜬다)
+ * @param {{title: string, targetText: string, submitText: string, fields?: Node[], validate?: () => string|null,
+ *          confirm: (reason: string) => string|null, onSubmit: (reason: string) => Promise<void>}} options
+ */
+export function openReasonDialog({ title, targetText, submitText, fields = [], validate, confirm, onSubmit }) {
+  const titleId = "admin-dialog-title";
+  return new Promise((resolve) => {
+    let done = false;
+    const dialog = el("dialog", { className: "report-dialog admin-dialog", attrs: { "aria-labelledby": titleId } });
+    const form = reasonForm({
+      id: "admin-dialog-form",
+      submitText,
+      danger: true,
+      fields: [
+        el("h2", { id: titleId, className: "report-dialog__title", text: title }),
+        el("p", { className: "report-dialog__target", text: targetText }),
+        ...fields,
+      ],
+      validate,
+      confirm,
+      cancel: () => dialog.close(),
+      onSubmit: async (reason) => {
+        await onSubmit(reason);
+        done = true;
+        dialog.close();
+      },
+    });
+    dialog.append(form);
+    // Esc·취소·완료 모두 close 이벤트 한 곳에서 정리한다.
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      resolve(done);
+    });
+    document.body.append(dialog);
+    dialog.showModal();
+    form.querySelector("textarea, input").focus();
+  });
 }
 
 /** 관리 화면의 사용자 이름을 사용자 상세로 가는 링크로. 사용자가 없으면 글자만. */

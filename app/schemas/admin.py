@@ -324,3 +324,8 @@ class AdminReviewListResponse(BaseModel):
 class AdminSuspendResponse(BaseModel):
     # 정지 종료 시각(UTC). 이미 더 늦게 끝나는 정지가 있으면 그 시각이다. 정지 해제면 null.
     suspended_until: datetime | None
+
+
+class AdminPostDeleteResponse(BaseModel):
+    # 지운 글에 대한 미처리 신고 중 함께 처리한 신고 번호
+    resolved_report_ids: list[int]

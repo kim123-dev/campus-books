@@ -215,6 +215,11 @@ export function listAdminReviews(params) {
   return request("/admin/reviews", { query: params });
 }
 
+/** 관리자: 글 삭제. data: {reason}. 함께 처리한 신고 번호를 돌려준다. */
+export function adminDeletePost(postId, data) {
+  return request(`/admin/posts/${encodeURIComponent(postId)}/delete`, { method: "POST", json: data });
+}
+
 /** 관리자: 후기 숨김 해제. data: {reason}. 성공하면 204(null) */
 export function unhideReview(reviewId, data) {
   return request(`/admin/reviews/${encodeURIComponent(reviewId)}/unhide`, { method: "POST", json: data });

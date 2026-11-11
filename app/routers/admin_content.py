@@ -7,7 +7,12 @@ from app.core.database import get_db
 from app.core.deps import AdminUser
 from app.models import PostStatus
 from app.routers.admin import ADMIN_ROUTER_OPTIONS
-from app.schemas.admin import AdminPostListResponse, AdminReasonRequest, AdminReviewListResponse
+from app.schemas.admin import (
+    AdminPostDeleteResponse,
+    AdminPostListResponse,
+    AdminReasonRequest,
+    AdminReviewListResponse,
+)
 from app.schemas.post import PageQuery, SizeQuery
 from app.services import admin_content_service
 
@@ -26,6 +31,18 @@ def list_posts(
 ) -> AdminPostListResponse:
     items, total = admin_content_service.list_posts(db, page, size, q=q, status=status, seller_id=seller_id)
     return AdminPostListResponse(items=items, total=total, page=page, size=size)
+
+
+@router.post(
+    "/posts/{post_id}/delete",
+    response_model=AdminPostDeleteResponse,
+    summary="글 삭제 (신고 없이 직접). 사유 필수, 이 글의 미처리 신고는 함께 처리",
+    responses={404: {"description": "없는 글(이미 삭제됨)"}, 422: {"description": "사유 형식 오류"}},
+)
+def delete_post(
+    post_id: int, data: AdminReasonRequest, admin: AdminUser, db: Annotated[Session, Depends(get_db)]
+) -> AdminPostDeleteResponse:
+    return AdminPostDeleteResponse(resolved_report_ids=admin_content_service.delete_post(db, admin, post_id, data))
 
 
 @router.get("/reviews", response_model=AdminReviewListResponse, summary="후기 목록 (최신순, 숨긴 후기 포함)")

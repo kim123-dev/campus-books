@@ -64,7 +64,7 @@ function render(user) {
   const { counts } = user;
   const id = encodeURIComponent(user.id);
   document.getElementById("user-counts").replaceChildren(
-    countTile("작성한 글", counts.posts),
+    countTile("작성한 글", counts.posts, `/static/admin-posts.html?seller_id=${id}`),
     countTile("받은 신고", counts.reports_received, `/static/admin.html?status=ALL&reported_user_id=${id}`),
     countTile("미처리 신고", counts.reports_pending, `/static/admin.html?status=PENDING&reported_user_id=${id}`, {
       alert: counts.reports_pending > 0 ? "처리 필요" : null,

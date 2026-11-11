@@ -1,22 +1,24 @@
-"""관리자 글·후기 관리: 목록과 조치(후기 숨김 해제). 신고가 없어도 관리자가 직접 찾아 조치할 수 있게 한다."""
+"""관리자 글·후기 관리: 목록과 조치(글 삭제, 후기 숨김 해제). 신고가 없어도 관리자가 직접 찾아 조치할 수 있게 한다."""
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.exc import StaleDataError
 
-from app.core.exceptions import ReviewNotFoundError, ReviewNotHiddenError
+from app.core.exceptions import PostNotFoundError, ReviewNotFoundError, ReviewNotHiddenError
 from app.models import (
     AdminActionType,
     AdminTargetType,
     Post,
     PostStatus,
     Report,
+    ReportAction,
     ReportStatus,
     ReportTargetType,
     Review,
     User,
 )
 from app.schemas.admin import AdminPostItem, AdminReasonRequest, AdminReviewItem
-from app.services import admin_log_service, user_service
+from app.services import admin_log_service, image_storage, post_service, user_service
 from app.services.admin_log_service import user_ref
 from app.services.post_service import LIKE_ESCAPE, escape_like
 
@@ -147,3 +149,51 @@ def unhide_review(db: Session, admin: User, review_id: int, data: AdminReasonReq
         detail={"book_title": review.trade.book_title_snapshot, "hidden_at": user_service.as_utc(hidden_at).isoformat()},
     )
     db.commit()
+
+
+def delete_post(db: Session, admin: User, post_id: int, data: AdminReasonRequest) -> list[int]:
+    """신고 없이 글을 지운다. 없으면 404. 지운 글에 대한 미처리 신고는 같은 사유로 함께 처리하고 그 번호를 돌려준다.
+
+    지우는 규칙(대화방은 남기고 연결만 끊기, 찜·알림·사진 삭제)은 작성자 삭제·신고 처리와 같다. (post_service.delete_post_rows)
+    """
+    post = db.get(Post, post_id)
+    if post is None:
+        raise PostNotFoundError()
+    # 글은 지워지므로 무엇을 지웠는지 기록에 사본을 남긴다.
+    detail: dict = {"post_title": post.title, "book_title": post.book_title}
+    resolved_ids = list(
+        db.scalars(
+            select(Report.id)
+            .where(Report.target_type == ReportTargetType.POST, Report.target_id == post.id, Report.status == ReportStatus.PENDING)
+            .order_by(Report.id)
+        )
+    )
+    if resolved_ids:
+        # 글이 없어지면 더 판단할 내용이 없으므로, 신고 처리에서 글을 지울 때와 같이 함께 처리한다.
+        db.execute(
+            update(Report)
+            .where(Report.id.in_(resolved_ids), Report.status == ReportStatus.PENDING)
+            .values(
+                status=ReportStatus.RESOLVED,
+                action=ReportAction.DELETE_POST,
+                resolution_note=data.reason,
+                resolved_by_id=admin.id,
+                resolved_at=func.now(),
+            )
+            .execution_options(synchronize_session=False)
+        )
+        detail["resolved_ids"] = resolved_ids
+    admin_log_service.record(
+        db, admin, AdminActionType.DELETE_POST, AdminTargetType.POST, post.id,
+        target_user_id=post.seller_id, reason=data.reason, detail=detail,
+    )
+    image_names = post_service.delete_post_rows(db, post)
+    try:
+        db.commit()
+    except StaleDataError:
+        # 같은 순간 작성자나 다른 관리자가 먼저 지웠다. 이 요청의 기록·신고 처리도 함께 취소된다.
+        db.rollback()
+        raise PostNotFoundError() from None
+    # 사진 파일은 커밋이 성공한 뒤에 지운다. (작성자 삭제와 같은 순서)
+    image_storage.remove_files(image_names)
+    return resolved_ids
