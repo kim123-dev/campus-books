@@ -1261,7 +1261,13 @@ a.button {
   margin-bottom: 12px;
 }
 
+/* 빈 화면의 버튼. 빈 화면에서만 보이므로(평소엔 hidden) 다른 화면의 버튼 위치에는 영향이 없다.
+   위의 그림·문구와 같이 가운데에 두고, 버튼이 여럿이면 나란히 놓되 좁은 화면에서는 다음 줄로 넘긴다. */
 .empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
   margin: 0 0 24px;
 }
 
