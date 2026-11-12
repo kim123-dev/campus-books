@@ -105,7 +105,7 @@ node tools/perf/compare.mjs tools/perf/out/before/results.json tools/perf/out/af
 
 | 이름 | 뜻 | 기본값 |
 |---|---|---|
-| `BASE` | 측정할 주소 | 운영 사이트 |
+| `BASE` | 측정할 주소 | 운영 사이트 `https://campus-books.up.railway.app` |
 | `TOKEN` | 로그인 토큰. 없으면 쪽지함은 로그인 화면으로 넘어가는 시간을 잰다 | 없음 |
 | `LATENCY` | 네트워크 요청마다 더할 지연(ms). 로컬 서버를 운영과 비슷한 왕복 시간으로 잴 때 | 0 |
 | `COLD_WAIT` | 브라우저 재시작 재방문 전 기다릴 초 | 150 |

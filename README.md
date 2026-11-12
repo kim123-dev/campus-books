@@ -631,7 +631,7 @@ python -m app.cli make-admin admin@campus.ac.kr
 
 ## 배포 (Railway)
 
-> 배포 주소: **https://campus-books-production.up.railway.app**
+> 배포 주소: **https://campus-books.up.railway.app**
 
 [Railway](https://railway.com)에 GitHub 저장소를 연결해 배포하도록 구성했습니다. 앱 서비스 하나, PostgreSQL 서비스 하나, 사진용 볼륨 하나로 이루어집니다.
 

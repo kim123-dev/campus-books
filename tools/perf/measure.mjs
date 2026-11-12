@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const BASE = (process.env.BASE ?? "https://campus-books-production.up.railway.app").replace(/\/$/, "");
+const BASE = (process.env.BASE ?? "https://campus-books.up.railway.app").replace(/\/$/, "");
 const OUT = resolve(process.argv[2] ?? "tools/perf/out");
 const RUNS = Number(process.argv[3] ?? 3);
 const TOKEN = process.env.TOKEN ?? null;
