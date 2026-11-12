@@ -3,7 +3,7 @@
 import { listWishlist } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
 import { getToken } from "../token.js";
-import { renderPagination, renderPostCard } from "../ui.js";
+import { EMPTY_WISHLIST_IMAGE, renderEmptyState, renderPagination, renderPostCard } from "../ui.js";
 import { createWishlistButton } from "../wishlist-button.js";
 
 const PAGE_SIZE = 10; // 목록·내 글 화면과 같게 맞춘다.
@@ -79,7 +79,9 @@ function render({ items, total, page, size }) {
   const totalPages = Math.max(1, Math.ceil(total / size));
 
   if (total === 0) {
-    summary.textContent = "아직 찜한 글이 없습니다. 마음에 드는 교재에서 하트를 눌러 보세요.";
+    renderEmptyState(summary, "아직 찜한 글이 없습니다. 마음에 드는 교재에서 하트를 눌러 보세요.", {
+      image: EMPTY_WISHLIST_IMAGE,
+    });
     emptyActions.hidden = false;
     return;
   }

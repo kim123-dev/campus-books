@@ -3,7 +3,7 @@
 import { listConversations } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
 import { getToken } from "../token.js";
-import { el, formatShortDate, renderPagination, statusBadge } from "../ui.js";
+import { el, EMPTY_MESSAGES_IMAGE, formatShortDate, renderEmptyState, renderPagination, statusBadge } from "../ui.js";
 
 const PAGE_SIZE = 20;
 const MAX_BADGE_COUNT = 99;
@@ -70,7 +70,9 @@ function render({ items, total, page, size }) {
   const totalPages = Math.max(1, Math.ceil(total / size));
 
   if (total === 0) {
-    summary.textContent = "아직 주고받은 쪽지가 없습니다. 판매글 상세 화면에서 문의를 시작해 보세요.";
+    renderEmptyState(summary, "아직 주고받은 쪽지가 없습니다. 판매글 상세 화면에서 문의를 시작해 보세요.", {
+      image: EMPTY_MESSAGES_IMAGE,
+    });
     emptyActions.hidden = false;
     return;
   }

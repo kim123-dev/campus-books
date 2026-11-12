@@ -3,7 +3,16 @@
 import { changePassword, listMyPosts, withdraw } from "../api.js";
 import { logout, redirectToLogin, renderHeader } from "../auth.js";
 import { clearToken, getToken, setToken } from "../token.js";
-import { clearFormErrors, el, formatDate, renderPagination, renderPostCard, showFormErrors } from "../ui.js";
+import {
+  clearFormErrors,
+  el,
+  EMPTY_POSTS_IMAGE,
+  formatDate,
+  renderEmptyState,
+  renderPagination,
+  renderPostCard,
+  showFormErrors,
+} from "../ui.js";
 
 const PAGE_SIZE = 10; // 목록 화면과 같게 맞춘다. (서버 기본값은 20)
 
@@ -196,7 +205,7 @@ function render({ items, total, page, size }) {
   const totalPages = Math.max(1, Math.ceil(total / size));
 
   if (total === 0) {
-    summary.textContent = "아직 작성한 글이 없습니다.";
+    renderEmptyState(summary, "아직 작성한 글이 없습니다.", { image: EMPTY_POSTS_IMAGE });
     emptyActions.hidden = false;
     return;
   }
