@@ -404,6 +404,63 @@ def test_gallery_is_swipeable_only_on_mobile() -> None:
     assert re.search(r"\.gallery__main \{[^}]*scroll-snap-align: start;", base)
 
 
+# ---------- 목록 화면(홈): 배너, 한 줄 검색, 빈 화면 버튼 ----------
+
+INDEX_HTML = STATIC_DIR / "index.html"
+
+
+def webp_size(path: Path) -> tuple[int, int]:
+    # 확장 WebP(VP8X) 머리의 캔버스 가로·세로. 투명 배경 그림은 이 형식이다.
+    data = path.read_bytes()[:30]
+    assert data[:4] == b"RIFF" and data[8:12] == b"WEBP" and data[12:16] == b"VP8X", path.name
+    return 1 + int.from_bytes(data[24:27], "little"), 1 + int.from_bytes(data[27:30], "little")
+
+
+def test_home_hero_image_has_real_size_and_is_decorative() -> None:
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    tag = re.search(r'<img class="home-hero__image[^>]*>', html)
+    assert tag, "배너 그림이 없습니다."
+    src = re.search(r'src="([^"]+)"', tag.group(0)).group(1)
+    # 실제 파일이 있고, width·height가 파일 크기와 같아야 그림을 받기 전에도 자리가 맞게 잡힌다.
+    assert webp_size(STATIC_DIR / src.removeprefix("/static/")) == (480, 360)
+    assert 'width="480"' in tag.group(0) and 'height="360"' in tag.group(0)
+    assert 'alt=""' in tag.group(0)
+    assert 'loading="lazy"' not in tag.group(0)  # 첫 화면에 보이는 그림이라 늦게 받지 않는다.
+
+
+def test_home_hero_shape_is_decided_before_render() -> None:
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    head = html.split("</head>")[0]
+    # 모듈(defer)보다 먼저, 화면을 그리기 전에 실행되는 일반 스크립트여야 배너 모양이 처음부터 맞는다.
+    flag = '<script src="/static/js/signed-in.js"></script>'
+    assert flag in head
+    assert head.index(flag) < head.index('<script type="module"')
+    # 토큰 키 이름이 token.js와 같아야 로그인 여부를 맞게 읽는다.
+    token_key = re.search(r'const TOKEN_KEY = "([^"]+)"', (STATIC_DIR / "js" / "token.js").read_text(encoding="utf-8")).group(1)
+    assert f'localStorage.getItem("{token_key}")' in (STATIC_DIR / "js" / "signed-in.js").read_text(encoding="utf-8")
+    # 로그인한 사용자용 띠 문구와 비로그인 소개 문구가 둘 다 있고, 버튼은 글쓰기 화면으로 간다.
+    assert "home-hero__member" in html and "home-hero__guest" in html
+    assert '<a class="button button--primary home-hero__button" href="/static/post-form.html">' in html
+
+
+def test_home_search_is_one_row_on_every_width() -> None:
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    # PC에서도 검색 버튼·필터 버튼을 쓰므로 모바일 전용 표시가 없어야 한다.
+    for button_id in ("search-button", "filter-toggle"):
+        tag = re.search(rf'<button[^>]*id="{button_id}"[^>]*>', html, re.S).group(0)
+        assert "mobile-only" not in tag, button_id
+    # 접힘 규칙이 모바일 구역이 아니라 공통 구역에 있어야 PC에서도 접힌다.
+    css = STYLE_CSS.read_text(encoding="utf-8")
+    mobile_start = css.index("@media (max-width: 767.98px)")
+    assert css.index(".filter-form:not(.is-open) .filter-form__more") < mobile_start
+
+
+def test_home_empty_state_has_first_post_button() -> None:
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    block = re.search(r'<p id="empty-actions" class="empty-actions" hidden>(.*?)</p>', html, re.S)
+    assert block and 'href="/static/post-form.html">첫 교재 올리기</a>' in block.group(1)
+
+
 # ---------- 홈 화면 앱 (PWA) ----------
 
 MANIFEST = STATIC_DIR / "manifest.json"

@@ -667,10 +667,148 @@ a.button {
   font-weight: 600;
 }
 
-/* 모바일에서 검색창 줄과 접히는 필터 칸을 묶는 요소. PC에서는 상자를 만들지 않아(contents) 원래 격자 그대로다. */
-.filter-form__search-row,
+/* ---------- 목록 검색: 한 줄 검색창 + 접히는 필터 (PC·모바일 공통) ----------
+   검색창·검색 버튼·필터 버튼을 한 줄에 두고, 판매 상태·과목명·가격은 필터 버튼을 눌렀을 때만 펼친다. */
+
+/* 검색창 위 "검색어" 라벨은 화면에서 숨기고 화면 낭독기에는 남긴다. (자리표시 글자가 같은 뜻) */
+.filter-form__search > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.filter-form__search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-form__search-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-form__icon-button {
+  flex: none;
+  width: 52px;
+  min-height: 52px;
+  padding: 0;
+}
+
+.filter-form__toggle {
+  flex: none;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 14px;
+}
+
+.filter-form__toggle[aria-expanded="true"] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+}
+
+.filter-form .icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.filter-form__count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+}
+
+/* 펼친 칸은 상자를 만들지 않아(contents) 검색 카드의 격자(PC 4칸)에 그대로 놓인다. */
 .filter-form__more {
   display: contents;
+}
+
+.filter-form:not(.is-open) .filter-form__more {
+  display: none;
+}
+
+/* ---------- 목록 배너 ----------
+   로그인하지 않았으면 소개 문구·버튼·그림, 로그인했으면(<html data-signed-in>, signed-in.js) 얇은 한 줄 띠.
+   모양은 처음부터 CSS가 정하므로 로그인 확인을 기다리는 동안 목록이 밀리지 않는다. */
+
+.home-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 24px;
+  padding: 28px 32px;
+  border-radius: var(--radius);
+  background: var(--color-primary-soft);
+}
+
+.home-hero__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.home-hero__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.home-hero__sub {
+  margin: 0;
+  color: var(--color-sub);
+}
+
+.home-hero__button {
+  margin-top: 8px;
+}
+
+/* 그림은 PC 240px. 높이는 width·height 비율(4:3)로 정해진다. */
+.home-hero__image {
+  flex: none;
+  width: 240px;
+  height: auto;
+}
+
+:root:not([data-signed-in]) .home-hero__member,
+:root[data-signed-in] .home-hero__guest {
+  display: none;
+}
+
+/* 로그인한 사용자: 문구 한 줄 + 버튼만 있는 얇은 띠 */
+:root[data-signed-in] .home-hero {
+  padding: 8px 8px 8px 20px;
+  border-radius: var(--radius-control);
+}
+
+:root[data-signed-in] .home-hero__text {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+:root[data-signed-in] .home-hero__title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+:root[data-signed-in] .home-hero__button {
+  flex: none;
+  margin-top: 0;
 }
 
 /* 하단 탭 바는 모바일에서만 보인다. (아래 "모바일" 구역) */
@@ -678,7 +816,7 @@ a.button {
   display: none;
 }
 
-/* 모바일 전용 버튼(검색 아이콘, 필터, 내 정보의 관리·로그아웃). PC에서는 헤더·필터 칸이 같은 일을 한다. */
+/* 모바일 전용 버튼(사진 "2 / 3" 표시, 내 정보의 관리·로그아웃). PC에서는 작은 사진 목록·헤더가 같은 일을 한다. */
 @media (min-width: 768px) {
   .mobile-only {
     display: none !important;
@@ -2711,70 +2849,41 @@ a.button {
     bottom: calc(80px + env(safe-area-inset-bottom));
   }
 
-  /* ----- 목록 검색: 한 줄 검색창 + 접히는 필터 ----- */
+  /* ----- 목록 검색: 한 줄 검색창 + 접히는 필터 (구조는 공통 구역, 여기는 여백만) ----- */
 
   .filter-form {
     gap: 12px;
     padding: 12px;
   }
 
-  /* 검색창 위 "검색어" 라벨은 화면에서 숨기고 화면 낭독기에는 남긴다. (자리표시 글자가 같은 뜻) */
-  .filter-form__search > label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+  /* ----- 목록 배너: 그림을 문구 오른쪽에 작게 ----- */
+
+  .home-hero {
+    gap: 12px;
+    padding: 18px 16px;
   }
 
-  .filter-form__search-row {
-    display: flex;
-    gap: 8px;
+  .home-hero__title {
+    font-size: 1.125rem;
   }
 
-  .filter-form__search-row input {
-    flex: 1;
-    min-width: 0;
+  .home-hero__image {
+    width: 104px;
   }
 
-  .filter-form__icon-button {
-    flex: none;
-    width: 52px;
-    min-height: 52px;
-    padding: 0;
+  /* 로그인한 사용자의 띠는 첫 화면에 카드가 4장 이상 보이도록 가장 얇게. 버튼은 누르기 좋은 최소 높이 44px. */
+  :root[data-signed-in] .home-hero {
+    margin-top: 8px;
+    padding: 4px 4px 4px 14px;
   }
 
-  .filter-form__toggle {
-    flex: none;
-    gap: 6px;
-    min-height: 52px;
+  :root[data-signed-in] .home-hero__button {
+    min-height: 44px;
     padding: 0 14px;
   }
 
-  .filter-form__toggle[aria-expanded="true"] {
-    background: var(--color-primary-soft);
-    color: var(--color-primary-hover);
-  }
-
-  .filter-form .icon {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .filter-form__count {
-    min-width: 20px;
-    height: 20px;
-    padding: 0 6px;
-  }
-
-  .filter-form:not(.is-open) .filter-form__more {
-    display: none;
+  :root[data-signed-in] .home-hero + .page-title {
+    margin-top: 12px;
   }
 
   .result-summary {

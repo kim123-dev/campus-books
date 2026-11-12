@@ -18,12 +18,13 @@ import { createWishlistButton } from "../wishlist-button.js";
 
 const PAGE_SIZE = 10;
 const FILTER_KEYS = ["q", "status", "course_name", "min_price", "max_price"];
-// 모바일에서 "필터" 버튼 안에 접어 두는 조건. 검색어(q)는 항상 보이는 한 줄 검색창에 있다.
+// "필터" 버튼 안에 접어 두는 조건. 검색어(q)는 항상 보이는 한 줄 검색창에 있다.
 const FOLDED_KEYS = FILTER_KEYS.filter((key) => key !== "q");
 
 const form = document.getElementById("filter-form");
 const filterError = document.getElementById("filter-error");
 const summary = document.getElementById("result-summary");
+const emptyActions = document.getElementById("empty-actions");
 const list = document.getElementById("post-list");
 const pagination = document.getElementById("pagination");
 const filterToggle = document.getElementById("filter-toggle");
@@ -39,7 +40,7 @@ showInstallGuide(document.querySelector("main"));
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  // 모바일에서는 검색하면 필터를 접어 결과가 바로 보이게 한다. (오류가 나면 load가 다시 펼친다)
+  // 검색하면 필터를 접어 결과가 바로 보이게 한다. (오류가 나면 load가 다시 펼친다)
   setFilterOpen(false);
   navigate(readForm(), 1); // 조건이 바뀌면 첫 페이지부터 본다.
 });
@@ -49,8 +50,8 @@ document.getElementById("filter-reset").addEventListener("click", () => {
   navigate({}, 1);
 });
 
-// ---------- 모바일 필터 접기 ----------
-// PC에서는 CSS가 버튼을 숨기고 모든 칸을 보여주므로 이 상태와 상관없다.
+// ---------- 필터 접기 ----------
+// PC·모바일 모두 검색창 한 줄만 보이고, 필터 버튼을 누르면 판매 상태·과목명·가격 칸이 펼쳐진다.
 
 document.getElementById("search-button").append(icon("search"));
 filterToggle.append(icon("filter"), el("span", { text: "필터" }), filterCount);
@@ -124,6 +125,7 @@ async function load() {
   showFilterCount(filters);
   clearFormErrors(form, filterError);
   summary.textContent = "불러오는 중…";
+  emptyActions.hidden = true;
   list.replaceChildren();
   pagination.replaceChildren();
 
@@ -148,7 +150,10 @@ function render(data, filters, me) {
   if (total === 0) {
     // 검색·필터 결과가 없을 때와 글이 하나도 없을 때는 상황이 달라 그림도 다르게 둔다.
     if (hasFilters) renderEmptyState(summary, "조건에 맞는 글이 없습니다.", { image: EMPTY_SEARCH_IMAGE });
-    else renderEmptyState(summary, "아직 등록된 글이 없습니다.", { image: EMPTY_POSTS_IMAGE });
+    else {
+      renderEmptyState(summary, "아직 등록된 글이 없습니다.", { image: EMPTY_POSTS_IMAGE });
+      emptyActions.hidden = false; // "첫 교재 올리기"
+    }
     return;
   }
 

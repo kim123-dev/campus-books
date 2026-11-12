@@ -78,7 +78,7 @@ def test_precache_covers_every_page_and_script() -> None:
     # 서비스 워커 자신과 화면에 쓰지 않는 파일(라이선스 글)은 미리 받지 않는다.
     assert "/static/sw.js" not in paths
     # 빈 화면 그림(webp)도 미리 받아 두어, 오프라인이나 첫 화면에서도 그림이 바로 뜬다.
-    for name in ("empty-posts", "empty-wishlist", "empty-messages", "empty-search", "empty-alerts"):
+    for name in ("empty-posts", "empty-wishlist", "empty-messages", "empty-search", "empty-alerts", "hero"):
         assert f"/static/img/{name}.webp" in paths
     assert not any(path.endswith(".txt") for path in paths)
     assert all(path.startswith("/static/") and (STATIC_DIR / path.removeprefix("/static/")).is_file() for path in paths)

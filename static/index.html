@@ -14,6 +14,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Campus Books" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- 화면을 그리기 전에 로그인 여부(저장된 토큰)를 표시해, 배너가 처음부터 맞는 모양으로 나오게 한다. -->
+    <script src="/static/js/signed-in.js"></script>
     <script type="module" src="/static/js/pwa.js"></script>
     <script type="module" src="/static/js/pages/index.js"></script>
   </head>
@@ -21,19 +23,32 @@
     <header id="site-header" class="site-header"></header>
 
     <main class="container">
+      <!-- 서비스 소개 배너. 로그인하지 않은 사용자에게는 문구·버튼·그림, 로그인한 사용자에게는 얇은 한 줄 띠.
+           어느 모양일지는 head의 signed-in.js가 정하고 CSS가 그린다. -->
+      <section class="home-hero" aria-label="서비스 소개">
+        <div class="home-hero__text">
+          <p class="home-hero__title home-hero__guest">같은 학교 학생끼리 전공 교재를 사고팔아요</p>
+          <p class="home-hero__sub home-hero__guest">다 본 교재는 팔고, 필요한 교재는 싸게 구해요.</p>
+          <p class="home-hero__title home-hero__member">안 쓰는 교재가 있나요?</p>
+          <a class="button button--primary home-hero__button" href="/static/post-form.html">교재 올리기</a>
+        </div>
+        <!-- 꾸밈 그림. 실제 크기(width·height)를 넣어 그림을 받기 전에도 자리를 잡는다. -->
+        <img class="home-hero__image home-hero__guest" src="/static/img/hero.webp" alt="" width="480" height="360" decoding="async" />
+      </section>
+
       <h1 class="page-title">중고 교재 목록</h1>
 
       <form id="filter-form" class="card filter-form" novalidate>
         <div class="field field--wide filter-form__search">
           <label for="q">검색어</label>
-          <!-- 모바일: 검색창 한 줄 + 검색·필터 버튼. 필터 버튼을 누르면 아래 칸이 펼쳐진다. (PC는 모든 칸이 항상 보임) -->
+          <!-- 검색창 한 줄 + 검색·필터 버튼. 필터 버튼을 누르면 아래 칸이 펼쳐진다. (PC·모바일 같은 구조) -->
           <div class="filter-form__search-row">
             <input id="q" name="q" type="search" maxlength="100" placeholder="제목, 교재명, 과목명" enterkeyhint="search" />
-            <button type="submit" id="search-button" class="button button--primary filter-form__icon-button mobile-only" aria-label="검색"></button>
+            <button type="submit" id="search-button" class="button button--primary filter-form__icon-button" aria-label="검색"></button>
             <button
               type="button"
               id="filter-toggle"
-              class="button filter-form__toggle mobile-only"
+              class="button filter-form__toggle"
               aria-expanded="false"
               aria-controls="filter-more"
             ></button>
@@ -81,6 +96,10 @@
       </form>
 
       <p id="result-summary" class="result-summary" aria-live="polite"></p>
+      <!-- 글이 하나도 없을 때만 보인다. 글쓰기 화면이 비로그인 사용자를 로그인 화면으로 보내고, 로그인 뒤 돌아온다. -->
+      <p id="empty-actions" class="empty-actions" hidden>
+        <a class="button button--primary" href="/static/post-form.html">첫 교재 올리기</a>
+      </p>
       <ul id="post-list" class="post-list"></ul>
       <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
     </main>
