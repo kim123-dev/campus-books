@@ -21,7 +21,7 @@ const rect = (selector) =>
 const visible = (selector) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); return Boolean(e && e.getClientRects().length); })()`);
 const noHScroll = () => evaluate("document.documentElement.scrollWidth <= innerWidth");
 // 배너 때문에 화면이 밀렸는지. 로그인 확인을 기다리는 동안 배너 모양(높이)이 바뀌면 배너가 밀림 원인으로 잡힌다.
-// 페이지 전체 CLS는 참고로만 남긴다. (PC에서는 배너와 상관없이 화면이 뜰 때 body가 한 번 올라가는 밀림이 원래 있다)
+// 페이지 전체 CLS도 함께 본다. 헤더는 JS가 그리므로, CSS가 헤더 높이를 미리 잡아 두지 않으면 헤더가 채워질 때 아래 전체가 밀린다.
 const layoutShift = () =>
   evaluate(`new Promise((resolve) => { let total = 0, hero = 0;
     new PerformanceObserver((l) => { for (const e of l.getEntries()) { if (e.hadRecentInput) continue; total += e.value;
@@ -46,6 +46,7 @@ try {
   check("비로그인: 가로 스크롤 없음", await noHScroll());
   const guestShift = await layoutShift();
   check("비로그인: 배너 때문에 밀림 없음", guestShift.hero === 0 && (await rect(".home-hero")).h === hero.h, JSON.stringify(guestShift));
+  check("비로그인: 페이지 전체 밀림 없음(CLS < 0.01)", guestShift.total < 0.01, JSON.stringify(guestShift));
   await screenshot(`home-guest-${W}.png`);
 
   // ---------- 로그인: 얇은 띠 ----------
@@ -57,6 +58,7 @@ try {
   check(`로그인: 띠 높이 ${MOBILE ? 52 : 64}px 이하·한 줄`, strip && strip.h <= (MOBILE ? 52 : 64) && (await rect(".home-hero__member")).top >= strip.top, JSON.stringify(strip));
   const memberShift = await layoutShift();
   check("로그인: 배너(띠) 때문에 밀림 없음", memberShift.hero === 0, JSON.stringify(memberShift));
+  check("로그인: 페이지 전체 밀림 없음(CLS < 0.01)", memberShift.total < 0.01, JSON.stringify(memberShift));
   check("로그인: 가로 스크롤 없음", await noHScroll());
   await screenshot(`home-member-${W}.png`);
 

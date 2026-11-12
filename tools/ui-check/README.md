@@ -21,6 +21,10 @@ tools/ui-check/run.sh mobile-check
 # 폭 바꾸기
 WIDTH=390 tools/ui-check/run.sh mobile-check
 
+# 목록 화면은 모바일과 PC 둘 다
+tools/ui-check/run.sh home-check
+WIDTH=1280 tools/ui-check/run.sh home-check
+
 # PC 화면 비교: 변경 전 기록 → 변경 후 기록 → 비교
 tools/ui-check/run.sh pc-snapshot before
 tools/ui-check/run.sh pc-snapshot after
@@ -29,7 +33,8 @@ node tools/ui-check/compare.mjs tools/ui-check/out before after
 
 | 스크립트 | 확인 내용 |
 |---|---|
-| `mobile-check` | 모바일 탭 바, 목록·카드, 터치 영역 44px, 글자 16px, 상세 갤러리, 대화 키보드 |
+| `mobile-check` | 모바일 탭 바, 목록·카드(로그인 상태 첫 화면 4장 이상), 터치 영역 44px, 글자 16px, 상세 갤러리, 대화 키보드 |
+| `home-check` | 목록 화면(375·1280px): 비로그인 배너(문구·버튼·그림 크기)와 로그인 띠(`<html data-signed-in>`, 높이), 배너·페이지 전체 밀림(CLS), 한 줄 검색과 필터 펼치기, 글이 없을 때 "첫 교재 올리기"와 로그인 거쳐 글쓰기로 |
 | `ui-check` | 쪽지(대화) 화면 |
 | `photo-check` | 사진 업로드 (개수 제한, 5MB 초과, 형식 오류, 부분 실패) |
 | `wish-check` | 찜하기 |
@@ -46,7 +51,7 @@ node tools/ui-check/compare.mjs tools/ui-check/out before after
 
 | 이름 | 기본값 | 설명 |
 |---|---|---|
-| `WIDTH` | `375` | 모바일 화면 폭 |
+| `WIDTH` | `375` | 화면 폭 (768 미만이면 모바일로, 이상이면 PC로 띄움: `home-check`) |
 | `UI_CHECK_OUT` | `tools/ui-check/out` | 결과·임시 DB 폴더 |
 | `UI_CHECK_PORT` | `8001` | 확인용 서버 포트 |
 | `CHROME_PATH` | OS별 기본 설치 경로 | Chrome 실행 파일 |

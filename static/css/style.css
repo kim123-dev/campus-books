@@ -130,10 +130,13 @@ a {
 
 /* ---------- 헤더 ---------- */
 
+/* 헤더 안은 JS(auth.js)가 그리므로, 비어 있는 첫 화면에서도 최종 높이만큼 자리를 잡아 둔다.
+   그러지 않으면 높이 0으로 먼저 그려졌다가 헤더가 채워질 때 아래 내용 전체가 60px 밀려 내려간다. */
 .site-header {
   position: sticky;
   top: 0;
   z-index: 10;
+  min-height: 60px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow-header);
 }
@@ -2739,10 +2742,21 @@ a.button {
     display: none;
   }
 
+  .site-header {
+    min-height: 52px;
+  }
+
   .site-header__inner {
     min-height: 52px;
     padding-top: 4px;
     padding-bottom: 4px;
+  }
+
+  /* 관리 화면의 사용자 이름 링크도 손가락으로 누르기 좋게 44px 높이를 준다. */
+  .admin-user-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 
   .site-logo,

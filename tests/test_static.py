@@ -461,6 +461,19 @@ def test_home_empty_state_has_first_post_button() -> None:
     assert block and 'href="/static/post-form.html">첫 교재 올리기</a>' in block.group(1)
 
 
+def test_header_reserves_its_final_height() -> None:
+    # 헤더 안은 JS가 그린다. 비어 있는 첫 화면에서도 헤더 줄의 최종 높이(PC 60px·모바일 52px)를 잡아 두어야
+    # 헤더가 채워질 때 아래 내용 전체가 밀리지 않는다.
+    css = STYLE_CSS.read_text(encoding="utf-8")
+    mobile = css[css.index("@media (max-width: 767.98px)") :]
+    for block, label in ((css, "PC"), (mobile, "모바일")):
+        header = re.search(r"\.site-header \{([^}]*)\}", block).group(1)
+        inner = re.search(r"\.site-header__inner \{([^}]*)\}", block).group(1)
+        header_height = re.search(r"min-height: (\d+)px", header)
+        assert header_height, f"{label} 헤더 높이 없음"
+        assert header_height.group(1) == re.search(r"min-height: (\d+)px", inner).group(1), label
+
+
 # ---------- 홈 화면 앱 (PWA) ----------
 
 MANIFEST = STATIC_DIR / "manifest.json"
