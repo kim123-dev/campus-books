@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -441,11 +442,27 @@ def test_apple_touch_icon_is_180px() -> None:
     assert png_size(STATIC_DIR / "img" / "apple-touch-icon.png") == (180, 180)
 
 
+def test_favicon_and_logo_sizes() -> None:
+    # 탭 아이콘은 HTML의 sizes="48x48"과, 헤더 로고는 auth.js의 width·height(128)와 맞아야 한다.
+    assert png_size(STATIC_DIR / "img" / "favicon.png") == (48, 48)
+    assert png_size(STATIC_DIR / "img" / "logo.png") == (128, 128)
+
+
+def test_manifest_icons_have_separate_any_and_maskable() -> None:
+    # 아이콘이 보라 바탕을 꽉 채운 정사각형이고 책은 가운데 안전 영역(지름 80%) 안에 있어 maskable로 쓸 수 있다.
+    # "any maskable"을 한 항목에 같이 쓰지 않는 것은 크롬 권장 사항이다. 용도마다 따로 적는다.
+    icons = json.loads(MANIFEST.read_text(encoding="utf-8"))["icons"]
+    assert all(icon["purpose"] in {"any", "maskable"} for icon in icons)
+    for purpose in ("any", "maskable"):
+        assert {icon["sizes"] for icon in icons if icon["purpose"] == purpose} == {"192x192", "512x512"}
+
+
 @pytest.mark.parametrize("html", HTML_FILES, ids=lambda path: path.name)
 def test_pages_link_manifest_and_apple_meta(html: Path) -> None:
     text = html.read_text(encoding="utf-8")
     assert '<link rel="manifest" href="/static/manifest.json" />' in text
     assert '<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png" />' in text
+    assert '<link rel="icon" href="/static/img/favicon.png" type="image/png" sizes="48x48" />' in text
     assert '<meta name="apple-mobile-web-app-capable" content="yes" />' in text
     assert '<meta name="apple-mobile-web-app-title" content="Campus Books" />' in text
     assert '<meta name="theme-color" content="#5b3fd6" />' in text

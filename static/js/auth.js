@@ -7,6 +7,7 @@ import { el, formatMonthDayTime, icon } from "./ui.js";
 export const LOGIN_PAGE = "/static/login.html";
 export const SIGNUP_PAGE = "/static/signup.html";
 const HOME_PAGE = "/static/index.html";
+const LOGO_IMAGE = "/static/img/logo.png";
 const POST_FORM_PAGE = "/static/post-form.html";
 const MY_POSTS_PAGE = "/static/my-posts.html";
 const WISHLIST_PAGE = "/static/wishlist.html";
@@ -81,7 +82,14 @@ export async function renderHeader(container) {
     el(
       "div",
       { className: "container site-header__inner" },
-      el("a", { className: "site-logo", href: HOME_PAGE, text: "Campus Books" }),
+      el(
+        "a",
+        { className: "site-logo", href: HOME_PAGE },
+        // 링크 이름은 옆의 글자가 되므로 그림은 꾸밈으로 둔다(alt="").
+        // 파일은 128px이라 고해상도 화면에서도 선명하고, width·height로 자리를 먼저 잡아 헤더가 흔들리지 않는다.
+        el("img", { className: "site-logo__mark", src: LOGO_IMAGE, alt: "", width: 128, height: 128, decoding: "async" }),
+        "Campus Books",
+      ),
       el("div", { className: "site-header__right" }, nav, bellSlot),
     ),
   );

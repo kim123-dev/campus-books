@@ -151,6 +151,8 @@ a {
 }
 
 .site-logo {
+  display: inline-flex;
+  align-items: center;
   color: var(--color-primary);
   font-size: 1.2rem;
   font-weight: 700;
@@ -159,10 +161,11 @@ a {
   white-space: nowrap;
 }
 
-/* 로고는 JS가 글자로 만들므로 아이콘은 CSS로 붙인다. "/ ''"는 화면 낭독기가 이모지를 읽지 않게 한다. */
-.site-logo::before {
-  content: "📚";
-  content: "📚" / "";
+/* 글자 왼쪽 로고 그림. 예전 이모지 로고가 보이던 크기(약 20px)와 간격(6px)을 그대로 쓴다. */
+.site-logo__mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
   margin-right: 6px;
 }
 
