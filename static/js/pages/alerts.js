@@ -12,8 +12,10 @@ import { getToken } from "../token.js";
 import {
   clearFormErrors,
   el,
+  EMPTY_ALERTS_IMAGE,
   formatDate,
   formatPrice,
+  renderEmptyState,
   renderPagination,
   safeImageUrl,
   showFormErrors,
@@ -187,7 +189,9 @@ async function loadNotifications() {
 function renderNotifications({ items, total, page, size }) {
   const totalPages = Math.max(1, Math.ceil(total / size));
   if (total === 0) {
-    summary.textContent = "아직 받은 알림이 없습니다. 찾는 교재를 등록해 두면 새 글이 올라올 때 알려 드려요.";
+    renderEmptyState(summary, "아직 받은 알림이 없습니다. 찾는 교재를 등록해 두면 새 글이 올라올 때 알려 드려요.", {
+      image: EMPTY_ALERTS_IMAGE,
+    });
     return;
   }
   const unreadCount = items.filter((item) => item.read_at === null).length;

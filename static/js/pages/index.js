@@ -7,6 +7,7 @@ import {
   clearFormErrors,
   el,
   EMPTY_POSTS_IMAGE,
+  EMPTY_SEARCH_IMAGE,
   icon,
   renderEmptyState,
   renderPagination,
@@ -145,8 +146,8 @@ function render(data, filters, me) {
   const hasFilters = Object.keys(filters).length > 0;
 
   if (total === 0) {
-    // 검색·필터 결과가 없을 때의 그림은 따로 넣을 예정이라, 지금은 글이 하나도 없을 때만 그림을 둔다.
-    if (hasFilters) renderEmptyState(summary, "조건에 맞는 글이 없습니다.");
+    // 검색·필터 결과가 없을 때와 글이 하나도 없을 때는 상황이 달라 그림도 다르게 둔다.
+    if (hasFilters) renderEmptyState(summary, "조건에 맞는 글이 없습니다.", { image: EMPTY_SEARCH_IMAGE });
     else renderEmptyState(summary, "아직 등록된 글이 없습니다.", { image: EMPTY_POSTS_IMAGE });
     return;
   }

@@ -172,6 +172,10 @@ export const EMPTY_POSTS_IMAGE = { src: "/static/img/empty-posts.webp", width: 4
 export const EMPTY_WISHLIST_IMAGE = { src: "/static/img/empty-wishlist.webp", width: 400, height: 305 };
 /** 쪽지 대화가 없을 때 */
 export const EMPTY_MESSAGES_IMAGE = { src: "/static/img/empty-messages.webp", width: 400, height: 305 };
+/** 검색·필터 결과가 없을 때 (글이 아예 없을 때와 구분한다) */
+export const EMPTY_SEARCH_IMAGE = { src: "/static/img/empty-search.webp", width: 400, height: 305 };
+/** 찾는 교재 알림을 받은 적이 없을 때 */
+export const EMPTY_ALERTS_IMAGE = { src: "/static/img/empty-alerts.webp", width: 400, height: 305 };
 
 /**
  * 빈 화면 안내를 container 안에 그린다. image를 주면 문구 위 가운데에 그림을 둔다.
