@@ -3,6 +3,7 @@
 // 사진은 글(JSON)을 저장한 뒤 지울 사진 → 새 사진 순서로 한 장씩 따로 보낸다.
 import { createPost, deletePostImage, getPost, updatePost, uploadPostImage } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
+import { preparePhoto } from "../photo-resize.js";
 import { getToken } from "../token.js";
 import { clearFormErrors, el, readPostIdFromUrl, safeImageUrl, showFormErrors } from "../ui.js";
 
@@ -10,9 +11,14 @@ const HOME_PAGE = "/static/index.html";
 const TEXT_FIELDS = ["title", "book_title", "course_name", "description", "open_chat_url"];
 
 // 서버 규칙과 같은 값. 서버가 최종 검사하고(400·413·422), 화면은 올리기 전에 미리 알려주는 용도다.
+// 용량은 줄인 뒤의 크기로 본다. 보통 1MB 안팎으로 줄어들어, 줄이지 못한 사진(원본 그대로 보냄)에만 걸린다.
 const MAX_PHOTOS = 3;
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+// 일부 브라우저는 HEIC 파일의 형식(type)을 비워서 주므로 확장자로도 확인한다.
+const HEIC_NAME = /\.hei[cf]$/i;
+// 이 브라우저가 열 수 없어 미리보기를 못 그리는 사진(예: 안드로이드 크롬의 HEIC)에 대신 보여줄 그림
+const NO_PREVIEW_IMAGE = "/static/img/book-placeholder.svg";
 
 // 사진 업로드가 일부 실패하면 작성 모드에서 수정 모드로 바뀌므로 let으로 둔다.
 let isEdit = new URLSearchParams(window.location.search).has("id");
@@ -21,8 +27,11 @@ let submitLabel = isEdit ? "저장하기" : "등록하기";
 
 // 이미 올라간 사진: {id, url, thumbnail_url, removed}. removed면 저장할 때 지운다.
 let existingPhotos = [];
-// 새로 고른 사진: {file, previewUrl}. previewUrl은 브라우저 안에서만 쓰는 임시 주소다.
+// 새로 고른 사진: {file, previewUrl}. file은 올리기 좋게 줄인 사진이고, previewUrl은 브라우저 안에서만 쓰는 임시 주소다.
+// (브라우저가 열 수 없는 사진이면 previewUrl이 null이다)
 let newPhotos = [];
+// 고른 사진을 줄이는 중이면 true. 그동안에는 저장과 사진 추가를 막는다.
+let preparing = false;
 
 const pageStatus = document.getElementById("page-status");
 const pageError = document.getElementById("page-error");
@@ -36,6 +45,7 @@ const photoInput = document.getElementById("photos");
 const photoList = document.getElementById("photo-list");
 const photoCount = document.getElementById("photo-count");
 const photosError = document.getElementById("photos-error");
+const photoStatus = document.getElementById("photo-status");
 
 form.addEventListener("submit", onSubmit);
 photoInput.addEventListener("change", onPhotosSelected);
@@ -139,23 +149,52 @@ function photoTotal() {
 }
 
 // 고른 파일을 미리 검사한다. 걸린 파일은 빼고 이유를 보여주며, 통과한 파일은 미리보기에 더한다.
-function onPhotosSelected() {
-  const problems = [];
-  for (const file of photoInput.files) {
-    if (!PHOTO_TYPES.includes(file.type)) {
-      problems.push(`${file.name}: JPG, PNG, WebP 사진만 올릴 수 있습니다.`);
-    } else if (file.size > MAX_PHOTO_BYTES) {
-      problems.push(`${file.name}: 사진은 한 장에 5MB까지 올릴 수 있습니다.`);
-    } else if (photoTotal() >= MAX_PHOTOS) {
-      problems.push(`사진은 ${MAX_PHOTOS}장까지 올릴 수 있어 ${file.name}은(는) 빼었습니다.`);
-    } else {
-      newPhotos.push({ file, previewUrl: URL.createObjectURL(file) });
-    }
-  }
+async function onPhotosSelected() {
+  const files = [...photoInput.files];
   // 같은 파일을 지웠다가 다시 고를 수 있도록 선택값을 비운다.
   photoInput.value = "";
+  const problems = [];
+  const accepted = [];
+  for (const file of files) {
+    if (!PHOTO_TYPES.includes(file.type) && !HEIC_NAME.test(file.name)) {
+      problems.push(`${file.name}: JPG, PNG, WebP, HEIC 사진만 올릴 수 있습니다.`);
+    } else if (photoTotal() + accepted.length >= MAX_PHOTOS) {
+      problems.push(`사진은 ${MAX_PHOTOS}장까지 올릴 수 있어 ${file.name}은(는) 빼었습니다.`);
+    } else {
+      accepted.push(file);
+    }
+  }
+
+  setPreparing(true);
+  for (const [index, file] of accepted.entries()) {
+    showPhotoStatus(`사진 줄이는 중… (${index + 1}/${accepted.length})`);
+    const prepared = await preparePhoto(file);
+    if (prepared.file.size > MAX_PHOTO_BYTES) {
+      problems.push(`${file.name}: 사진은 한 장에 25MB까지 올릴 수 있습니다.`);
+      continue;
+    }
+    const previewUrl = prepared.previewable ? URL.createObjectURL(prepared.file) : null;
+    newPhotos.push({ file: prepared.file, previewUrl });
+  }
+  showPhotoStatus("");
+  setPreparing(false);
   showPhotosError(problems.join(" "));
   renderPhotos();
+}
+
+function setPreparing(isPreparing) {
+  preparing = isPreparing;
+  submitButton.disabled = isPreparing;
+  photoInput.disabled = isPreparing || photoTotal() >= MAX_PHOTOS;
+}
+
+// 사진 줄이기·올리기 진행 상황. 단계(몇 번째 사진)만 화면 낭독기로 읽히고, 자주 바뀌는 %는 읽지 않는다.
+function showPhotoStatus(step, percent = null) {
+  photoStatus.replaceChildren(
+    el("span", { text: step }),
+    ...(percent === null ? [] : [el("span", { text: ` · ${percent}%`, attrs: { "aria-hidden": "true" } })]),
+  );
+  photoStatus.hidden = step === "";
 }
 
 function renderPhotos() {
@@ -173,8 +212,8 @@ function renderPhotos() {
       }),
     ),
     ...newPhotos.map((photo, index) =>
-      photoTile(photo.previewUrl, `새 사진 ${index + 1}`, false, () => {
-        URL.revokeObjectURL(photo.previewUrl); // 브라우저가 붙잡고 있는 미리보기 메모리를 놓아준다.
+      photoTile(photo.previewUrl ?? NO_PREVIEW_IMAGE, `새 사진 ${index + 1}`, false, () => {
+        if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl); // 브라우저가 붙잡고 있는 미리보기 메모리를 놓아준다.
         newPhotos = newPhotos.filter((item) => item !== photo);
         showPhotosError("");
         renderPhotos();
@@ -187,7 +226,7 @@ function renderPhotos() {
   const total = photoTotal();
   photoCount.textContent = `${total}/${MAX_PHOTOS}`;
   // 3장이 차면 "사진 추가"를 막는다. (label은 disabled가 없으므로 input을 막고 모양만 바꾼다)
-  photoInput.disabled = total >= MAX_PHOTOS;
+  photoInput.disabled = preparing || total >= MAX_PHOTOS;
 }
 
 function photoTile(src, label, removed, onToggle) {
@@ -272,12 +311,15 @@ async function savePhotos(id) {
   const failures = [];
   const tasks = [
     ...existingPhotos.filter((photo) => photo.removed).map((photo) => () => deletePostImage(id, photo.id)),
-    ...newPhotos.map((photo) => () => uploadPostImage(id, photo.file)),
+    ...newPhotos.map((photo) => (onProgress) => uploadPostImage(id, photo.file, onProgress)),
   ];
   for (const [index, task] of tasks.entries()) {
-    submitButton.textContent = `사진 저장 중… (${index + 1}/${tasks.length})`;
+    const step = `사진 저장 중 ${index + 1}/${tasks.length}`;
+    submitButton.textContent = `${step}…`;
+    showPhotoStatus(step);
     try {
-      await task();
+      // 지우기는 진행률이 없고, 올리기는 보낸 비율을 %로 보여준다.
+      await task((ratio) => showPhotoStatus(step, Math.floor(ratio * 100)));
     } catch (error) {
       if (error.status === 401) {
         redirectToLogin();
@@ -286,12 +328,13 @@ async function savePhotos(id) {
       failures.push(error.message);
     }
   }
+  showPhotoStatus("");
   return failures;
 }
 
 // 글은 저장됐으므로 다시 저장해도 글이 두 번 생기지 않게 수정 모드로 바꾸고, 서버의 현재 사진을 다시 보여준다.
 async function showPartialFailure(id, failures) {
-  for (const photo of newPhotos) URL.revokeObjectURL(photo.previewUrl);
+  for (const photo of newPhotos) if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
   newPhotos = [];
   if (!isEdit) {
     isEdit = true;

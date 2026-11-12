@@ -264,7 +264,7 @@ class PayloadTooLargeError(DomainError):
 
 
 class ImageTooLargeError(PayloadTooLargeError):
-    message = "사진은 한 장에 5MB까지 올릴 수 있습니다."
+    message = "사진은 한 장에 25MB까지 올릴 수 있습니다."
 
 
 class UnprocessableError(DomainError):
@@ -272,7 +272,15 @@ class UnprocessableError(DomainError):
 
 
 class UnsupportedImageError(UnprocessableError):
-    message = "JPG, PNG, WebP 사진만 올릴 수 있습니다."
+    message = "JPG, PNG, WebP, HEIC 사진만 올릴 수 있습니다."
+
+
+class ImageResolutionTooLargeError(UnprocessableError):
+    message = "사진 해상도가 너무 큽니다. 크기를 줄여서 올려 주세요."
+
+
+class BrokenImageError(UnprocessableError):
+    message = "사진 파일이 손상되어 열 수 없습니다. 다른 사진을 골라 주세요."
 
 
 class TooManyRequestsError(DomainError):

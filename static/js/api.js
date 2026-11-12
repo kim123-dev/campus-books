@@ -22,9 +22,9 @@ export class ApiError extends Error {
 /**
  * 공통 요청 함수.
  * @param {string} path 예: "/posts"
- * @param {{method?: string, query?: object, json?: object, form?: object, formData?: FormData}} options
+ * @param {{method?: string, query?: object, json?: object, form?: object}} options
  */
-export async function request(path, { method = "GET", query, json, form, formData } = {}) {
+export async function request(path, { method = "GET", query, json, form } = {}) {
   const url = new URL(path, window.location.origin);
   for (const [key, value] of Object.entries(query ?? {})) {
     // 빈 값은 보내지 않는다. 서버에서 "조건 없음"으로 처리되도록 하기 위해서다.
@@ -39,9 +39,6 @@ export async function request(path, { method = "GET", query, json, form, formDat
   } else if (form !== undefined) {
     // 로그인 API는 OAuth2 규격상 form 형식으로 받는다.
     body = new URLSearchParams(form);
-  } else if (formData !== undefined) {
-    // 파일 업로드. Content-Type은 브라우저가 경계(boundary) 값을 붙여 직접 정하므로 지정하지 않는다.
-    body = formData;
   }
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -55,15 +52,48 @@ export async function request(path, { method = "GET", query, json, form, formDat
 
   if (response.status === 204) return null;
   const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    // 토큰이 만료되었거나 잘못되었으면 지워서, 다음 요청부터는 로그인하지 않은 상태로 동작하게 한다.
-    if (response.status === 401) clearToken();
-    const error = toApiError(response.status, data);
-    // 쪽지 도배 제한(429)은 몇 초 뒤에 다시 보낼 수 있는지 헤더로 알려준다.
-    if (response.status === 429) error.retryAfter = Number(response.headers.get("Retry-After")) || null;
-    throw error;
-  }
+  if (!response.ok) throw failure(response.status, data, response.headers.get("Retry-After"));
   return data;
+}
+
+/** 실패 응답을 ApiError로 바꾼다. fetch와 XHR(업로드 진행률) 요청이 함께 쓴다. */
+function failure(status, data, retryAfterHeader) {
+  // 토큰이 만료되었거나 잘못되었으면 지워서, 다음 요청부터는 로그인하지 않은 상태로 동작하게 한다.
+  if (status === 401) clearToken();
+  const error = toApiError(status, data);
+  // 쪽지 도배 제한(429)은 몇 초 뒤에 다시 보낼 수 있는지 헤더로 알려준다.
+  if (status === 429) error.retryAfter = Number(retryAfterHeader) || null;
+  return error;
+}
+
+/**
+ * 파일 업로드. fetch는 보낸 양(진행률)을 알려주지 않으므로 XMLHttpRequest를 쓴다.
+ * @param {(ratio: number) => void} [onProgress] 0~1 사이 값으로 보낸 비율을 알려준다.
+ */
+function uploadWithProgress(path, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", new URL(path, window.location.origin));
+    xhr.setRequestHeader("Accept", "application/json");
+    const token = getToken();
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable && onProgress) onProgress(event.loaded / event.total);
+    });
+    xhr.addEventListener("load", () => {
+      let data = null;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(failure(xhr.status, data, xhr.getResponseHeader("Retry-After")));
+    });
+    const offline = () => reject(new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."));
+    xhr.addEventListener("error", offline);
+    xhr.addEventListener("abort", offline);
+    // Content-Type은 브라우저가 multipart 경계(boundary) 값을 붙여 직접 정하므로 지정하지 않는다.
+    xhr.send(formData);
+  });
 }
 
 // ---------- 화면에서 쓰는 API ----------
@@ -117,11 +147,14 @@ export function deletePost(postId) {
   return request(`/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
 }
 
-/** 사진 한 장 올리기. 응답: {id, url, thumbnail_url}. 413(5MB 초과), 422(형식), 400(3장·판매 완료), 429 */
-export function uploadPostImage(postId, file) {
+/**
+ * 사진 한 장 올리기. 응답: {id, url, thumbnail_url}.
+ * 413(25MB 초과), 422(형식·해상도·손상), 400(3장·판매 완료), 429. onProgress(0~1)로 보낸 비율을 알려준다.
+ */
+export function uploadPostImage(postId, file, onProgress) {
   const formData = new FormData();
   formData.append("file", file);
-  return request(`/posts/${encodeURIComponent(postId)}/images`, { method: "POST", formData });
+  return uploadWithProgress(`/posts/${encodeURIComponent(postId)}/images`, formData, onProgress);
 }
 
 /** 사진 한 장 삭제. 서버가 파일도 함께 지운다. */

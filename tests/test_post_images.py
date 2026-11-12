@@ -140,7 +140,7 @@ def test_unsupported_formats_are_rejected(client, owner, post, image_dir, fmt, f
     response = upload(client, post["id"], owner, make_image(fmt), filename, "image/jpeg")
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "JPG, PNG, WebP 사진만 올릴 수 있습니다."
+    assert response.json()["detail"] == "JPG, PNG, WebP, HEIC 사진만 올릴 수 있습니다."
     assert stored_files(image_dir) == []
 
 
@@ -161,14 +161,14 @@ def test_non_images_are_rejected(client, owner, post, image_dir, data) -> None:
     assert stored_files(image_dir) == []
 
 
-def test_file_over_5mb_is_rejected_with_413(client, owner, post, image_dir) -> None:
-    # 헤더는 정상 JPEG이고 뒤를 채워 5MB를 넘긴다.
+def test_file_over_25mb_is_rejected_with_413(client, owner, post, image_dir) -> None:
+    # 헤더는 정상 JPEG이고 뒤를 채워 25MB를 넘긴다.
     data = make_image() + b"\0" * image_service.MAX_IMAGE_BYTES
 
     response = upload(client, post["id"], owner, data)
 
     assert response.status_code == 413
-    assert response.json()["detail"] == "사진은 한 장에 5MB까지 올릴 수 있습니다."
+    assert response.json()["detail"] == "사진은 한 장에 25MB까지 올릴 수 있습니다."
     assert stored_files(image_dir) == []
 
 
@@ -182,14 +182,108 @@ def test_service_stops_reading_over_limit_without_content_length(client, owner, 
 
 
 def test_pixel_bomb_is_rejected(client, owner, post, image_dir) -> None:
-    # 파일은 작지만 풀면 거대한 이미지 (8000 x 8000 = 6400만 픽셀)
+    # 파일은 작지만 풀면 거대한 이미지 (8000 x 8000 = 6400만 픽셀). PNG는 5천만 화소까지다.
     data = make_image("PNG", size=(8000, 8000), mode="L")
     assert len(data) < image_service.MAX_IMAGE_BYTES
 
     response = upload(client, post["id"], owner, data, "a.png", "image/png")
 
     assert response.status_code == 422
+    assert response.json()["detail"] == "사진 해상도가 너무 큽니다. 크기를 줄여서 올려 주세요."
     assert stored_files(image_dir) == []
+
+
+def jpeg_claiming_size(width: int, height: int) -> bytes:
+    """헤더(SOF)의 가로·세로만 바꾼 작은 JPEG. 실제로 거대한 사진을 만들지 않고 해상도 검사를 시험한다."""
+    data = bytearray(make_image("JPEG", size=(16, 16)))
+    sof = data.index(bytes([0xFF, 0xC0]))  # SOF0 표식
+    data[sof + 5 : sof + 9] = height.to_bytes(2, "big") + width.to_bytes(2, "big")
+    return bytes(data)
+
+
+@pytest.mark.parametrize("size", [(15000, 15000), (30000, 30000)], ids=["over-limit", "pillow-bomb"])
+def test_jpeg_over_200_megapixels_is_rejected(client, owner, post, image_dir, size) -> None:
+    # 2억 2500만 화소는 서비스 검사에, 9억 화소는 Pillow의 폭탄 검사에 걸린다. 둘 다 같은 메시지다.
+    response = upload(client, post["id"], owner, jpeg_claiming_size(*size))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "사진 해상도가 너무 큽니다. 크기를 줄여서 올려 주세요."
+    assert stored_files(image_dir) == []
+
+
+def test_broken_jpeg_gets_its_own_message(client, owner, post, image_dir) -> None:
+    # 헤더는 멀쩡하지만 뒤가 잘린 사진. "형식이 틀렸다"가 아니라 "손상됐다"고 알려준다.
+    data = make_image("JPEG", size=(800, 600))[:2000]
+
+    response = upload(client, post["id"], owner, data)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "사진 파일이 손상되어 열 수 없습니다. 다른 사진을 골라 주세요."
+    assert stored_files(image_dir) == []
+
+
+# ---------- 휴대폰 사진 형식 ----------
+
+
+def test_50_megapixel_phone_photo_is_accepted_and_resized(client, owner, post, image_dir) -> None:
+    # 5천만 화소 카메라 원본(8160 x 6120). 예전 한도(4천만 화소)에 걸려 거절되던 크기다.
+    data = make_image("JPEG", size=(8160, 6120), quality=50)
+    assert len(data) < image_service.MAX_IMAGE_BYTES
+
+    response = upload(client, post["id"], owner, data)
+
+    assert response.status_code == 201
+    saved = Image.open(image_dir / response.json()["url"].removeprefix("/images/"))
+    assert saved.size == (1600, 1200)
+
+
+def test_mpo_photo_uses_first_frame(client, owner, post, image_dir) -> None:
+    # 갤럭시 "울트라 HDR"·움직이는 사진처럼 JPEG 안에 사진이 여러 장 든 형식(MPO). 예전에는 422였다.
+    buffer = io.BytesIO()
+    first = Image.new("RGB", (800, 600), (200, 30, 30))
+    second = Image.new("RGB", (800, 600), (30, 30, 200))
+    first.save(buffer, format="MPO", save_all=True, append_images=[second])
+    assert Image.open(io.BytesIO(buffer.getvalue())).format == "MPO"
+
+    response = upload(client, post["id"], owner, buffer.getvalue())
+
+    assert response.status_code == 201
+    saved = Image.open(image_dir / response.json()["url"].removeprefix("/images/")).convert("RGB")
+    red, _, blue = saved.getpixel((400, 300))
+    assert red > 150 and blue < 80  # 첫 장(빨간색)
+
+
+def test_heic_photo_is_accepted_and_reencoded(client, owner, post, image_dir) -> None:
+    # 아이폰 기본 형식. 안드로이드 크롬처럼 브라우저가 HEIC를 못 열면 화면이 줄이지 못하고 원본을 그대로 보낸다.
+    data = make_image("HEIF", size=(1200, 900))
+
+    response = upload(client, post["id"], owner, data, "IMG_0001.HEIC", "image/heic")
+
+    assert response.status_code == 201
+    saved = Image.open(image_dir / response.json()["url"].removeprefix("/images/"))
+    assert saved.format == "WEBP" and saved.size == (1200, 900)
+
+
+def test_rotated_heic_photo_is_turned_upright(client, owner, post, image_dir) -> None:
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: 90도 돌려서 봐야 하는 사진
+    data = make_image("HEIF", size=(800, 600), exif=exif.tobytes())
+
+    response = upload(client, post["id"], owner, data, "IMG_0002.HEIC", "image/heic")
+
+    assert response.status_code == 201
+    assert Image.open(image_dir / response.json()["url"].removeprefix("/images/")).size == (600, 800)
+
+
+def test_rejection_reason_is_logged(client, owner, post, caplog) -> None:
+    # 배포 로그만 보고도 휴대폰 사진이 왜 422였는지(형식·해상도·손상) 알 수 있어야 한다.
+    with caplog.at_level("WARNING", logger="app.services.image_service"):
+        upload(client, post["id"], owner, make_image("GIF"), "a.gif", "image/gif")
+        upload(client, post["id"], owner, jpeg_claiming_size(15000, 15000))
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("reason=format detail=GIF" in m for m in messages)
+    assert any("reason=pixels detail=JPEG 15000x15000" in m for m in messages)
 
 
 def test_missing_file_field_returns_422(client, owner, post) -> None:

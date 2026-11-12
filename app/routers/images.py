@@ -27,11 +27,11 @@ IMAGE_EDIT_RESPONSES: dict[int | str, dict] = {
     "/posts/{post_id}/images",
     response_model=PostImageResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="판매글 사진 올리기 (JPG·PNG·WebP, 5MB, 글당 3장)",
+    summary="판매글 사진 올리기 (JPG·PNG·WebP·HEIC, 25MB, 글당 3장)",
     responses={
         **IMAGE_EDIT_RESPONSES,
-        413: {"description": "5MB 초과"},
-        422: {"description": "지원하지 않는 형식이거나 깨진 사진"},
+        413: {"description": "25MB 초과"},
+        422: {"description": "지원하지 않는 형식, 해상도 초과(JPG 2억·그 밖 5천만 화소), 깨진 사진"},
         429: {"description": "업로드 횟수 제한"},
     },
 )

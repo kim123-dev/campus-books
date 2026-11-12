@@ -654,6 +654,14 @@ a.button {
   font-weight: 600;
 }
 
+/* 사진 줄이기·올리기 진행 상황. 숫자가 바뀌어도 글자 폭이 흔들리지 않게 고정폭 숫자를 쓴다. */
+.photo-status {
+  margin: 8px 0 0;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;

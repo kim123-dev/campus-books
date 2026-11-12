@@ -1,8 +1,9 @@
 // 10단계 사진 업로드 화면을 375px 헤드리스 Chrome으로 확인한다. (DevTools 프로토콜 직접 사용, 추가 설치 없음)
-import { spawn } from "node:child_process";
+// 휴대폰 사진(큰 JPEG·EXIF 회전·MPO·HEIC)은 photo_fixtures.py가 실행할 때 만든다.
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { BASE, CDP_PORT, CHROME_PATH, FIXTURES } from "./lib.mjs";
+import { BASE, CDP_PORT, CHROME_PATH, FIXTURES, PYTHON } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -109,16 +110,23 @@ try {
   await send("Emulation.setDeviceMetricsOverride", { width: W, height: 812, deviceScaleFactor: 2, mobile: true });
 
   // ---------- 10단계: 사진 업로드 (375px) ----------
-  // 5MB 넘는 사진은 저장소에 두지 않고 실행할 때 만든다. (a.jpg 뒤에 0을 덧붙여 6MB로)
-  const BIG = join(OUT, "big.jpg");
-  writeFileSync(BIG, Buffer.concat([readFileSync(join(FIXTURES, "a.jpg")), Buffer.alloc(6 * 1024 * 1024)]));
-  const files = (...names) => names.map((n) => (n === "big.jpg" ? BIG : join(FIXTURES, n)));
+  const PHONE = join(OUT, "phone-photos");
+  const made = spawnSync(PYTHON, [join(FIXTURES, "..", "photo_fixtures.py"), PHONE], { encoding: "utf8" });
+  if (made.status !== 0) throw new Error(`휴대폰 사진을 만들지 못했습니다: ${made.stderr}`);
+  const PHONE_NAMES = ["large.jpg", "rotated.jpg", "motion.jpg", "photo.heic"];
+  const files = (...names) => names.map((n) => join(PHONE_NAMES.includes(n) ? PHONE : FIXTURES, n));
   async function pickFiles(names) {
     const { root } = await send("DOM.getDocument", { depth: 0 });
     const { nodeId } = await send("DOM.querySelector", { nodeId: root.nodeId, selector: "#photos" });
     await send("DOM.setFileInputFiles", { nodeId, files: files(...names) });
+    // 고른 사진은 브라우저에서 줄인 뒤에 목록에 들어간다. "줄이는 중" 안내가 사라질 때까지 기다린다.
     await sleep(300);
+    await waitUntil("document.getElementById('photo-status').hidden", 15000);
   }
+  // 미리보기 그림(= 실제로 올릴 파일)의 크기와 용량
+  const previewInfo = (index) => evaluate(`(async () => { const i = document.querySelectorAll('.photo-tile__image')[${index}];
+    await i.decode().catch(() => {}); const size = i.src.startsWith('blob:') ? (await (await fetch(i.src)).blob()).size : null;
+    return { w: i.naturalWidth, h: i.naturalHeight, size, blob: i.src.startsWith('blob:'), src: new URL(i.src).pathname }; })()`);
   const text = (id) => evaluate(`document.getElementById(${JSON.stringify(id)}).textContent`);
   const tileCount = () => evaluate("document.querySelectorAll('#photo-list .photo-tile').length");
   const fillForm = (title) => evaluate(`(() => {
@@ -140,9 +148,11 @@ try {
   await waitUntil("[...document.querySelectorAll('.photo-tile__image')].every(i => i.complete && i.naturalWidth > 0)");
   check("작성: 미리보기는 blob 주소로 표시됨", await evaluate("[...document.querySelectorAll('.photo-tile__image')].every(i => i.src.startsWith('blob:') && i.naturalWidth > 0)"));
 
-  await pickFiles(["c.webp", "d.gif", "big.jpg"]);
+  await pickFiles(["c.webp", "d.gif", "large.jpg"]);
   const pickError = await text("photos-error");
-  check("작성: 3장 넘거나 GIF·5MB 초과는 빼고 안내", (await tileCount()) === 3 && (await text("photo-count")) === "3/3" && pickError.includes("JPG, PNG, WebP") && pickError.includes("5MB"), pickError);
+  check("작성: 3장 넘거나 GIF는 빼고 안내", (await tileCount()) === 3 && (await text("photo-count")) === "3/3" && pickError.includes("JPG, PNG, WebP, HEIC") && pickError.includes("3장까지"), pickError);
+  const small = await previewInfo(0);
+  check("작성: 작은 사진(2000px·2MB 이하)은 줄이지 않고 원본 그대로", small.blob && small.w === 1200 && small.size === readFileSync(join(FIXTURES, "a.jpg")).length, JSON.stringify(small));
   check("작성: 3장이 차면 사진 추가 막힘", await evaluate("document.getElementById('photos').disabled"));
   check(`${W}px: 사진 3장 폼 가로 스크롤 없음`, await noHorizontalScroll());
   await evaluate("document.querySelector('.photo-tile__button').scrollIntoView({block: 'center'})");
@@ -214,6 +224,45 @@ try {
   await evaluate("document.querySelector('#post-form button[type=submit]').click()");
   await waitUntil("location.pathname === '/static/post.html'", 15000);
   check("부분 실패: 다시 저장해도 글이 하나만 생김", (await (await fetch(`${BASE}/posts`)).json()).total === totalBefore + 1);
+
+  // ---------- 휴대폰 사진: 줄이기, EXIF 회전, MPO, 진행률, HEIC ----------
+  await goto("/static/post-form.html", "!document.getElementById('form-card').hidden");
+  await pickFiles(["large.jpg", "rotated.jpg", "motion.jpg"]);
+  const large = await previewInfo(0);
+  check("휴대폰: 2700만 화소 JPEG를 절반(3000px)으로 줄임", large.w === 3000 && large.h === 2250 && large.size < 2 * 1024 * 1024 && (await text("photos-error")) === "", JSON.stringify(large));
+  const rotated = await previewInfo(1);
+  check("휴대폰: EXIF 회전 사진은 세로로 세워서 줄임", rotated.w === 2000 && rotated.h === 3000 && rotated.size < 1024 * 1024, JSON.stringify(rotated));
+  // 화질 비교용으로 실제로 올릴 파일을 저장해 둔다. (화질 비교 숫자를 다시 잴 때 쓴다)
+  const dataUrl = await evaluate("fetch(document.querySelector('.photo-tile__image').src).then(r => r.blob()).then(b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); }))");
+  writeFileSync(join(OUT, "prepared-large.jpg"), Buffer.from(dataUrl.split(",")[1], "base64"));
+  check(`${W}px: 사진 3장 고른 폼 가로 스크롤 없음`, await noHorizontalScroll());
+
+  await fillForm("휴대폰 사진 글");
+  // 올리는 속도를 느리게 해 진행률(%)이 보이는지 확인한다.
+  await send("Network.enable");
+  await send("Network.emulateNetworkConditions", { offline: false, latency: 20, downloadThroughput: -1, uploadThroughput: 400 * 1024 });
+  await evaluate("document.querySelector('#post-form button[type=submit]').click()");
+  await waitUntil("/· \\d+%/.test(document.getElementById('photo-status').textContent)", 15000);
+  check("진행률: '사진 저장 중 n/3 · %' 표시, 저장 버튼 잠금", await evaluate("/^사진 저장 중 [1-3]\\/3 · \\d+%$/.test(document.getElementById('photo-status').textContent) && document.querySelector('#post-form button[type=submit]').disabled"),
+    await text("photo-status"));
+  await screenshot("10-5-upload-progress.png");
+  check("진행률: %는 화면 낭독기에 읽히지 않음(aria-hidden)", await evaluate("document.querySelector('#photo-status [aria-hidden=true]')?.textContent.includes('%')"));
+  const phoneSaved = await waitUntil("location.pathname === '/static/post.html' && !document.getElementById('post-detail').hidden", 60000);
+  await send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  check("휴대폰: 큰 JPEG·회전·MPO 3장 저장 후 상세로 이동", phoneSaved, await evaluate("location.href"));
+  const phonePost = await (await fetch(`${BASE}/posts/${await evaluate("new URLSearchParams(location.search).get('id')")}`)).json();
+  const sizes = await evaluate(`Promise.all(${JSON.stringify(phonePost.images.map((i) => i.url))}.map(u => fetch(u).then(r => r.blob()).then(createImageBitmap).then(b => [b.width, b.height])))`);
+  check("휴대폰: 서버 사진 1600px WebP, 회전 사진은 세로", // 회전 사진의 가로는 반올림에 따라 1066~1067px이다.
+    JSON.stringify([sizes[0], sizes[2]]) === "[[1600,1200],[1600,1200]]" && sizes[1][1] === 1600 && Math.abs(sizes[1][0] - 1067) <= 1, JSON.stringify(sizes));
+
+  await goto("/static/post-form.html", "!document.getElementById('form-card').hidden");
+  await pickFiles(["photo.heic"]);
+  const heic = await previewInfo(0);
+  check("HEIC: 브라우저가 못 열면 기본 그림으로 미리보기, 원본을 그대로 보냄", (await tileCount()) === 1 && heic.src === "/static/img/book-placeholder.svg" && (await text("photos-error")) === "", JSON.stringify(heic));
+  await fillForm("아이폰 사진 글");
+  await evaluate("document.querySelector('#post-form button[type=submit]').click()");
+  const heicSaved = await waitUntil("location.pathname === '/static/post.html' && document.querySelector('.gallery__main')?.complete", 15000);
+  check("HEIC: 서버가 WebP로 바꿔 저장", heicSaved && (await evaluate("(() => { const m = document.querySelector('.gallery__main'); return m.naturalWidth === 1200 && m.naturalHeight === 900 && m.src.endsWith('.webp'); })()")));
 
   check("JS 예외·콘솔 에러 없음", exceptions.filter((e) => !String(e).includes("Failed to load resource")).length === 0, exceptions.join(" / "));
 } catch (error) {

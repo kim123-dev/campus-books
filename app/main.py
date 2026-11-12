@@ -87,7 +87,7 @@ app.include_router(reviews.router)
 MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024
 
 
-# 사진 크기 제한(5MB)은 서비스가 읽으면서 다시 확인한다. 여기서는 Content-Length만 보고
+# 사진 크기 제한(25MB)은 서비스가 읽으면서 다시 확인한다. 여기서는 Content-Length만 보고
 # 너무 큰 요청을 본문을 받기 전에 바로 413으로 돌려보낸다. (임시 파일에 수십 MB를 쓰지 않도록)
 @app.middleware("http")
 async def reject_large_upload(

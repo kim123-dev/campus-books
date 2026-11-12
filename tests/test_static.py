@@ -269,7 +269,7 @@ def test_post_form_has_photo_input_limited_to_allowed_types(client: TestClient) 
     html = client.get("/static/post-form.html").text
 
     assert 'type="file"' in html
-    assert 'accept="image/jpeg,image/png,image/webp"' in html
+    assert 'accept="image/jpeg,image/png,image/webp,image/heic,image/heif"' in html
 
 
 def test_front_photo_limits_match_server() -> None:
@@ -284,6 +284,16 @@ def test_front_photo_limits_match_server() -> None:
 
     assert int(photos.group(1)) == MAX_IMAGES_PER_POST
     assert int(size.group(1)) * 1024 * 1024 == MAX_IMAGE_BYTES
+
+
+def test_photo_resize_keeps_originals_only_within_server_limit() -> None:
+    # 줄이지 않고 원본을 보내는 기준 용량이 서버 한도보다 크면, 화면은 원본을 보내고 서버는 413으로 거절한다.
+    from app.services.image_service import MAX_IMAGE_BYTES
+
+    source = (STATIC_DIR / "js" / "photo-resize.js").read_text(encoding="utf-8")
+    keep = re.search(r"const KEEP_MAX_BYTES = (\d+) \* 1024 \* 1024;", source)
+    assert keep, "photo-resize.js에서 KEEP_MAX_BYTES를 찾지 못했습니다."
+    assert int(keep.group(1)) * 1024 * 1024 <= MAX_IMAGE_BYTES
 
 
 # ---------- 신고·차단 ----------
