@@ -3,7 +3,16 @@
 import { listPosts } from "../api.js";
 import { renderHeader } from "../auth.js";
 import { showInstallGuide } from "../pwa.js";
-import { clearFormErrors, el, icon, renderPagination, renderPostCard, showFormErrors } from "../ui.js";
+import {
+  clearFormErrors,
+  el,
+  EMPTY_POSTS_IMAGE,
+  icon,
+  renderEmptyState,
+  renderPagination,
+  renderPostCard,
+  showFormErrors,
+} from "../ui.js";
 import { createWishlistButton } from "../wishlist-button.js";
 
 const PAGE_SIZE = 10;
@@ -136,7 +145,9 @@ function render(data, filters, me) {
   const hasFilters = Object.keys(filters).length > 0;
 
   if (total === 0) {
-    summary.textContent = hasFilters ? "조건에 맞는 글이 없습니다." : "아직 등록된 글이 없습니다.";
+    // 검색·필터 결과가 없을 때의 그림은 따로 넣을 예정이라, 지금은 글이 하나도 없을 때만 그림을 둔다.
+    if (hasFilters) renderEmptyState(summary, "조건에 맞는 글이 없습니다.");
+    else renderEmptyState(summary, "아직 등록된 글이 없습니다.", { image: EMPTY_POSTS_IMAGE });
     return;
   }
 

@@ -18,7 +18,7 @@ VERSION_PLACEHOLDER = '"__STATIC_VERSION__"'
 PRECACHE_PLACEHOLDER = '"__PRECACHE__"'
 
 # 서비스 워커가 설치될 때 미리 받아 두는 파일 종류. (라이선스 글 같은 화면에 쓰지 않는 파일은 뺀다)
-PRECACHE_SUFFIXES = {".html", ".css", ".js", ".json", ".svg", ".png", ".woff2"}
+PRECACHE_SUFFIXES = {".html", ".css", ".js", ".json", ".svg", ".png", ".webp", ".woff2"}
 
 # 이름에 해시가 없는 파일은 내용이 바뀌어도 주소가 같다. 그래서 화면 코드(HTML·CSS·JS·manifest)는
 # 매번 서버에 바뀌었는지 묻게 하고(no-cache, 안 바뀌었으면 304), 속도는 서비스 워커 캐시가 맡는다.

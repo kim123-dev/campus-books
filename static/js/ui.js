@@ -163,6 +163,33 @@ export function readPostIdFromUrl() {
   return raw !== null && /^[1-9]\d*$/.test(raw) ? raw : null;
 }
 
+// ---------- 빈 화면 (목록·찜·쪽지·알림·내 글이 함께 쓴다) ----------
+
+/** 등록된 글이 하나도 없을 때의 그림. width·height는 파일의 실제 크기다(화면에서는 CSS로 줄인다). */
+export const EMPTY_POSTS_IMAGE = { src: "/static/img/empty-posts.webp", width: 400, height: 305 };
+
+/**
+ * 빈 화면 안내를 container 안에 그린다. image를 주면 문구 위 가운데에 그림을 둔다.
+ * 그림은 꾸밈이라 alt를 비우고 화면 낭독기에서 숨긴다. 문구만 읽히면 뜻이 전해지기 때문이다.
+ * width·height를 넣어 두면 그림을 받기 전에도 자리를 잡아, 그림이 뜰 때 아래 내용이 밀리지 않는다.
+ * @param {{src: string, width: number, height: number} | null} image
+ */
+export function renderEmptyState(container, text, { image = null } = {}) {
+  const picture =
+    image === null
+      ? null
+      : el("img", {
+          className: "empty-state__image",
+          src: image.src,
+          alt: "",
+          width: image.width,
+          height: image.height,
+          decoding: "async",
+          attrs: { "aria-hidden": "true" },
+        });
+  container.replaceChildren(...(picture ? [picture] : []), text);
+}
+
 // ---------- 판매글 카드와 페이지 이동 (목록 화면과 내 글 화면이 함께 쓴다) ----------
 
 /** 사진이 없는 글에 보여줄 기본 그림 */

@@ -706,6 +706,19 @@ a.button {
   font-weight: 600;
 }
 
+/* 빈 화면 그림: 문구 위 가운데, 가로 200px. 높이는 img의 width·height 비율로 정해져 자리가 미리 잡힌다. */
+.empty-state__image {
+  display: block;
+  width: 200px;
+  max-width: 100%;
+  height: auto;
+  margin: 8px auto 12px;
+}
+
+:has(> .empty-state__image) {
+  text-align: center;
+}
+
 .post-list {
   display: grid;
   grid-template-columns: 1fr;
