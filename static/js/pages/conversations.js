@@ -1,7 +1,16 @@
 // 쪽지함 화면: 내가 구매자나 판매자로 참여한 대화방 목록(최신 메시지순). 로그인이 필요하다.
+// 카드 옆 "⋯" 메뉴에서 상대 신고·차단, 대화방 나가기를 할 수 있다.
 // 페이지 번호는 주소창(?page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 페이지가 나오게 하기 위해서다.
-import { listConversations } from "../api.js";
-import { redirectToLogin, renderHeader } from "../auth.js";
+import { blockUser, leaveConversation, listConversations, reportUser } from "../api.js";
+import { redirectToLogin, refreshUnreadBadge, renderHeader } from "../auth.js";
+import {
+  REPORT_DONE_TEXT,
+  blockDoneContent,
+  confirmBlock,
+  confirmLeave,
+  openActionMenu,
+  openReportDialog,
+} from "../safety.js";
 import { getToken } from "../token.js";
 import { el, EMPTY_MESSAGES_IMAGE, formatShortDate, renderEmptyState, renderPagination, statusBadge } from "../ui.js";
 
@@ -13,6 +22,7 @@ const listError = document.getElementById("list-error");
 const emptyActions = document.getElementById("empty-actions");
 const list = document.getElementById("conversation-list");
 const pagination = document.getElementById("pagination");
+const notice = document.getElementById("inbox-notice");
 
 // 응답이 늦게 도착한 이전 요청이 최신 결과를 덮어쓰지 않도록 요청마다 번호를 붙인다.
 let latestRequestId = 0;
@@ -99,9 +109,18 @@ function renderConversationCard(conversation) {
     ? el("p", { className: "conversation-card__preview", text: `${last.is_mine ? "나: " : ""}${last.content}` })
     : el("p", { className: "conversation-card__preview conversation-card__preview--empty", text: "아직 메시지가 없습니다" });
 
+  // 카드 전체가 링크라 그 안에 버튼을 넣을 수 없다(링크 안 버튼은 HTML 규칙 위반). 메뉴 버튼은 카드 옆에 둔다.
+  const menuButton = el("button", {
+    type: "button",
+    className: "conversation-menu-button",
+    text: "⋯",
+    attrs: { "aria-label": `${partner.nickname}님과의 대화 메뉴`, "aria-haspopup": "dialog" },
+  });
+  menuButton.addEventListener("click", () => openCardMenu(conversation, menuButton));
+
   return el(
     "li",
-    {},
+    { className: "conversation-list__item" },
     el(
       "a",
       {
@@ -132,7 +151,67 @@ function renderConversationCard(conversation) {
           : null,
       ),
     ),
+    menuButton,
   );
+}
+
+// ---------- 카드 메뉴: 신고·차단·나가기 ----------
+
+async function openCardMenu(conversation, menuButton) {
+  const { partner } = conversation;
+  // 탈퇴한 상대는 신고·차단할 사람이 없으므로 나가기만 둔다.
+  const items = partner.withdrawn
+    ? []
+    : [
+        { key: "report", label: "사용자 신고" },
+        { key: "block", label: "차단" },
+      ];
+  items.push({ key: "leave", label: "대화방 나가기", danger: true });
+
+  const choice = await openActionMenu({ heading: `${partner.nickname}님과의 대화`, items });
+  if (choice === "report") {
+    const reported = await openReportDialog({
+      heading: "사용자 신고",
+      targetText: `신고 대상: ${partner.nickname}`,
+      send: (data) => reportUser(partner.id, data),
+    });
+    if (reported) showNotice(REPORT_DONE_TEXT);
+  } else if (choice === "block") {
+    if (!confirmBlock(partner.nickname)) return;
+    await runAction(() => blockUser(partner.id), () => showNotice(...blockDoneContent()));
+  } else if (choice === "leave") {
+    if (!confirmLeave(partner.nickname)) return;
+    await runAction(
+      () => leaveConversation(conversation.id),
+      () => {
+        // 이 방이 빠졌으니 목록을 다시 받는다. (페이지 수·전체 개수가 바뀐다) 쪽지 배지도 함께 줄어든다.
+        showNotice("대화방에서 나갔어요. 상대가 새 쪽지를 보내면 다시 나타나요.");
+        load();
+        refreshUnreadBadge();
+      },
+    );
+  }
+  // 메뉴가 닫히면 누른 버튼으로 초점을 돌려준다. (목록을 다시 그렸으면 그 버튼은 이미 없다)
+  if (menuButton.isConnected) menuButton.focus();
+}
+
+async function runAction(action, onDone) {
+  try {
+    await action();
+  } catch (error) {
+    if (error.status === 401) {
+      redirectToLogin();
+      return;
+    }
+    showNotice(error.message);
+    return;
+  }
+  onDone();
+}
+
+function showNotice(...content) {
+  notice.replaceChildren(...content);
+  notice.hidden = false;
 }
 
 function goToPage(page) {

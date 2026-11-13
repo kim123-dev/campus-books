@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -16,7 +16,7 @@ from app.core.exceptions import (
     SoldPostNotContactableError,
     WithdrawnPartnerMessageError,
 )
-from app.models import Conversation, Message, PostStatus, User
+from app.models import Conversation, ConversationUserState, Message, PostStatus, User
 from app.schemas.conversation import (
     ConversationDetailResponse,
     ConversationPostResponse,
@@ -61,6 +61,8 @@ def start_conversation(
     existing = _find_conversation(db, post.id, buyer.id)
     if existing is not None:
         # 차단했어도 이미 있는 방은 돌려준다. 지난 대화는 거래 분쟁 때 필요해 읽을 수 있게 둔다.
+        # 나갔던 방이면 목록에 다시 보이게 한다. 나가기 전 메시지는 계속 숨긴 채로(빈 방처럼) 열린다.
+        _rejoin(db, existing.id, buyer.id)
         return _to_detail(db, existing, buyer), False
 
     if post.status == PostStatus.SOLD:
@@ -91,13 +93,20 @@ def get_conversation(db: Session, conversation_id: int, user: User) -> Conversat
 def list_conversations(
     db: Session, user: User, page: int, size: int
 ) -> tuple[list[ConversationResponse], int]:
-    """내가 구매자나 판매자로 참여한 대화방 목록(최신 메시지순)과 전체 개수."""
+    """내가 구매자나 판매자로 참여한 대화방 목록(최신 메시지순)과 전체 개수. 내가 나간 방은 빠진다."""
     is_mine = or_(Conversation.buyer_id == user.id, Conversation.seller_id == user.id)
-    total = db.scalar(select(func.count()).select_from(Conversation).where(is_mine)) or 0
+    state = _state_join(user.id)
+    total = (
+        db.scalar(
+            select(func.count()).select_from(Conversation).outerjoin(ConversationUserState, state).where(is_mine, _visible())
+        )
+        or 0
+    )
 
     conversations = db.scalars(
         _conversation_query()
-        .where(is_mine)
+        .outerjoin(ConversationUserState, state)
+        .where(is_mine, _visible())
         # 같은 초에 온 메시지끼리는 메시지 id로 순서를 정한다. 메시지 없는 방(NULL)은 DESC에서 뒤로 간다.
         .order_by(
             Conversation.last_message_at.desc(),
@@ -111,20 +120,44 @@ def list_conversations(
 
 
 def count_unread(db: Session, user: User) -> int:
-    """내가 참여한 모든 대화방에서 상대가 보낸 안 읽은 메시지 수. 화면마다 헤더가 부르므로 쿼리 1번으로 끝낸다."""
+    """내가 참여한 모든 대화방에서 상대가 보낸 안 읽은 메시지 수. 화면마다 헤더가 부르므로 쿼리 1번으로 끝낸다.
+    나가기 전 메시지(숨김 표시 이하)는 세지 않는다.
+    """
     return (
         db.scalar(
             select(func.count())
             .select_from(Message)
             .join(Conversation, Message.conversation_id == Conversation.id)
+            .outerjoin(ConversationUserState, _state_join(user.id))
             .where(
                 or_(Conversation.buyer_id == user.id, Conversation.seller_id == user.id),
                 Message.sender_id != user.id,
                 Message.read_at.is_(None),
+                Message.id > func.coalesce(ConversationUserState.cleared_through_message_id, 0),
             )
         )
         or 0
     )
+
+
+def leave_conversation(db: Session, conversation_id: int, user: User) -> None:
+    """대화방 나가기. 내 목록에서만 빠지고 상대에게는 그대로 남는다. 메시지는 지우지 않는다.
+    지금까지의 메시지를 나에게 숨기고(숨김 표시), 안 읽은 메시지도 읽음 처리해 배지에서 뺀다.
+    """
+    conversation = _get_participating_conversation(db, conversation_id, user)
+    state = _get_state(db, conversation.id, user.id)
+    if state is None:
+        state = ConversationUserState(conversation_id=conversation.id, user_id=user.id)
+        db.add(state)
+    state.cleared_through_message_id = conversation.last_message_id or 0
+    state.left = True
+    state.updated_at = func.now()
+    try:
+        db.commit()
+    except IntegrityError:
+        # 두 기기에서 동시에 나가 같은 행을 두 번 만들려 했다. 이미 나간 상태라 그대로 둔다.
+        db.rollback()
+    _mark_as_read(db, conversation.id, user)
 
 
 # ---------- 메시지 ----------
@@ -137,7 +170,10 @@ def list_messages(
     conversation = _get_participating_conversation(db, conversation_id, user)
     _mark_as_read(db, conversation.id, user)
 
-    query = select(Message).where(Message.conversation_id == conversation.id)
+    # 내가 나가기 전 메시지는 보여주지 않는다. (상대 화면에는 그대로 있다)
+    query = select(Message).where(
+        Message.conversation_id == conversation.id, Message.id > cleared_through(db, conversation.id, user.id)
+    )
     # 한 개 더 읽어 보고, 넘치면 같은 방향으로 더 있다는 뜻이다.
     fetch = params.limit + 1
     if params.after_id is not None:
@@ -181,7 +217,42 @@ def send_message(
     return _to_message_response(message, sender)
 
 
+def cleared_through(db: Session, conversation_id: int, user_id: int) -> int:
+    """이 번호 이하의 메시지는 이 사용자에게 숨긴다(나가기). 나간 적이 없으면 0."""
+    state = _get_state(db, conversation_id, user_id)
+    return state.cleared_through_message_id if state is not None else 0
+
+
 # ---------- 내부 함수 ----------
+
+
+def _state_join(user_id: int):
+    """대화방과 이 사용자의 나가기 상태를 잇는 조건(LEFT OUTER JOIN용)."""
+    return and_(ConversationUserState.conversation_id == Conversation.id, ConversationUserState.user_id == user_id)
+
+
+def _visible():
+    """목록에 보일 방: 나간 적이 없거나, 다시 들어왔거나, 나간 뒤에 새 메시지가 온 방."""
+    return or_(
+        ConversationUserState.id.is_(None),
+        ConversationUserState.left.is_(False),
+        func.coalesce(Conversation.last_message_id, 0) > ConversationUserState.cleared_through_message_id,
+    )
+
+
+def _get_state(db: Session, conversation_id: int, user_id: int) -> ConversationUserState | None:
+    return db.scalar(
+        select(ConversationUserState).where(
+            ConversationUserState.conversation_id == conversation_id, ConversationUserState.user_id == user_id
+        )
+    )
+
+
+def _rejoin(db: Session, conversation_id: int, user_id: int) -> None:
+    state = _get_state(db, conversation_id, user_id)
+    if state is not None and state.left:
+        state.left = False
+        db.commit()
 
 
 def _partner(conversation: Conversation, user: User) -> User:
@@ -279,10 +350,17 @@ def _check_rate_limit(db: Session, sender: User) -> None:
 def _to_responses(
     db: Session, conversations: Sequence[Conversation], viewer: User
 ) -> list[ConversationResponse]:
-    """대화방들을 보는 사람 기준의 응답으로 바꾼다. 방 수와 상관없이 쿼리 2번으로 끝낸다."""
+    """대화방들을 보는 사람 기준의 응답으로 바꾼다. 방 수와 상관없이 쿼리 3번으로 끝낸다."""
     if not conversations:
         return []
     ids = [c.id for c in conversations]
+    cleared = dict(
+        db.execute(
+            select(ConversationUserState.conversation_id, ConversationUserState.cleared_through_message_id).where(
+                ConversationUserState.conversation_id.in_(ids), ConversationUserState.user_id == viewer.id
+            )
+        ).all()
+    )
 
     last_ids = [c.last_message_id for c in conversations if c.last_message_id is not None]
     last_messages = (
@@ -293,10 +371,13 @@ def _to_responses(
     unread_counts = dict(
         db.execute(
             select(Message.conversation_id, func.count())
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .outerjoin(ConversationUserState, _state_join(viewer.id))
             .where(
                 Message.conversation_id.in_(ids),
                 Message.sender_id != viewer.id,
                 Message.read_at.is_(None),
+                Message.id > func.coalesce(ConversationUserState.cleared_through_message_id, 0),
             )
             .group_by(Message.conversation_id)
         ).all()
@@ -306,6 +387,9 @@ def _to_responses(
     for conversation in conversations:
         is_buyer = conversation.buyer_id == viewer.id
         last = last_messages.get(conversation.last_message_id)
+        # 마지막 메시지가 내가 나가기 전 것이면 미리보기를 비운다. (다시 문의해 연 빈 방)
+        if last is not None and last.id <= cleared.get(conversation.id, 0):
+            last = None
         responses.append(
             ConversationResponse(
                 id=conversation.id,

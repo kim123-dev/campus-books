@@ -385,8 +385,9 @@ def test_list_query_count_does_not_grow_with_conversations(
     items = response.json()["items"]
     assert len(items) == 4
     assert all(item["last_message"] and item["unread_count"] == 1 for item in items)
-    # 로그인 사용자 1 + 개수 1 + 방·글·상대 JOIN 1 + 마지막 메시지 1 + 안 읽은 개수 1. 방이 늘어도 그대로여야 한다.
-    assert len(statements) == 5
+    # 로그인 사용자 1 + 개수 1 + 방·글·상대 JOIN 1 + 나가기 상태 1 + 마지막 메시지 1 + 안 읽은 개수 1.
+    # 방이 늘어도 그대로여야 한다.
+    assert len(statements) == 6
 
 
 # ---------- 안 읽은 개수 (헤더 배지) ----------

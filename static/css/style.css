@@ -1514,6 +1514,37 @@ a.button {
   list-style: none;
 }
 
+/* 카드와 "⋯" 메뉴 버튼을 나란히 둔다. 카드 전체가 링크라 버튼은 카드 밖(옆)에 있어야 한다. */
+.conversation-list__item {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.conversation-list__item > .conversation-card {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.conversation-menu-button {
+  flex: 0 0 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.conversation-menu-button:hover,
+.conversation-menu-button:focus-visible {
+  background: var(--color-fill);
+  color: var(--color-text);
+}
+
 .conversation-card {
   display: flex;
   flex-direction: column;
@@ -2125,6 +2156,49 @@ a.button {
   color: var(--color-text);
   box-shadow: var(--shadow-card-hover);
   overflow-y: auto;
+}
+
+/* 메뉴 창: 제목 한 줄과 누를 항목들. 신고 창과 같은 틀을 쓴다. */
+.action-menu {
+  width: min(360px, calc(100vw - 32px));
+  padding: 8px;
+}
+
+.action-menu__title {
+  margin: 8px 12px 8px;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.action-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.action-menu__item:hover,
+.action-menu__item:focus-visible {
+  background: var(--color-fill);
+}
+
+.action-menu__item--danger {
+  color: var(--color-danger);
+}
+
+.action-menu__cancel {
+  justify-content: center;
+  margin-top: 4px;
+  color: var(--color-muted);
 }
 
 .report-dialog::backdrop {

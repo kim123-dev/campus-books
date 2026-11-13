@@ -123,3 +123,18 @@ def send_message(
     db: Annotated[Session, Depends(get_db)],
 ) -> MessageResponse:
     return conversation_service.send_message(db, conversation_id, current_user, data)
+
+
+# 내 목록에서만 지운다. 상대에게는 그대로 남고, 메시지는 신고 증거가 될 수 있어 지우지 않는다.
+# 정지 중에도 나갈 수 있게 CurrentUser를 쓴다. (무언가를 새로 만드는 요청이 아니다)
+@router.post(
+    "/conversations/{conversation_id}/leave",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="대화방 나가기 (내 목록에서만 숨김)",
+    responses=PARTICIPANT_ONLY_RESPONSES,
+)
+def leave_conversation(
+    conversation_id: int, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> None:
+    conversation_service.leave_conversation(db, conversation_id, current_user)

@@ -341,6 +341,11 @@ export function listMessages(conversationId, params) {
 }
 
 /** 메시지 전송. 짧은 시간에 많이 보내면 429(error.retryAfter초 뒤 재시도). */
+/** 대화방 나가기. 내 목록에서만 사라지고 상대에게는 남는다. */
+export function leaveConversation(conversationId) {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/leave`, { method: "POST" });
+}
+
 export function sendMessage(conversationId, content) {
   return request(`/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",

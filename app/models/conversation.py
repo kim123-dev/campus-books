@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -61,3 +61,27 @@ class Message(Base):
     )
     # 받는 사람이 읽은 시각. NULL이면 아직 안 읽었다.
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ConversationUserState(Base):
+    """대화방에 대한 사람별 상태: 나가기. 메시지는 지우지 않고 "이 번호까지는 나에게 숨김"만 기록한다.
+
+    - 나가면 내 목록에서 빠지고, 상대 화면에는 아무 변화가 없다.
+    - 상대가 새 메시지를 보내면(또는 내가 같은 글에 다시 문의하면) 방이 다시 보이지만,
+      나가기 전 메시지는 계속 숨긴다. 안 읽은 수도 숨김 표시 이후 메시지만 센다.
+    - 메시지는 신고 증거가 될 수 있어 지우지 않는다. 관리자 신고 처리는 이 숨김과 상관없다.
+    conversations 테이블에 컬럼을 더하면 ALTER가 필요하므로 새 테이블로 둔다.
+    """
+
+    __tablename__ = "conversation_user_states"
+    __table_args__ = (UniqueConstraint("conversation_id", "user_id", name="uq_conversation_user_state"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"))
+    # 내 목록을 만들 때 내 상태를 함께 읽으므로 index를 둔다.
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    # 이 번호 이하의 메시지는 나에게 보이지 않는다. 0이면 숨긴 메시지가 없다.
+    cleared_through_message_id: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # 나간 상태. 이보다 새 메시지가 오거나 다시 문의하면 목록에 다시 나타난다.
+    left: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

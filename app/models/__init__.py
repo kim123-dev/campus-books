@@ -3,7 +3,7 @@ from app.models.admin_action import AdminAction, AdminActionType, AdminTargetTyp
 from app.models.banned_email import BannedEmail
 from app.models.block import UserBlock
 from app.models.book_alert import MAX_ALERTS_PER_USER, AlertNotification, BookAlert
-from app.models.conversation import Conversation, Message
+from app.models.conversation import Conversation, ConversationUserState, Message
 from app.models.nickname_change import NicknameChange
 from app.models.post import BookCondition, Post, PostStatus
 from app.models.post_image import MAX_IMAGES_PER_POST, PostImage
@@ -25,6 +25,7 @@ __all__ = [
     "MAX_IMAGES_PER_POST",
     "BookCondition",
     "Conversation",
+    "ConversationUserState",
     "Message",
     "NicknameChange",
     "PasswordResetAttempt",

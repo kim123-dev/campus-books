@@ -160,3 +160,58 @@ export function openReportDialog({ heading, targetText, send }) {
     reasonGroup.querySelector("input").focus();
   });
 }
+
+/**
+ * 작은 메뉴 창(신고·차단·나가기 등)을 연다. 고른 항목의 key, 취소하면 null로 끝나는 Promise를 돌려준다.
+ * 신고 창과 같은 <dialog>를 써서 Esc로 닫히고 뒤 화면은 누를 수 없다. 모바일에서는 화면 아래에서 올라온다.
+ * @param {{ heading: string, items: {key: string, label: string, danger?: boolean}[] }} options
+ */
+export function openActionMenu({ heading, items }) {
+  const titleId = "action-menu-title";
+  const buttons = items.map(({ key, label, danger }) =>
+    el("button", {
+      type: "button",
+      className: `action-menu__item${danger ? " action-menu__item--danger" : ""}`,
+      text: label,
+      attrs: { "data-key": key },
+    }),
+  );
+  const cancel = el("button", { type: "button", className: "action-menu__item action-menu__cancel", text: "취소" });
+  const dialog = el(
+    "dialog",
+    { className: "report-dialog action-menu", attrs: { "aria-labelledby": titleId } },
+    el("h2", { id: titleId, className: "action-menu__title", text: heading }),
+    ...buttons,
+    cancel,
+  );
+  document.body.append(dialog);
+  return new Promise((resolve) => {
+    let chosen = null;
+    for (const button of buttons) {
+      button.addEventListener("click", () => {
+        chosen = button.dataset.key;
+        dialog.close();
+      });
+    }
+    cancel.addEventListener("click", () => dialog.close());
+    // 창 바깥(배경)을 누르면 닫는다. 메뉴는 고를 것만 있어 실수로 닫혀도 잃는 내용이 없다.
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      resolve(chosen);
+    });
+    dialog.showModal();
+    buttons[0]?.focus();
+  });
+}
+
+/** 나가기 전에 무엇이 달라지는지 알려주고 확인한다. */
+export function confirmLeave(nickname) {
+  return window.confirm(
+    `${nickname}님과의 대화방에서 나갈까요?\n\n` +
+      "· 내 쪽지함에서만 사라지고, 상대에게는 그대로 남아요.\n" +
+      "· 상대가 새 쪽지를 보내면 다시 나타나지만, 지금까지의 대화는 보이지 않아요.",
+  );
+}
