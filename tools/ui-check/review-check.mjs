@@ -56,7 +56,8 @@ try {
   check("상세의 판매자 이름이 프로필 링크", /^\/static\/user\.html\?id=\d+$/.test(href), href);
   await goto(href, "document.querySelector('#review-list li')");
   check("프로필 닉네임", (await text("#profile-name")) === "판매자민수", await text("#profile-name"));
-  check("후기 1개면 비율 대신 안내", (await text("#profile-manner")).includes("아직 후기가 적어요"));
+  // 기본 학점 3.5에서 좋아요 하나에 +0.1
+  check("좋아요 후기 1개: 매너 학점 3.6 / 4.5, B+", (await text("#profile-manner .manner-gpa")).replace(/\s+/g, "") === "매너학점3.6/4.5B+", await text("#profile-manner"));
   check("받은 후기 표시", (await text("#review-list")).includes("약속 시간을 잘 지켜") && (await text("#review-list")).includes("판매자로서"));
   check("판매 중인 글만(판매 완료 p1 제외)", await evaluate(`![...document.querySelectorAll("#post-list a")].some((a) => a.href.endsWith("id=${seed.p1}"))`));
   check("프로필에 이메일 없음", !(await evaluate(`document.body.textContent.includes("@uicheck.ac.kr")`)));
@@ -94,9 +95,10 @@ try {
   // 기본 탭은 미처리 신고만 보여 처리된 카드는 목록에서 빠진다. 처리 완료 안내로 확인한다.
   const hidden = await waitUntil(`document.body.textContent.includes("후기 숨김(으)로 처리했습니다")`);
   check("후기 숨김 처리", hidden);
-  check("확인 창 문구", (await evaluate("window.lastConfirm ?? ''")).includes("매너 점수에서 이 후기를 뺍니다"));
+  check("확인 창 문구", (await evaluate("window.lastConfirm ?? ''")).includes("매너 학점에서 이 후기를 뺍니다"));
   await goto(href, "document.querySelector('#reviews-summary').textContent !== '불러오는 중…'");
   check("숨긴 후기는 프로필에서 빠짐", (await text("#reviews-summary")) === "받은 후기가 없어요.", await text("#reviews-summary"));
+  check("숨긴 후기는 매너 학점에서도 빠져 기본 학점 3.5", (await text("#profile-manner")).includes("3.5") && (await text("#profile-manner")).includes("기본 학점"), await text("#profile-manner"));
 
   // 없는 사용자 확인은 일부러 404를 내므로, 그 전까지의 오류만 본다.
   check("스크립트 오류 없음", exceptions.length === 0, exceptions.join(" | "));

@@ -385,7 +385,7 @@ function confirmText(report, data) {
     lines.push("· 같은 글에 대한 다른 미처리 신고도 함께 처리됩니다.");
   }
   if (data.action === "HIDE_REVIEW") {
-    lines.push("· 후기 숨김: 프로필 목록과 매너 점수에서 이 후기를 뺍니다.");
+    lines.push("· 후기 숨김: 프로필 목록과 매너 학점에서 이 후기를 뺍니다.");
     lines.push("· 같은 후기에 대한 다른 미처리 신고도 함께 처리됩니다.");
   }
   if (data.action === "SUSPEND") {

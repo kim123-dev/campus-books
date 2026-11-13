@@ -17,7 +17,7 @@ from app.schemas.post import (
     SizeQuery,
 )
 from app.schemas.trade import BuyerUpdate, PostBuyerResponse
-from app.services import block_service, post_service, wishlist_service
+from app.services import block_service, post_service, review_service, wishlist_service
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -68,6 +68,7 @@ def read_post(
         is_wishlisted=wishlist_service.is_wishlisted(db, post.id, current_user),
         # 차단한 판매자의 글도 주소로 직접 들어오면 보여주되, 화면이 안내를 띄울 수 있게 표시한다.
         is_seller_blocked=block_service.has_blocked(db, current_user, post.seller_id),
+        seller_manner=review_service.manner_summary(db, post.seller_id),
     )
 
 

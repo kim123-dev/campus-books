@@ -296,6 +296,19 @@ def test_front_photo_limits_match_server() -> None:
     assert int(size.group(1)) * 1024 * 1024 == MAX_IMAGE_BYTES
 
 
+def test_front_manner_gpa_max_matches_server() -> None:
+    # 화면이 적어 둔 만점(막대 길이, "/ 4.5" 표시)이 서버 계산과 어긋나지 않게 한다.
+    from app.services.review_service import MANNER_GPA_MAX
+
+    user_js = (STATIC_DIR / "js" / "pages" / "user.js").read_text(encoding="utf-8")
+    me_js = (STATIC_DIR / "js" / "pages" / "me.js").read_text(encoding="utf-8")
+    declared = re.search(r"const MAX_GPA = ([\d.]+);", user_js)
+    assert declared, "user.js에서 MAX_GPA를 찾지 못했습니다."
+
+    assert float(declared.group(1)) == MANNER_GPA_MAX / 10
+    assert f"/ {MANNER_GPA_MAX / 10} (" in me_js
+
+
 def test_photo_resize_keeps_originals_only_within_server_limit() -> None:
     # 줄이지 않고 원본을 보내는 기준 용량이 서버 한도보다 크면, 화면은 원본을 보내고 서버는 413으로 거절한다.
     from app.services.image_service import MAX_IMAGE_BYTES

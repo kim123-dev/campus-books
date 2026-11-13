@@ -141,7 +141,7 @@ def test_hide_review_hides_and_resolves_same_review_reports(
     assert response.json()["resolved_ids"] == [first, second]
     db_session.expire_all()
     assert db_session.get(Review, review["id"]).hidden_at is not None
-    # 숨긴 후기는 프로필 목록·매너 점수에서 빠지고, 더 신고할 수 없다.
+    # 숨긴 후기는 프로필 목록·매너 학점에서 빠지고, 더 신고할 수 없다.
     seller_id = user_id(client, seller)
     assert client.get(f"/users/{seller_id}/reviews").json()["total"] == 0
     assert client.get(f"/users/{seller_id}/profile").json()["manner"]["total"] == 0

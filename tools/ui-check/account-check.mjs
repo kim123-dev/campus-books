@@ -36,9 +36,9 @@ try {
   check("계정 관리 버튼 3개 보임", await b.evaluate(`['nickname-toggle', 'password-toggle', 'withdraw-toggle'].every((id) => !document.getElementById(id).hidden)`));
   check("가로 스크롤 없음", await b.evaluate(`document.documentElement.scrollWidth <= ${W}`));
 
-  // 내 정보 카드: 이메일·가입일, 매너 점수, 공개 프로필 링크
+  // 내 정보 카드: 이메일·가입일, 매너 학점, 공개 프로필 링크
   check("내 정보: 이메일·가입일", await b.evaluate(`document.getElementById('profile-meta').textContent.includes('가입')`));
-  check("내 정보: 매너 점수 한 줄", await b.waitUntil(`document.getElementById('profile-manner').textContent.startsWith('매너 점수')`));
+  check("내 정보: 매너 학점 한 줄", await b.waitUntil(`document.getElementById('profile-manner').textContent.startsWith('매너 학점')`));
   check("내 정보: 공개 프로필 링크", await b.evaluate(`document.getElementById('profile-public-link').getAttribute('href').startsWith('/static/user.html?id=')`));
 
   // 닉네임 변경: 성공 → 카드 이름과 안내가 바뀜, 두 번째는 30일 제한 안내

@@ -138,7 +138,7 @@ function unhideForm(review) {
     id: `unhide-${review.id}`,
     submitText: "숨김 해제",
     confirm: (reason) =>
-      `후기 #${review.id}의 숨김을 풀까요?\n받은 사람의 프로필과 매너 점수에 바로 다시 들어갑니다.\n\n사유: ${reason}`,
+      `후기 #${review.id}의 숨김을 풀까요?\n받은 사람의 프로필과 매너 학점에 바로 다시 들어갑니다.\n\n사유: ${reason}`,
     onSubmit: async (reason) => {
       await unhideReview(review.id, { reason });
       notice.textContent = `후기 #${review.id}의 숨김을 해제했습니다.`;

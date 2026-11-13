@@ -1,4 +1,4 @@
-"""거래 후기: 작성, 쪽지 화면용 후기 상태, 받은 후기 목록, 매너 점수."""
+"""거래 후기: 작성, 쪽지 화면용 후기 상태, 받은 후기 목록, 매너 학점."""
 
 from datetime import datetime
 
@@ -25,6 +25,16 @@ from app.services import trade_service, user_service
 
 # 좋아요 비율을 보여주기 시작하는 후기 수. 1~2개로 100%·0%가 뜨면 실제보다 강하게 보이기 때문이다.
 MIN_REVIEWS_FOR_RATIO = 3
+
+# 매너 학점: 대학 성적처럼 0.0~4.5로 보여주는 거래 매너 점수. 받은 후기에서 그때그때 계산하고 저장하지 않는다.
+# (숨긴 후기를 빼거나 되살리면 학점도 바로 따라가고, 기존 테이블에 컬럼을 더하지 않아도 된다)
+# 소수 계산 오차(0.1을 여러 번 더하면 3.5999…)를 피하려고 0.1 단위 정수로 계산한다. 예: 35 = 3.5
+MANNER_GPA_START = 35  # 후기가 없을 때의 기본 학점 B+. 누구나 중간보다 조금 위에서 시작한다.
+MANNER_GPA_PER_GOOD = 1  # 좋아요 하나에 +0.1
+MANNER_GPA_PER_BAD = 3  # 아쉬워요 하나에 -0.3. 나쁜 거래 한 번을 좋은 거래 세 번만큼 무겁게 본다.
+MANNER_GPA_MAX = 45  # 만점 4.5 (A+)
+# 학점 → 등급. 위에서부터 처음으로 넘는 칸의 등급을 쓴다. (대학의 4.5 만점 표와 같다)
+MANNER_GRADES = [(45, "A+"), (40, "A0"), (35, "B+"), (30, "B0"), (25, "C+"), (20, "C0"), (15, "D+"), (10, "D0"), (0, "F")]
 
 
 def create_review(db: Session, trade_id: int, user: User, data: ReviewCreate) -> ReviewResponse:
@@ -118,7 +128,23 @@ def manner_summary(db: Session, user_id: int) -> MannerSummary:
     bad = counts.get(ReviewRating.BAD, 0)
     total = good + bad
     ratio = round(good * 100 / total) if total >= MIN_REVIEWS_FOR_RATIO else None
-    return MannerSummary(good=good, bad=bad, total=total, good_ratio=ratio)
+    tenths = manner_gpa_tenths(good, bad)
+    return MannerSummary(
+        good=good, bad=bad, total=total, good_ratio=ratio, gpa=tenths / 10, grade=manner_grade(tenths)
+    )
+
+
+def manner_gpa_tenths(good: int, bad: int) -> int:
+    """매너 학점(0.1 단위 정수). 먼저 다 더한 뒤 0.0~4.5로 자른다.
+
+    그래서 좋아요가 많이 쌓인 사람은 아쉬워요 하나로 바로 떨어지지 않는다. (좋아요 20·아쉬워요 1 = 4.5)
+    """
+    raw = MANNER_GPA_START + good * MANNER_GPA_PER_GOOD - bad * MANNER_GPA_PER_BAD
+    return max(0, min(MANNER_GPA_MAX, raw))
+
+
+def manner_grade(tenths: int) -> str:
+    return next(grade for floor, grade in MANNER_GRADES if tenths >= floor)
 
 
 def _written(db: Session, trade_id: int, reviewer_id: int) -> bool:

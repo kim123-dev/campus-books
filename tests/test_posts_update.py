@@ -198,7 +198,9 @@ def test_update_sold_post_returns_400(
 
     assert response.status_code == 400
     assert response.json() == SOLD_NOT_EDITABLE
-    assert client.get(f"/posts/{sold_post['id']}").json() == sold_post
+    # 상세 조회에서만 채우는 판매자 매너 학점을 빼면 그대로다.
+    after = client.get(f"/posts/{sold_post['id']}").json()
+    assert {**after, "seller_manner": None} == sold_post
 
 
 @pytest.mark.parametrize("status_value", ["ON_SALE", "RESERVED"])

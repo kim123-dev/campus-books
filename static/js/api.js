@@ -329,7 +329,7 @@ export function createReview(tradeId, data) {
   return request(`/trades/${encodeURIComponent(tradeId)}/reviews`, { method: "POST", json: data });
 }
 
-/** 프로필(닉네임, 매너 점수). 로그인하지 않아도 볼 수 있다. 없거나 탈퇴한 사용자는 404. */
+/** 프로필(닉네임, 매너 학점). 로그인하지 않아도 볼 수 있다. 없거나 탈퇴한 사용자는 404. */
 export function getProfile(userId) {
   return request(`/users/${encodeURIComponent(userId)}/profile`);
 }

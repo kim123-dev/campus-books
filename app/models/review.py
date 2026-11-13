@@ -41,7 +41,7 @@ class Review(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    # 관리자가 신고를 처리하며 숨긴 시각. 숨긴 후기는 목록과 매너 점수에서 빠진다.
+    # 관리자가 신고를 처리하며 숨긴 시각. 숨긴 후기는 목록과 매너 학점에서 빠진다.
     # 신고 처리 기능보다 먼저 배포돼도 ALTER가 필요 없도록 처음부터 둔다.
     hidden_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

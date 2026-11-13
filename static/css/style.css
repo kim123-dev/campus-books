@@ -2200,8 +2200,52 @@ a.button {
   margin: 0;
 }
 
-.profile__ratio strong {
-  font-size: 1.375rem;
+/* 매너 학점: 큰 숫자 + 만점 + 등급, 그 아래에 학점만큼 채워진 막대 */
+.manner-gpa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+}
+
+.manner-gpa__label {
+  margin-right: 4px;
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.manner-gpa__score {
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.manner-gpa__max {
+  color: var(--color-muted);
+}
+
+.manner-gpa__grade {
+  margin-left: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.manner-gpa__bar {
+  overflow: hidden;
+  max-width: 320px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-fill);
+}
+
+.manner-gpa__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
 }
 
 .profile__manner-note {
@@ -2302,6 +2346,19 @@ a.button {
 /* 상세 화면의 판매자 이름(프로필로 가는 링크) */
 .post-detail__seller-link {
   font-weight: 600;
+}
+
+/* 판매자 이름 옆의 매너 학점. 좁은 화면에서는 이름 아래로 내려간다. */
+.post-detail__seller {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.post-detail__seller-gpa {
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* 차단 관계라 쪽지를 보낼 수 없을 때 입력창 위에 보이는 안내 */

@@ -22,7 +22,10 @@ def test_read_post_returns_detail_with_seller_nickname(
     response = client.get(f"{POSTS_URL}/{created['id']}")
 
     assert response.status_code == 200
-    assert response.json() == created
+    # 판매자의 매너 학점은 상세 조회에서만 채운다. 그 밖의 내용은 작성 응답과 같다.
+    assert created["seller_manner"] is None
+    assert response.json()["seller_manner"]["gpa"] == 3.5
+    assert response.json() == {**created, "seller_manner": response.json()["seller_manner"]}
     assert response.json()["seller"]["nickname"] == "판매자"
 
 

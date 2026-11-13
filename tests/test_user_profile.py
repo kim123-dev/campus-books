@@ -1,4 +1,4 @@
-"""판매자 프로필: 개인정보 없음, 판매 중인 글만, 받은 후기와 매너 점수."""
+"""판매자 프로필: 개인정보 없음, 판매 중인 글만, 받은 후기와 매너 학점."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,7 +6,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.models import Review, User
-from app.services import user_service
+from app.services import review_service, user_service
 
 
 @pytest.fixture
@@ -48,7 +48,8 @@ def test_profile_has_no_private_fields(client: TestClient, db_session: Session, 
     assert body == {
         "id": user_id(client, seller),
         "nickname": "판매자",
-        "manner": {"good": 0, "bad": 0, "total": 0, "good_ratio": None},
+        # 후기가 없으면 기본 학점 3.5(B+)다.
+        "manner": {"good": 0, "bad": 0, "total": 0, "good_ratio": None, "gpa": 3.5, "grade": "B+"},
     }
 
 
@@ -78,9 +79,9 @@ def test_profile_posts_are_on_sale_or_reserved(client: TestClient, seller: dict,
 @pytest.mark.parametrize(
     ("ratings", "expected"),
     [
-        (["GOOD"], {"good": 1, "bad": 0, "total": 1, "good_ratio": None}),
-        (["GOOD", "BAD"], {"good": 1, "bad": 1, "total": 2, "good_ratio": None}),
-        (["GOOD", "GOOD", "BAD"], {"good": 2, "bad": 1, "total": 3, "good_ratio": 67}),
+        (["GOOD"], {"good": 1, "bad": 0, "total": 1, "good_ratio": None, "gpa": 3.6, "grade": "B+"}),
+        (["GOOD", "BAD"], {"good": 1, "bad": 1, "total": 2, "good_ratio": None, "gpa": 3.3, "grade": "B0"}),
+        (["GOOD", "GOOD", "BAD"], {"good": 2, "bad": 1, "total": 3, "good_ratio": 67, "gpa": 3.4, "grade": "B0"}),
     ],
     ids=["1-review", "2-reviews", "3-reviews"],
 )
@@ -105,6 +106,9 @@ def test_hidden_reviews_are_excluded(
         "bad": 0,
         "total": 2,
         "good_ratio": None,
+        # 숨긴 아쉬워요는 학점에서도 빠진다. (3.5 + 0.1 × 2)
+        "gpa": 3.7,
+        "grade": "B+",
     }
     reviews = client.get(f"/users/{seller_id}/reviews").json()
     assert reviews["total"] == 2
@@ -123,3 +127,48 @@ def test_reviews_received_as_buyer_are_listed_too(
     assert [(i["reviewee_role"], i["reviewer_nickname"], i["content"]) for i in items] == [
         ("BUYER", "판매자", "입금 빨라요")
     ]
+
+
+# ---------- 매너 학점 ----------
+
+
+@pytest.mark.parametrize(
+    ("good", "bad", "gpa", "grade"),
+    [
+        (0, 0, 3.5, "B+"),  # 후기가 없을 때의 기본 학점
+        (1, 0, 3.6, "B+"),  # 좋아요 하나에 +0.1
+        (0, 1, 3.2, "B0"),  # 아쉬워요 하나에 -0.3
+        (3, 1, 3.5, "B+"),  # 아쉬워요 하나는 좋아요 셋과 같은 무게
+        (5, 0, 4.0, "A0"),
+        (9, 0, 4.4, "A0"),
+        (10, 0, 4.5, "A+"),  # 만점
+        (30, 0, 4.5, "A+"),  # 만점을 넘지 않는다
+        (20, 1, 4.5, "A+"),  # 다 더한 뒤 자르므로, 좋아요가 많이 쌓였으면 아쉬워요 하나로 떨어지지 않는다
+        (0, 2, 2.9, "C+"),
+        (0, 5, 2.0, "C0"),
+        (0, 7, 1.4, "D0"),
+        (0, 9, 0.8, "F"),
+        (0, 12, 0.0, "F"),  # 0 아래로 내려가지 않는다
+        (0, 100, 0.0, "F"),
+    ],
+)
+def test_manner_gpa_formula(good: int, bad: int, gpa: float, grade: str) -> None:
+    tenths = review_service.manner_gpa_tenths(good, bad)
+
+    assert tenths / 10 == gpa
+    assert review_service.manner_grade(tenths) == grade
+
+
+def test_post_detail_shows_seller_manner_gpa(
+    client: TestClient, seller: dict, make_auth_headers, create_post
+) -> None:
+    review_seller(client, seller, make_auth_headers, create_post, ["GOOD", "GOOD"])
+    created = create_post(seller)
+
+    detail = client.get(f"/posts/{created['id']}").json()  # 로그인하지 않아도 보인다.
+
+    assert detail["seller_manner"] == client.get(f"/users/{user_id(client, seller)}/profile").json()["manner"]
+    assert detail["seller_manner"]["gpa"] == 3.7
+    # 작성 응답과 목록에는 넣지 않는다. (목록은 글마다 계산이 붙어 느려진다)
+    assert created["seller_manner"] is None
+    assert "seller_manner" not in client.get("/posts").json()["items"][0]

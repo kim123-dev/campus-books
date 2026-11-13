@@ -1,4 +1,4 @@
-// 내 정보 화면: 내 정보(닉네임·이메일·가입일·매너 점수), 계정 관리(닉네임·비밀번호 변경, 본인 확인 질문, 탈퇴), 내 글·찜 목록 탭.
+// 내 정보 화면: 내 정보(닉네임·이메일·가입일·매너 학점), 계정 관리(닉네임·비밀번호 변경, 본인 확인 질문, 탈퇴), 내 글·찜 목록 탭.
 // 예전의 "내 글"(my-posts.html)과 "찜"(wishlist.html) 화면을 이 화면 하나로 모았다. 로그인이 필요하다.
 // 고른 탭과 페이지는 주소창(?tab=wishlist&page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 목록이 나오게 하기 위해서다.
 import { changePassword, getProfile, listMyPosts, listWishlist, setSecurityQuestion, updateMe, withdraw } from "../api.js";
@@ -103,7 +103,7 @@ function renderProfile(me) {
   document.getElementById("account").hidden = false;
 }
 
-/** 매너 점수 요약 한 줄. 다른 사람이 보는 공개 프로필과 같은 값이다. 보조 정보라 실패하면 줄을 숨긴다. */
+/** 매너 학점 요약 한 줄. 다른 사람이 보는 공개 프로필과 같은 값이다. 보조 정보라 실패하면 줄을 숨긴다. */
 async function loadManner(userId) {
   const line = document.getElementById("profile-manner");
   try {
@@ -114,11 +114,10 @@ async function loadManner(userId) {
   }
 }
 
-function mannerText({ good, bad, total, good_ratio: ratio }) {
-  if (total === 0) return "매너 점수: 아직 받은 거래 후기가 없어요.";
-  // 후기가 3개 미만이면 서버가 비율을 비워 보낸다(null). 개수만 보여준다.
-  const counts = `좋아요 ${good} · 아쉬워요 ${bad}`;
-  return ratio === null ? `매너 점수: ${counts}` : `매너 점수: ${ratio}% 좋아요 (${counts})`;
+function mannerText({ good, bad, total, gpa, grade }) {
+  const score = `매너 학점: ${gpa.toFixed(1)} / 4.5 (${grade})`;
+  // 후기가 없으면 기본 학점(3.5, B+)이다.
+  return total === 0 ? `${score} · 아직 받은 거래 후기가 없어요.` : `${score} · 좋아요 ${good} · 아쉬워요 ${bad}`;
 }
 
 // ---------- 계정 관리: 닉네임 변경·비밀번호 변경·본인 확인 질문·회원 탈퇴 ----------

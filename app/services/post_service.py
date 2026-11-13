@@ -15,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.models import Conversation, Post, PostStatus, User, Wishlist
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
+from app.schemas.review import MannerSummary
 from app.schemas.trade import PostBuyerResponse
 from app.services import alert_service, block_service, image_storage, pending_image_service, trade_service
 
@@ -70,12 +71,17 @@ def to_detail_response(
     show_contact: bool,
     is_wishlisted: bool | None = None,
     is_seller_blocked: bool | None = None,
+    seller_manner: MannerSummary | None = None,
 ) -> PostDetailResponse:
     """상세 응답을 만든다. show_contact가 False면 오픈채팅 링크를 null로 비운다."""
     # 링크를 모아 스팸을 보내는 수집을 막기 위해, 연락 방법은 로그인한 사용자에게만 보여준다.
     # ORM 객체를 직접 고치면 같은 세션의 다음 commit에 null이 저장될 수 있어 응답 객체에서만 바꾼다.
     detail = PostDetailResponse.model_validate(post).model_copy(
-        update={"is_wishlisted": is_wishlisted, "is_seller_blocked": is_seller_blocked}
+        update={
+            "is_wishlisted": is_wishlisted,
+            "is_seller_blocked": is_seller_blocked,
+            "seller_manner": seller_manner,
+        }
     )
     if not show_contact:
         detail = detail.model_copy(update={"open_chat_url": None})

@@ -70,13 +70,16 @@ class TradeReviewState(BaseModel):
 
 
 class MannerSummary(BaseModel):
-    """매너 점수 요약. 숨긴 후기는 빼고 센다."""
+    """매너 학점 요약. 숨긴 후기는 빼고 센다."""
 
     good: int
     bad: int
     total: int
     # 좋아요 비율(%). 후기가 적으면(MIN_REVIEWS_FOR_RATIO 미만) 1~2개로 100%·0%가 뜨는 착시를 막으려고 null.
     good_ratio: int | None
+    # 매너 학점(0.0~4.5, 0.1 단위)과 등급(A+~F). 후기가 없으면 기본 학점 3.5(B+)다. 계산은 review_service.
+    gpa: float
+    grade: str
 
 
 class ProfileResponse(BaseModel):

@@ -16,7 +16,7 @@ router = APIRouter(prefix="/users", tags=["profiles"])
 NOT_FOUND = {404: {"description": "없거나 탈퇴한 사용자"}}
 
 
-@router.get("/{user_id}/profile", response_model=ProfileResponse, summary="프로필 (닉네임, 매너 점수)", responses=NOT_FOUND)
+@router.get("/{user_id}/profile", response_model=ProfileResponse, summary="프로필 (닉네임, 매너 학점)", responses=NOT_FOUND)
 def read_profile(user_id: int, db: Annotated[Session, Depends(get_db)]) -> ProfileResponse:
     return profile_service.get_profile(db, user_id)
 

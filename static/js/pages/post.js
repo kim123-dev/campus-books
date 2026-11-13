@@ -112,6 +112,9 @@ function showPageError(message) {
 
 // ---------- 그리기 ----------
 
+// 처음 상세를 받을 때 온 판매자의 매너 학점. (renderDetail 참고)
+let sellerManner = null;
+
 function render(post) {
   document.title = `${post.title} | Campus Books`; // document.title은 글자로만 처리되어 안전하다.
   renderDetail(post);
@@ -136,14 +139,23 @@ function renderDetail(post) {
   addInfo("교재명", post.book_title);
   if (post.course_name) addInfo("과목명", post.course_name);
   addInfo("책 상태", CONDITION_LABELS[post.condition] ?? post.condition);
-  // 판매자 이름을 누르면 프로필(매너 점수·받은 후기)로 간다.
+  // 판매자 이름을 누르면 프로필(매너 학점·받은 후기)로 간다.
+  // 이름 옆에 매너 학점을 붙여, 프로필에 들어가지 않아도 어떤 판매자인지 보이게 한다.
+  // 서버는 상세 조회에서만 학점을 준다. 상태 변경 응답으로 다시 그릴 때는 처음 받은 값을 그대로 쓴다.
+  if (post.seller_manner) sellerManner = post.seller_manner;
+  const manner = sellerManner;
   addInfo(
     "판매자",
-    el("a", {
-      className: "post-detail__seller-link",
-      href: `/static/user.html?id=${encodeURIComponent(post.seller.id)}`,
-      text: post.seller.nickname,
-    }),
+    el(
+      "span",
+      { className: "post-detail__seller" },
+      el("a", {
+        className: "post-detail__seller-link",
+        href: `/static/user.html?id=${encodeURIComponent(post.seller.id)}`,
+        text: post.seller.nickname,
+      }),
+      manner && el("span", { className: "post-detail__seller-gpa", text: `매너 학점 ${manner.gpa.toFixed(1)} (${manner.grade})` }),
+    ),
   );
   addInfo("작성", created);
   // 분 단위로 같으면 작성 직후라 수정 표시를 하지 않는다.

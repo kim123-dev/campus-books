@@ -124,7 +124,7 @@ def list_reviews(
 
 def unhide_review(db: Session, admin: User, review_id: int, data: AdminReasonRequest) -> None:
     """숨긴 후기를 다시 보이게 한다. 순서: 404 없음 → 409 숨긴 후기가 아님.
-    다시 보이면 받은 사람의 후기 목록과 매너 점수에 바로 다시 들어간다. (숨김 여부만 보고 세기 때문)
+    다시 보이면 받은 사람의 후기 목록과 매너 학점에 바로 다시 들어간다. (숨김 여부만 보고 세기 때문)
     """
     review = db.get(Review, review_id)
     if review is None:

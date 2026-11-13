@@ -1,4 +1,4 @@
-// 프로필 화면: 닉네임, 매너 점수, 판매 중인 글, 받은 거래 후기. 로그인하지 않아도 볼 수 있다.
+// 프로필 화면: 닉네임, 매너 학점, 판매 중인 글, 받은 거래 후기. 로그인하지 않아도 볼 수 있다.
 // 글과 후기는 각자 페이지를 넘긴다. 둘을 함께 주소에 담으면 복잡해지므로 페이지 번호는 화면 안에서만 기억한다.
 import { getProfile, listProfilePosts, listProfileReviews, reportReview } from "../api.js";
 import { renderHeader } from "../auth.js";
@@ -7,6 +7,8 @@ import { RATING_LABELS, REVIEWEE_ROLE_LABELS } from "../trade.js";
 import { el, formatDate, readPostIdFromUrl, renderPagination, renderPostCard } from "../ui.js";
 
 const PAGE_SIZE = 10;
+// 매너 학점의 만점. 서버(review_service.MANNER_GPA_MAX)와 같은 값이어야 한다. (tests/test_static.py가 확인)
+const MAX_GPA = 4.5;
 
 const pageStatus = document.getElementById("page-status");
 const pageError = document.getElementById("page-error");
@@ -42,25 +44,33 @@ async function init(id) {
   profile.hidden = false;
 }
 
-/** 매너 점수. 후기가 3개 미만이면 서버가 비율을 비워 보내므로(null) 개수만 보여준다. */
-function renderManner({ good, bad, total, good_ratio: ratio }) {
+/**
+ * 매너 학점(4.5 만점)과 등급, 채워진 막대, 받은 후기 수. 학점·등급은 서버가 계산해 준다.
+ * 후기가 없어도 기본 학점(3.5, B+)을 보여주고, 아직 후기가 없다는 안내를 붙인다.
+ */
+function renderManner({ good, bad, total, gpa, grade }) {
   const box = document.getElementById("profile-manner");
-  if (total === 0) {
-    box.replaceChildren(el("p", { className: "profile__manner-note", text: "아직 받은 거래 후기가 없어요." }));
-    return;
-  }
-  const headline =
-    ratio === null
-      ? el("p", { className: "profile__manner-note", text: "아직 후기가 적어요. 후기가 3개 이상이면 좋아요 비율을 보여줘요." })
-      : el("p", { className: "profile__ratio" }, el("strong", { text: `${ratio}%` }), " 좋아요");
+  const bar = el("div", { className: "manner-gpa__bar", attrs: { "aria-hidden": "true" } }, el("span", { className: "manner-gpa__fill" }));
+  // 막대 길이는 학점에 비례한다. (0.0~4.5 → 0~100%)
+  bar.firstElementChild.style.width = `${Math.round((gpa / MAX_GPA) * 100)}%`;
   box.replaceChildren(
-    headline,
     el(
       "p",
-      { className: "profile__counts" },
-      el("span", { className: "rating rating--good", text: `${RATING_LABELS.GOOD} ${good}` }),
-      el("span", { className: "rating rating--bad", text: `${RATING_LABELS.BAD} ${bad}` }),
+      { className: "manner-gpa" },
+      el("span", { className: "manner-gpa__label", text: "매너 학점" }),
+      el("strong", { className: "manner-gpa__score", text: gpa.toFixed(1) }),
+      el("span", { className: "manner-gpa__max", text: ` / ${MAX_GPA.toFixed(1)}` }),
+      el("span", { className: "manner-gpa__grade", text: grade }),
     ),
+    bar,
+    total === 0
+      ? el("p", { className: "profile__manner-note", text: "아직 받은 거래 후기가 없어 기본 학점이에요." })
+      : el(
+          "p",
+          { className: "profile__counts" },
+          el("span", { className: "rating rating--good", text: `${RATING_LABELS.GOOD} ${good}` }),
+          el("span", { className: "rating rating--bad", text: `${RATING_LABELS.BAD} ${bad}` }),
+        ),
   );
 }
 

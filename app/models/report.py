@@ -32,7 +32,7 @@ class ReportAction(StrEnum):
     DISMISS = "DISMISS"  # 기각 (조치 없음)
     DELETE_POST = "DELETE_POST"  # 신고된 글 삭제
     SUSPEND = "SUSPEND"  # 신고당한 사용자 기간 정지
-    HIDE_REVIEW = "HIDE_REVIEW"  # 신고된 후기 숨김 (목록·매너 점수에서 빠진다)
+    HIDE_REVIEW = "HIDE_REVIEW"  # 신고된 후기 숨김 (목록·매너 학점에서 빠진다)
 
 
 def _enum_column(enum_cls: type[StrEnum]) -> SAEnum:

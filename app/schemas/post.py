@@ -6,6 +6,7 @@ from fastapi import Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import MAX_IMAGES_PER_POST, BookCondition, PostStatus
+from app.schemas.review import MannerSummary
 
 MAX_PRICE = 10_000_000
 MAX_PAGE_SIZE = 100
@@ -263,6 +264,9 @@ class PostDetailResponse(PostResponse):
     # 로그인한 사용자가 이 글의 판매자를 차단했는지. 로그인하지 않았으면 null.
     # "판매자가 나를 차단했는지"는 알려주지 않는다.
     is_seller_blocked: bool | None = None
+    # 판매자의 매너 학점. 프로필에 들어가지 않아도 상세에서 바로 보이게 한다.
+    # 상세 조회에서만 채우고, 작성·수정·상태 변경 응답에서는 null이다.
+    seller_manner: MannerSummary | None = None
 
 
 class WishlistStatusResponse(BaseModel):
