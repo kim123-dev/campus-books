@@ -37,6 +37,7 @@ TestingSessionLocal = sessionmaker(bind=test_engine, autoflush=False, expire_on_
 def image_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     directory = tmp_path / "uploads" / "posts"
     monkeypatch.setattr(image_storage, "get_image_dir", lambda: directory)
+    monkeypatch.setattr(image_storage, "get_message_image_dir", lambda: tmp_path / "uploads" / "messages")
     return directory
 
 

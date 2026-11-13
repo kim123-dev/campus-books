@@ -14,6 +14,7 @@ from app.core.exceptions import (
     CannotDeletePostForUserReportError,
     CannotHideReviewForOtherReportError,
     CannotSuspendAdminError,
+    ImageNotFoundError,
     ReportAlreadyResolvedError,
     ReportedPostAlreadyDeletedError,
     ReportedUserNotFoundError,
@@ -321,3 +322,13 @@ def _reports_to_resolve_together(report: Report, data: ReportResolveRequest):
     if data.include_same_user and report.reported_user_id is not None:
         return Report.reported_user_id == report.reported_user_id
     return None
+
+
+def reported_message_image(db: Session, report_id: int) -> str:
+    """쪽지 신고 사본에 남은 사진 파일 이름. 쪽지 신고가 아니거나 사진이 없으면 404."""
+    filename = db.scalar(
+        select(MessageReportSnapshot.image_filename).where(MessageReportSnapshot.report_id == report_id)
+    )
+    if filename is None:
+        raise ImageNotFoundError()
+    return filename

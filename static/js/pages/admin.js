@@ -3,9 +3,9 @@
 // 상태 탭과 페이지 번호는 주소창(?status=RESOLVED&page=2)에 저장한다.
 // 사용자 상세에서 오면 ?reported_user_id=3 으로 그 사용자가 신고당한 것만 보여준다.
 import { adminUserHref, adminUserLink, handleAuthError, startAdminPage } from "../admin-common.js";
-import { listAdminReports, resolveReport } from "../api.js";
+import { fetchReportedImage, listAdminReports, resolveReport } from "../api.js";
 import { REPORT_REASONS } from "../safety.js";
-import { el, formatDate, formatMonthDayTime, renderPagination } from "../ui.js";
+import { el, formatDate, formatMonthDayTime, renderPagination, showBlobImage } from "../ui.js";
 
 const PAGE_SIZE = 20;
 const STATUSES = ["PENDING", "RESOLVED", "ALL"];
@@ -235,9 +235,17 @@ function renderMessageTarget(report) {
   );
 }
 
-// 쪽지 사진은 공개 주소가 없다. 관리자 토큰을 붙여 받아 화면 안에서만 보여준다. (사진 기능에서 채운다)
-function renderReportedPhoto() {
-  return null;
+// 쪽지 사진은 공개 주소가 없다. 관리자 토큰을 붙여 받아 화면 안에서만 보여준다.
+function renderReportedPhoto(reportId) {
+  const img = el("img", { className: "report-card__photo", attrs: { alt: "신고된 쪽지 사진" } });
+  const status = el("p", { className: "report-card__snapshot-hint", text: "사진 불러오는 중…" });
+  img.addEventListener("load", () => {
+    status.hidden = true;
+  }, { once: true });
+  showBlobImage(img, () => fetchReportedImage(reportId)).then((shown) => {
+    if (!shown) status.textContent = "사진을 불러오지 못했어요.";
+  });
+  return el("div", {}, img, status);
 }
 
 function renderResolution(resolution) {

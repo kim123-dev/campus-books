@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -8,6 +9,8 @@ from app.core.deps import ActiveUser, CurrentUser
 from app.schemas.conversation import (
     ConversationListResponse,
     ConversationDetailResponse,
+    ImageSize,
+    MAX_MESSAGE_LENGTH,
     MessageCreate,
     MessageListParams,
     MessageListResponse,
@@ -15,7 +18,8 @@ from app.schemas.conversation import (
     UnreadCountResponse,
 )
 from app.schemas.post import PageQuery, SizeQuery
-from app.services import conversation_service
+from app.routers.images import private_image_response
+from app.services import conversation_service, image_storage, message_image_service
 
 # 쪽지는 모두 로그인이 필요하다. 경로가 /posts와 /conversations에 걸쳐 있어 prefix는 두지 않는다.
 router = APIRouter(tags=["conversations"])
@@ -138,3 +142,49 @@ def leave_conversation(
     conversation_id: int, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
 ) -> None:
     conversation_service.leave_conversation(db, conversation_id, current_user)
+
+
+# 사진 한 장을 쪽지로 보낸다. 글 쪽지와 같은 검사(차단·탈퇴·정지·도배)에 사진 횟수 제한(10분 10장)이 더해진다.
+@router.post(
+    "/conversations/{conversation_id}/images",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="사진 쪽지 보내기 (JPG·PNG·WebP·HEIC, 25MB, 메시지당 1장)",
+    responses={
+        **PARTICIPANT_ONLY_RESPONSES,
+        400: {"description": "차단 관계, 탈퇴한 상대"},
+        413: {"description": "25MB 초과"},
+        422: {"description": "지원하지 않는 형식, 해상도 초과, 깨진 사진"},
+        429: {"description": "짧은 시간에 너무 많이 보냄(쪽지 10초 5건, 사진 10분 10장)"},
+    },
+)
+def send_message_image(
+    conversation_id: int,
+    current_user: ActiveUser,
+    db: Annotated[Session, Depends(get_db)],
+    file: Annotated[UploadFile, File(description="사진 파일 (multipart 필드 이름: file)")],
+    content: Annotated[str, Form(max_length=MAX_MESSAGE_LENGTH, description="함께 보낼 글 (없어도 됨)")] = "",
+) -> MessageResponse:
+    return message_image_service.send_image(db, conversation_id, current_user, file.file, content)
+
+
+# 쪽지 사진은 공개 주소가 없다. 로그인한 대화 참여자만 받을 수 있고, 화면은 토큰을 붙여 받아 blob으로 보여준다.
+# 차단·정지 중이어도 지난 대화의 사진은 볼 수 있다. (CurrentUser)
+@router.get(
+    "/messages/{message_id}/image",
+    response_class=FileResponse,
+    summary="쪽지 사진 (대화 참여자만)",
+    responses={
+        401: {"description": "로그인 필요"},
+        403: {"description": "대화 참여자가 아님"},
+        404: {"description": "없는 메시지, 나가며 숨긴 메시지, 사진 없음"},
+    },
+)
+def get_message_image(
+    message_id: int,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+    size: ImageSize = ImageSize.FULL,
+) -> FileResponse:
+    filename = conversation_service.get_message_image(db, message_id, current_user, size)
+    return private_image_response(filename, image_storage.get_message_image_dir())

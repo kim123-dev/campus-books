@@ -278,3 +278,24 @@ export function renderPagination(container, page, totalPages, onPageChange) {
     next,
   );
 }
+
+/**
+ * 로그인이 필요한 사진을 <img>에 넣는다. (쪽지 사진은 공개 주소가 없다)
+ * load(): Blob을 돌려주는 함수. 받은 Blob으로 임시 주소(blob:)를 만들고, 그림이 다 그려지면 바로 해제한다.
+ * 해제해도 이미 그린 그림은 그대로 보이고, 메모리에 Blob이 남지 않는다.
+ * @returns {Promise<boolean>} 보여줬으면 true, 받지 못했으면 false
+ */
+export async function showBlobImage(img, load) {
+  let blob;
+  try {
+    blob = await load();
+  } catch {
+    return false;
+  }
+  const url = URL.createObjectURL(blob);
+  const release = () => URL.revokeObjectURL(url);
+  img.addEventListener("load", release, { once: true });
+  img.addEventListener("error", release, { once: true });
+  img.src = url;
+  return true;
+}

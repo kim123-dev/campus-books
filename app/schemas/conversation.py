@@ -37,6 +37,13 @@ class MessageCreate(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class ImageSize(StrEnum):
+    """쪽지 사진 크기. 대화 화면은 썸네일을 보여주고, 누르면 큰 사진을 받는다."""
+
+    FULL = "full"
+    THUMB = "thumb"
+
+
 class MessageListParams(BaseModel):
     """메시지 목록 커서(쿼리 파라미터).
 
@@ -83,6 +90,8 @@ class LastMessageResponse(BaseModel):
     content: str
     is_mine: bool
     created_at: datetime
+    # 사진 메시지면 true. 내용 없이 사진만 보냈으면 목록 미리보기에 "사진"이라고 보여준다.
+    has_image: bool = False
 
 
 class ConversationResponse(BaseModel):
@@ -128,10 +137,13 @@ class MessageResponse(BaseModel):
     sender_id: int
     # 화면이 내 말풍선과 상대 말풍선을 나눌 때 내 id를 따로 알 필요가 없게 한다.
     is_mine: bool
+    # 사진만 보낸 메시지는 빈 문자열이다.
     content: str
     created_at: datetime
     # 받는 사람이 읽은 시각. 내가 보낸 메시지에서는 "읽음" 표시에 쓴다.
     read_at: datetime | None
+    # 사진이 붙어 있으면 true. 사진은 GET /messages/{id}/image로 받는다. (공개 주소 없음)
+    has_image: bool = False
 
 
 class MessageListResponse(BaseModel):

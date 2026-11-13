@@ -11,12 +11,14 @@ from app.core.exceptions import (
     BlockedUserMessageError,
     CannotContactOwnPostError,
     ConversationNotFoundError,
+    ImageNotFoundError,
+    MessageNotFoundError,
     MessageRateLimitError,
     NotConversationParticipantError,
     SoldPostNotContactableError,
     WithdrawnPartnerMessageError,
 )
-from app.models import Conversation, ConversationUserState, Message, PostStatus, User
+from app.models import Conversation, ConversationUserState, Message, MessageImage, PostStatus, User
 from app.schemas.conversation import (
     ConversationDetailResponse,
     ConversationPostResponse,
@@ -26,6 +28,7 @@ from app.schemas.conversation import (
     MessageCreate,
     MessageListParams,
     MessageListResponse,
+    ImageSize,
     MessageResponse,
     PartnerResponse,
 )
@@ -190,8 +193,10 @@ def list_messages(
         has_more = len(rows) > params.limit
         messages = list(reversed(rows[: params.limit]))
 
+    with_image = _message_ids_with_image(db, [message.id for message in messages])
     return MessageListResponse(
-        items=[_to_message_response(message, user) for message in messages], has_more=has_more
+        items=[_to_message_response(message, user, message.id in with_image) for message in messages],
+        has_more=has_more,
     )
 
 
@@ -199,27 +204,58 @@ def send_message(
     db: Session, conversation_id: int, sender: User, data: MessageCreate
 ) -> MessageResponse:
     """메시지 전송. 차단 관계면 400, 짧은 시간에 너무 많이 보내면 MessageRateLimitError(429)."""
-    conversation = _get_participating_conversation(db, conversation_id, sender)
-    if user_service.is_withdrawn(_partner(conversation, sender)):
-        raise WithdrawnPartnerMessageError()
-    _check_not_blocked(db, sender, _partner_id(conversation, sender))
-    _check_rate_limit(db, sender)
-
-    message = Message(conversation_id=conversation.id, sender_id=sender.id, content=data.content)
-    db.add(message)
-    # 메시지 id가 있어야 대화방의 마지막 메시지로 기록할 수 있으므로 먼저 INSERT한다.
-    db.flush()
-    conversation.last_message_at = func.now()
-    conversation.last_message_id = message.id
+    conversation = check_can_send(db, conversation_id, sender)
+    message = append_message(db, conversation, sender, data.content)
     db.commit()
     # created_at은 DB가 채우므로 다시 읽어와야 응답에 담을 수 있다.
     db.refresh(message)
     return _to_message_response(message, sender)
 
 
+def check_can_send(db: Session, conversation_id: int, sender: User) -> Conversation:
+    """보내기 전 공통 검사. 글 쪽지와 사진 쪽지가 함께 쓴다.
+    순서: 404 없는 방 → 403 참여자 아님 → 400 탈퇴한 상대·차단 관계 → 429 도배 제한.
+    """
+    conversation = _get_participating_conversation(db, conversation_id, sender)
+    if user_service.is_withdrawn(_partner(conversation, sender)):
+        raise WithdrawnPartnerMessageError()
+    _check_not_blocked(db, sender, _partner_id(conversation, sender))
+    _check_rate_limit(db, sender)
+    return conversation
+
+
+def append_message(db: Session, conversation: Conversation, sender: User, content: str) -> Message:
+    """메시지를 넣고 대화방의 마지막 메시지로 기록한다. 커밋은 부르는 쪽이 한다. (사진 행과 한 번에 커밋)"""
+    message = Message(conversation_id=conversation.id, sender_id=sender.id, content=content)
+    db.add(message)
+    # 메시지 id가 있어야 대화방의 마지막 메시지로 기록할 수 있으므로 먼저 INSERT한다.
+    db.flush()
+    conversation.last_message_at = func.now()
+    conversation.last_message_id = message.id
+    return message
+
+
+def get_message_image(db: Session, message_id: int, user: User, size: ImageSize) -> str:
+    """쪽지 사진 파일 이름. 순서: 404 없는 메시지 → 403 참여자 아님 → 404 나가며 숨긴 메시지 → 404 사진 없음.
+    차단·정지·상대 탈퇴와 상관없이 지난 대화의 사진은 볼 수 있다. (글 쪽지와 같은 규칙)
+    """
+    message = db.get(Message, message_id)
+    if message is None:
+        raise MessageNotFoundError()
+    conversation = db.get(Conversation, message.conversation_id)
+    if user.id not in (conversation.buyer_id, conversation.seller_id):
+        raise NotConversationParticipantError()
+    if message.id <= cleared_through(db, conversation.id, user.id):
+        raise MessageNotFoundError()
+    image = db.scalar(select(MessageImage).where(MessageImage.message_id == message.id))
+    if image is None:
+        raise ImageNotFoundError()
+    return image.thumb_filename if size == ImageSize.THUMB else image.filename
+
+
 def message_image_filename(db: Session, message_id: int) -> str | None:
-    """사진 메시지면 사진 파일 이름. 쪽지 신고 사본에 남긴다."""
-    return None
+    """사진 메시지면 (큰) 사진 파일 이름. 쪽지 신고 사본에 남긴다."""
+    return db.scalar(select(MessageImage.filename).where(MessageImage.message_id == message_id))
 
 
 def cleared_through(db: Session, conversation_id: int, user_id: int) -> int:
@@ -229,6 +265,13 @@ def cleared_through(db: Session, conversation_id: int, user_id: int) -> int:
 
 
 # ---------- 내부 함수 ----------
+
+
+def _message_ids_with_image(db: Session, message_ids: list[int]) -> set[int]:
+    """이 메시지들 가운데 사진이 붙은 것. 메시지 수와 상관없이 쿼리 1번이다."""
+    if not message_ids:
+        return set()
+    return set(db.scalars(select(MessageImage.message_id).where(MessageImage.message_id.in_(message_ids))))
 
 
 def _state_join(user_id: int):
@@ -368,8 +411,16 @@ def _to_responses(
     )
 
     last_ids = [c.last_message_id for c in conversations if c.last_message_id is not None]
+    # 사진 여부도 같은 쿼리에서 함께 읽는다. (목록 쿼리 수를 늘리지 않기 위해 LEFT JOIN)
     last_messages = (
-        {m.id: m for m in db.scalars(select(Message).where(Message.id.in_(last_ids)))}
+        {
+            m.id: (m, image_id is not None)
+            for m, image_id in db.execute(
+                select(Message, MessageImage.id)
+                .outerjoin(MessageImage, MessageImage.message_id == Message.id)
+                .where(Message.id.in_(last_ids))
+            )
+        }
         if last_ids
         else {}
     )
@@ -391,7 +442,7 @@ def _to_responses(
     responses = []
     for conversation in conversations:
         is_buyer = conversation.buyer_id == viewer.id
-        last = last_messages.get(conversation.last_message_id)
+        last, last_has_image = last_messages.get(conversation.last_message_id, (None, False))
         # 마지막 메시지가 내가 나가기 전 것이면 미리보기를 비운다. (다시 문의해 연 빈 방)
         if last is not None and last.id <= cleared.get(conversation.id, 0):
             last = None
@@ -410,6 +461,7 @@ def _to_responses(
                         content=last.content,
                         is_mine=last.sender_id == viewer.id,
                         created_at=last.created_at,
+                        has_image=last_has_image,
                     )
                     if last is not None
                     else None
@@ -431,7 +483,7 @@ def _to_partner_response(partner: User) -> PartnerResponse:
     )
 
 
-def _to_message_response(message: Message, viewer: User) -> MessageResponse:
+def _to_message_response(message: Message, viewer: User, has_image: bool = False) -> MessageResponse:
     return MessageResponse(
         id=message.id,
         sender_id=message.sender_id,
@@ -439,4 +491,10 @@ def _to_message_response(message: Message, viewer: User) -> MessageResponse:
         content=message.content,
         created_at=message.created_at,
         read_at=message.read_at,
+        has_image=has_image,
     )
+
+
+def to_message_response(message: Message, viewer: User, has_image: bool) -> MessageResponse:
+    """사진 쪽지 서비스가 같은 응답 형식을 쓰도록 공개한다."""
+    return _to_message_response(message, viewer, has_image)

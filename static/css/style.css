@@ -1816,8 +1816,100 @@ a.button {
   max-width: 100%;
 }
 
-.message__row > .message__bubble {
+.message__row > .message__bubble,
+.message__row > .message__body {
   min-width: 0;
+}
+
+/* 사진 메시지: 사진 아래에 함께 보낸 글. 말풍선 정렬(내 것 오른쪽)을 그대로 따른다. */
+.message__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: inherit;
+}
+
+.message--mine .message__body {
+  align-items: flex-end;
+}
+
+.message--theirs .message__body {
+  align-items: flex-start;
+}
+
+/* 썸네일 버튼. 받기 전에는 200x200 자리를 잡아 두어, 사진이 들어올 때 스크롤이 크게 튀지 않게 한다. */
+.message__photo {
+  display: block;
+  max-width: min(220px, 100%);
+  padding: 0;
+  border: 1px solid var(--color-divider);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--color-fill);
+  cursor: zoom-in;
+}
+
+.message__photo-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 280px;
+  object-fit: cover;
+}
+
+.message__photo:not(.is-loaded) .message__photo-img {
+  width: 200px;
+  height: 200px;
+  max-width: 100%;
+}
+
+.message__photo.is-failed {
+  cursor: default;
+}
+
+.message__photo:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 큰 사진 보기 창 */
+.photo-viewer {
+  width: min(960px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.photo-viewer::backdrop {
+  background: rgba(17, 24, 39, 0.75);
+}
+
+.photo-viewer__img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100dvh - 100px);
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.photo-viewer__status {
+  margin: 12px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.photo-viewer__close {
+  display: block;
+  min-height: 44px;
+  margin: 8px auto 0;
+}
+
+/* 입력창 아래 "사진" 버튼. 보내기 버튼 바로 왼쪽에 붙인다. */
+.chat__photo-button {
+  min-height: 44px;
+  margin-left: auto;
 }
 
 .message__menu {
@@ -2524,6 +2616,15 @@ a.button {
   align-items: center;
   gap: 4px 8px;
   font-weight: 700;
+}
+
+.report-card__photo {
+  display: block;
+  max-width: min(320px, 100%);
+  max-height: 320px;
+  margin: 8px 0;
+  border-radius: 8px;
+  object-fit: contain;
 }
 
 .report-card__snapshot-content {
@@ -3383,14 +3484,14 @@ a.button {
   /* 입력창 오른쪽에 보내기 버튼을 두어 한 줄을 아낀다. 숨겨진 줄이 빈틈을 만들지 않게 줄 간격은 여백으로 준다. */
   .chat__form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      "privacy privacy"
-      "blocked blocked"
-      "input send"
-      "field-error field-error"
-      "count count"
-      "send-error send-error";
+      "privacy privacy privacy"
+      "blocked blocked blocked"
+      "photo input send"
+      "field-error field-error field-error"
+      "count count count"
+      "send-error send-error send-error";
     gap: 0 8px;
     padding: 10px 12px;
   }
@@ -3416,7 +3517,15 @@ a.button {
     display: contents;
   }
 
-  .chat__form-bottom .button {
+  .chat__form-bottom .chat__photo-button {
+    grid-area: photo;
+    align-self: end;
+    min-height: 48px;
+    margin-left: 0;
+    padding: 0 10px;
+  }
+
+  .chat__form-bottom .button[type="submit"] {
     grid-area: send;
     align-self: end;
     min-height: 48px;

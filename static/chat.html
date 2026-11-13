@@ -79,6 +79,9 @@
           <p class="field-error" data-error-for="content" hidden></p>
           <div class="chat__form-bottom">
             <span id="content-count" class="chat__count">0 / 1000</span>
+            <!-- 사진 쪽지: 버튼을 누르면 숨긴 파일 선택창을 연다. 한 번에 한 장씩 보낸다. -->
+            <input id="photo-input" type="file" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true" />
+            <button id="photo-button" type="button" class="button chat__photo-button" aria-label="사진 보내기">사진</button>
             <button type="submit" class="button button--primary">보내기</button>
           </div>
           <p id="send-error" class="form-error" role="alert" hidden></p>

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile, status
@@ -58,6 +59,18 @@ def delete_post_image(
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
     image_service.delete_image(db, post_id, image_id, current_user)
+
+
+def private_image_response(filename: str, directory: Path) -> FileResponse:
+    """로그인한 사람만 볼 수 있는 사진(쪽지 사진) 응답. 공개 사진과 달리 브라우저·중간 서버가 저장하지 않게 한다."""
+    path = image_storage.path_for(filename, directory)
+    if path is None or not path.is_file():
+        raise ImageNotFoundError()
+    return FileResponse(
+        path,
+        media_type="image/webp",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+    )
 
 
 # 사진 파일 제공. static/에 두지 않고 이 경로로만 내보내, 서버가 만든 이름 형식만 열고

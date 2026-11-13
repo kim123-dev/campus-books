@@ -4,19 +4,23 @@
 // - 메시지 목록을 조회하면 서버가 상대 메시지를 읽음 처리하므로, 화면은 헤더 배지만 다시 불러온다.
 // - 처음 불러오기·폴링·전송·이전 메시지가 모두 addMessages → renderMessage 한 경로로 그리고,
 //   내 메시지인지는 서버 응답의 is_mine을 그대로 쓴다.
+// - 사진 쪽지: 공개 주소가 없어 토큰을 붙여 fetch로 받고 blob: 주소로 보여준다. 화면에 보일 때 받는다.
 // - 토큰은 탭끼리 공유된다. 다른 탭에서 계정이 바뀌면 이 화면이 새 계정 토큰으로 폴링·전송하게 되어
 //   상대 메시지가 내 말풍선으로 그려지거나 다른 계정 이름으로 전송되므로, 계정이 바뀌면 멈춘다.
 import {
   blockUser,
   createReview,
+  fetchMessageImage,
   getConversation,
   listMessages,
   reportMessage,
   reportUser,
   sendMessage,
+  sendMessageImage,
   unblockUser,
 } from "../api.js";
 import { redirectToLogin, refreshUnreadBadge, renderHeader, suspensionText } from "../auth.js";
+import { preparePhoto } from "../photo-resize.js";
 import {
   REPORT_DONE_TEXT,
   UNBLOCK_DONE_TEXT,
@@ -35,6 +39,7 @@ import {
   formatMonthDayTime,
   formatShortDate,
   readPostIdFromUrl,
+  showBlobImage,
   showFormErrors,
   statusBadge,
 } from "../ui.js";
@@ -45,6 +50,7 @@ const PAGE_LIMIT = 30; // 한 번에 불러올 메시지 수 (서버 최대 100)
 const NEAR_BOTTOM_PX = 80; // 이만큼 안쪽이면 "맨 아래를 보고 있다"고 본다.
 const MAX_LENGTH = 1000; // 서버 규칙과 같다. (app/schemas/conversation.py)
 const DEFAULT_RETRY_SECONDS = 10; // 429에 Retry-After가 없을 때
+const MAX_PHOTO_BYTES = 25 * 1024 * 1024; // 서버 규칙과 같다. (app/services/image_service.py)
 
 const pageStatus = document.getElementById("page-status");
 const pageError = document.getElementById("page-error");
@@ -61,6 +67,8 @@ const form = document.getElementById("message-form");
 const textarea = form.elements.content;
 const counter = document.getElementById("content-count");
 const submitButton = form.querySelector('button[type="submit"]');
+const photoInput = document.getElementById("photo-input");
+const photoButton = document.getElementById("photo-button");
 const sendError = document.getElementById("send-error");
 const chatActions = document.getElementById("chat-actions");
 const safetyNotice = document.getElementById("chat-safety-notice");
@@ -91,6 +99,18 @@ let cooldownTimer = null;
 // 이 화면을 연 계정의 토큰. 요청 전후로 비교해, 다른 탭에서 계정이 바뀌었는지 확인한다.
 let sessionToken = null;
 let accountChanged = false;
+
+// 사진 썸네일은 메시지 영역에 보일 때 받는다. 오래된 대화에 사진이 많아도 처음 열 때 한꺼번에 받지 않는다.
+const photoObserver = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      photoObserver.unobserve(entry.target);
+      loadThumbnail(entry.target);
+    }
+  },
+  { root: document.getElementById("chat-scroll"), rootMargin: "200px 0px" },
+);
 
 init();
 
@@ -158,6 +178,8 @@ async function init() {
 
 function bindEvents() {
   form.addEventListener("submit", onSubmit);
+  photoButton.addEventListener("click", () => photoInput.click());
+  photoInput.addEventListener("change", onPhotoChosen);
   textarea.addEventListener("input", updateCounter);
   textarea.addEventListener("keydown", onTextareaKeydown);
   updateCounter();
@@ -320,7 +342,7 @@ function applyBlockState(conversation) {
     blockedNotice.hidden = false;
   }
   textarea.disabled = !canSend;
-  submitButton.disabled = sending || cooldownTimer !== null || !canSend;
+  updateSendButtons();
 
   // 탈퇴한 상대는 신고·차단할 대상이 없으므로(서버도 404) 버튼을 두지 않는다.
   if (partner.withdrawn) {
@@ -420,14 +442,16 @@ function addMessages(messages) {
 }
 
 function renderMessage(message) {
-  const bubble = el("p", { className: "message__bubble", text: message.content });
+  const bubble = message.content ? el("p", { className: "message__bubble", text: message.content }) : null;
+  // 사진 메시지는 사진 아래에 함께 보낸 글(있으면)을 둔다.
+  const body = message.has_image ? el("div", { className: "message__body" }, renderPhoto(message), bubble) : bubble;
   const item = el(
     "li",
     { className: `message ${message.is_mine ? "message--mine" : "message--theirs"}` },
     // 말풍선 위치만으로는 누가 보냈는지 알 수 없는 화면 낭독기 사용자를 위해 글자로 붙인다.
     el("span", { className: "visually-hidden", text: message.is_mine ? "나: " : "상대: " }),
     // 상대 메시지에만 "⋯"(이 메시지 신고)를 둔다. 내 메시지는 서버도 신고를 400으로 막는다.
-    message.is_mine ? bubble : el("div", { className: "message__row" }, bubble, messageMenuButton(message)),
+    message.is_mine ? body : el("div", { className: "message__row" }, body, messageMenuButton(message)),
     el("time", {
       className: "message__time",
       text: formatShortDate(message.created_at),
@@ -436,6 +460,62 @@ function renderMessage(message) {
   );
   item.dataset.id = String(message.id);
   return item;
+}
+
+// ---------- 사진 ----------
+
+/** 사진 썸네일 자리. 누르면 큰 사진을 연다. 그림은 화면에 보일 때 photoObserver가 받아 넣는다. */
+function renderPhoto(message) {
+  const img = el("img", { className: "message__photo-img", attrs: { alt: "사진", width: "200", height: "200" } });
+  const button = el("button", {
+    type: "button",
+    className: "message__photo",
+    attrs: { "aria-label": `${message.is_mine ? "내가" : "상대가"} 보낸 사진 크게 보기` },
+  }, img);
+  button.dataset.messageId = String(message.id);
+  button.addEventListener("click", () => openPhotoViewer(message.id, button));
+  photoObserver.observe(button);
+  return button;
+}
+
+async function loadThumbnail(button) {
+  const img = button.querySelector("img");
+  // 그림 크기를 실제 비율로 바꿔, 자리를 잡아 둔 200x200 상자가 사진 모양에 맞게 바뀌게 한다.
+  img.addEventListener("load", () => {
+    img.removeAttribute("width");
+    img.removeAttribute("height");
+    button.classList.add("is-loaded");
+  }, { once: true });
+  const shown = await showBlobImage(img, () => fetchMessageImage(button.dataset.messageId, "thumb"));
+  if (!shown) {
+    button.classList.add("is-failed");
+    img.alt = "사진을 불러오지 못했어요";
+  }
+}
+
+/** 큰 사진 보기. 신고 창과 같은 <dialog>라 Esc·닫기 버튼으로 닫히고, 닫으면 누른 사진으로 초점이 돌아간다. */
+function openPhotoViewer(messageId, opener) {
+  const img = el("img", { className: "photo-viewer__img", attrs: { alt: "사진" } });
+  const status = el("p", { className: "photo-viewer__status", text: "불러오는 중…", attrs: { role: "status" } });
+  const close = el("button", { type: "button", className: "button photo-viewer__close", text: "닫기" });
+  const dialog = el("dialog", { className: "photo-viewer", attrs: { "aria-label": "사진 크게 보기" } }, img, status, close);
+  close.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    if (opener.isConnected) opener.focus();
+  });
+  img.addEventListener("load", () => {
+    status.hidden = true;
+  }, { once: true });
+  document.body.append(dialog);
+  dialog.showModal();
+  close.focus();
+  showBlobImage(img, () => fetchMessageImage(messageId, "full")).then((shown) => {
+    if (!shown) status.textContent = "사진을 불러오지 못했어요.";
+  });
 }
 
 function messageMenuButton(message) {
@@ -450,9 +530,10 @@ function messageMenuButton(message) {
     if (choice === "report") {
       // 신고 창에 어떤 메시지인지 앞부분을 보여준다. 길면 줄여서 창이 커지지 않게 한다.
       const preview = message.content.length > 40 ? `${message.content.slice(0, 40)}…` : message.content;
+      const photo = message.has_image ? "사진 메시지" : "";
       const reported = await openReportDialog({
         heading: "메시지 신고",
-        targetText: preview ? `“${preview}”` : "사진 메시지",
+        targetText: [photo, preview ? `“${preview}”` : ""].filter(Boolean).join(" · "),
         send: (data) => reportMessage(message.id, data),
       });
       if (reported) showSafetyNotice(REPORT_DONE_TEXT);
@@ -619,33 +700,75 @@ async function onSubmit(event) {
     updateCounter();
     addNewerMessages([message]);
   } catch (error) {
-    // 방은 이미 열었으므로 전송의 403은 "남의 방"이 아니라 이용 정지다. 대화는 계속 볼 수 있게 입력창만 잠근다.
-    if (error.status === 403) {
-      suspendedText = error.message;
-      showFormErrors(form, sendError, error);
-      refreshBlockState();
-      return;
-    }
-    if (handleFatalError(error)) return;
-    if (error.status === 429) {
-      // 입력한 내용은 그대로 두고, 다시 보낼 수 있을 때까지 버튼을 잠근다.
-      startCooldown(error.retryAfter ?? DEFAULT_RETRY_SECONDS, error.message);
-    } else {
-      // 422(빈 내용, 1000자 초과)는 입력칸 아래에, 그 밖에는 폼 아래에 보여준다.
-      showFormErrors(form, sendError, error);
-      // 400은 차단 관계일 수 있으므로 상태를 다시 받아 입력창을 잠근다.
-      if (error.status === 400) refreshBlockState();
-    }
+    handleSendError(error);
   } finally {
     setSending(false);
     textarea.focus();
   }
 }
 
-function setSending(isSending) {
+/** 사진 고르기가 끝나면 바로 보낸다. 입력창의 글은 그대로 두고 사진만 보낸다. */
+async function onPhotoChosen() {
+  const [file] = photoInput.files;
+  photoInput.value = ""; // 같은 사진을 다시 골라도 change가 일어나게 비운다.
+  if (!file || sending || cooldownTimer !== null || !canSend) return;
+  if (!checkSameAccount()) return;
+
+  clearFormErrors(form, sendError);
+  setSending(true, "사진 준비 중…");
+  try {
+    // 휴대폰 원본은 브라우저에서 먼저 줄인다. (판매글 사진과 같은 방법)
+    const prepared = await preparePhoto(file);
+    if (prepared.file.size > MAX_PHOTO_BYTES) {
+      sendError.textContent = "사진은 한 장에 25MB까지 보낼 수 있습니다.";
+      sendError.hidden = false;
+      return;
+    }
+    const message = await sendMessageImage(conversationId, prepared.file, (ratio) => {
+      photoButton.textContent = `${Math.round(ratio * 100)}%`;
+    });
+    if (!checkSameAccount()) return;
+    addNewerMessages([message]);
+  } catch (error) {
+    handleSendError(error);
+  } finally {
+    setSending(false);
+  }
+}
+
+/** 글·사진 보내기의 공통 에러 처리. */
+function handleSendError(error) {
+  // 방은 이미 열었으므로 전송의 403은 "남의 방"이 아니라 이용 정지다. 대화는 계속 볼 수 있게 입력창만 잠근다.
+  if (error.status === 403) {
+    suspendedText = error.message;
+    showFormErrors(form, sendError, error);
+    refreshBlockState();
+    return;
+  }
+  if (handleFatalError(error)) return;
+  if (error.status === 429) {
+    // 입력한 내용은 그대로 두고, 다시 보낼 수 있을 때까지 버튼을 잠근다.
+    startCooldown(error.retryAfter ?? DEFAULT_RETRY_SECONDS, error.message);
+  } else {
+    // 422(빈 내용, 1000자 초과, 사진 형식)는 입력칸 아래나 폼 아래에, 그 밖에는 폼 아래에 보여준다.
+    showFormErrors(form, sendError, error);
+    // 400은 차단 관계일 수 있으므로 상태를 다시 받아 입력창을 잠근다.
+    if (error.status === 400) refreshBlockState();
+  }
+}
+
+/** 보내는 동안에는 글·사진 버튼을 함께 잠근다. photoText: 사진을 보낼 때 사진 버튼에 보일 글자 */
+function setSending(isSending, photoText = null) {
   sending = isSending;
-  submitButton.disabled = isSending || cooldownTimer !== null || !canSend;
-  submitButton.textContent = isSending ? "보내는 중…" : "보내기";
+  updateSendButtons();
+  submitButton.textContent = isSending && photoText === null ? "보내는 중…" : "보내기";
+  photoButton.textContent = isSending && photoText !== null ? photoText : "사진";
+}
+
+function updateSendButtons() {
+  const locked = sending || cooldownTimer !== null || !canSend;
+  submitButton.disabled = locked;
+  photoButton.disabled = locked;
 }
 
 /** 429: 서버 메시지와 남은 시간을 보여주고, 시간이 지나면 다시 보낼 수 있게 한다. */
@@ -657,6 +780,7 @@ function startCooldown(seconds, message) {
   };
   render();
   submitButton.disabled = true;
+  photoButton.disabled = true;
   cooldownTimer = window.setInterval(() => {
     remaining -= 1;
     if (remaining > 0) {
@@ -666,6 +790,6 @@ function startCooldown(seconds, message) {
     window.clearInterval(cooldownTimer);
     cooldownTimer = null;
     sendError.hidden = true;
-    submitButton.disabled = sending || !canSend;
+    updateSendButtons();
   }, 1000);
 }

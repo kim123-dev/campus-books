@@ -105,8 +105,10 @@ function renderConversationCard(conversation) {
     ? el("p", { className: "conversation-card__post" }, statusBadge(post.status), el("span", { text: post.title }))
     : el("p", { className: "conversation-card__post conversation-card__post--deleted", text: "삭제된 글" });
 
+  // 사진만 보낸 메시지는 내용이 비어 있으므로 "사진"이라고 보여준다.
+  const lastText = last?.has_image ? (last.content ? `사진 · ${last.content}` : "사진") : last?.content;
   const preview = last
-    ? el("p", { className: "conversation-card__preview", text: `${last.is_mine ? "나: " : ""}${last.content}` })
+    ? el("p", { className: "conversation-card__preview", text: `${last.is_mine ? "나: " : ""}${lastText}` })
     : el("p", { className: "conversation-card__preview conversation-card__preview--empty", text: "아직 메시지가 없습니다" });
 
   // 카드 전체가 링크라 그 안에 버튼을 넣을 수 없다(링크 안 버튼은 HTML 규칙 위반). 메뉴 버튼은 카드 옆에 둔다.

@@ -74,7 +74,8 @@ def test_send_message(client: TestClient, buyer: dict, conversation: dict) -> No
     assert body["is_mine"] is True
     assert body["read_at"] is None
     assert body["created_at"] is not None
-    assert set(body) == {"id", "sender_id", "is_mine", "content", "created_at", "read_at"}
+    assert set(body) == {"id", "sender_id", "is_mine", "content", "created_at", "read_at", "has_image"}
+    assert body["has_image"] is False
 
 
 def test_seller_can_reply(client: TestClient, buyer: dict, seller: dict, conversation: dict) -> None:

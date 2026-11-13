@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, false, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -85,3 +85,22 @@ class ConversationUserState(Base):
     # 나간 상태. 이보다 새 메시지가 오거나 다시 문의하면 목록에 다시 나타난다.
     left: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MessageImage(Base):
+    """쪽지에 붙인 사진 한 장(메시지 하나에 한 장).
+
+    판매글 사진과 달리 공개 주소(/images)가 없다. 파일은 uploads/messages/에 두고,
+    대화 참여자(와 신고를 처리하는 관리자)만 로그인한 요청으로 받을 수 있다.
+    messages 테이블에 컬럼을 더하면 ALTER가 필요하므로 새 테이블로 둔다.
+    """
+
+    __tablename__ = "message_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # 메시지 하나에 사진 한 장. unique라 index도 함께 생긴다.
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), unique=True)
+    filename: Mapped[str] = mapped_column(String(64))
+    thumb_filename: Mapped[str] = mapped_column(String(64))
+    # 사진 횟수 제한(10분 10장)을 셀 때 쓴다.
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

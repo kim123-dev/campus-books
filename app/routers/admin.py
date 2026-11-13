@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -14,7 +15,8 @@ from app.schemas.admin import (
     ReportResolveResponse,
 )
 from app.schemas.post import PageQuery, SizeQuery
-from app.services import admin_dashboard_service, admin_log_service, admin_service
+from app.routers.images import private_image_response
+from app.services import admin_dashboard_service, admin_log_service, admin_service, image_storage
 
 # 관리자 검사를 라우터 전체에 건다. 여기에 API를 추가하면 따로 적지 않아도 관리자만 쓸 수 있다.
 # (테스트가 /admin으로 시작하는 모든 경로에 대해 401·403을 확인한다)
@@ -81,3 +83,15 @@ def list_actions(
         db, page, size, action=action, admin_id=admin_id, target_user_id=target_user_id
     )
     return AdminActionListResponse(items=items, total=total, page=page, size=size)
+
+
+# 쪽지 신고에 붙은 사진. 신고 시점 사본에 남은 사진만 보여주고, 대화의 다른 사진은 볼 수 없다.
+@router.get(
+    "/reports/{report_id}/image",
+    response_class=FileResponse,
+    summary="쪽지 신고의 사진",
+    responses={404: {"description": "쪽지 신고가 아니거나 사진 없음"}},
+)
+def get_reported_image(report_id: int, db: Annotated[Session, Depends(get_db)]) -> FileResponse:
+    filename = admin_service.reported_message_image(db, report_id)
+    return private_image_response(filename, image_storage.get_message_image_dir())

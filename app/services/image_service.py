@@ -96,9 +96,7 @@ def add_image(db: Session, post_id: int, user: User, upload: BinaryIO) -> PostIm
     _check_rate_limit(db, user)
 
     # 무거운 처리(읽기·디코딩)는 싼 검사를 모두 통과한 뒤에 한다.
-    # 순서를 기다리는 동안에는 업로드 파일이 디스크 임시 파일에 있다. 차례가 오면 메모리로 읽어 처리한다.
-    with _decode_slots:
-        image_bytes, thumb_bytes = _reencode(_read_limited(upload, user), user)
+    image_bytes, thumb_bytes = process_upload(upload, user)
     filename, thumb_filename = image_storage.new_filenames()
     image_storage.write_files({filename: image_bytes, thumb_filename: thumb_bytes})
 
@@ -124,6 +122,16 @@ def delete_image(db: Session, post_id: int, image_id: int, user: User) -> None:
     db.commit()
     db.expire(post, ["images", "thumbnail_filename"])
     image_storage.remove_files(names)
+
+
+def process_upload(upload: BinaryIO, user: User) -> tuple[bytes, bytes]:
+    """업로드 파일을 검사하고 (상세용, 썸네일) WebP 바이트로 만든다. 판매글 사진과 쪽지 사진이 함께 쓴다.
+
+    413(25MB)·422(형식·해상도·손상). 메모리를 많이 쓰는 디코딩은 서버 전체에서 한 번에 1장만 한다.
+    순서를 기다리는 동안에는 업로드 파일이 디스크 임시 파일에 있다. 차례가 오면 메모리로 읽어 처리한다.
+    """
+    with _decode_slots:
+        return _reencode(_read_limited(upload, user), user)
 
 
 # ---------- 내부 함수 ----------

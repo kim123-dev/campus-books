@@ -16,11 +16,19 @@ logger = logging.getLogger(__name__)
 # 서버가 만든 이름만 허용한다. 이 형식이 아니면 디스크를 찾지 않으므로 "../" 같은 경로 조작이 통하지 않는다.
 FILENAME_PATTERN = re.compile(r"[0-9a-f]{32}(_thumb)?\.webp")
 IMAGE_SUBDIR = "posts"
+# 쪽지 사진은 판매글 사진과 다른 폴더에 둔다. /images/{filename}은 posts 폴더만 찾으므로
+# 쪽지 사진 이름을 알아도 공개 주소로는 열 수 없다.
+MESSAGE_IMAGE_SUBDIR = "messages"
 
 
 def get_image_dir() -> Path:
-    """사진 폴더. 테스트는 이 함수를 바꿔 끼워 임시 폴더를 쓴다."""
+    """판매글 사진 폴더. 테스트는 이 함수를 바꿔 끼워 임시 폴더를 쓴다."""
     return Path(get_settings().UPLOAD_DIR) / IMAGE_SUBDIR
+
+
+def get_message_image_dir() -> Path:
+    """쪽지 사진 폴더. 테스트는 이 함수도 바꿔 끼운다."""
+    return Path(get_settings().UPLOAD_DIR) / MESSAGE_IMAGE_SUBDIR
 
 
 def new_filenames() -> tuple[str, str]:
@@ -33,14 +41,14 @@ def is_valid_filename(name: str) -> bool:
     return FILENAME_PATTERN.fullmatch(name) is not None
 
 
-def path_for(name: str) -> Path | None:
-    """이름이 형식에 맞을 때만 경로를 돌려준다."""
-    return get_image_dir() / name if is_valid_filename(name) else None
+def path_for(name: str, directory: Path | None = None) -> Path | None:
+    """이름이 형식에 맞을 때만 경로를 돌려준다. directory를 주지 않으면 판매글 사진 폴더다."""
+    return (directory or get_image_dir()) / name if is_valid_filename(name) else None
 
 
-def write_files(files: dict[str, bytes]) -> None:
+def write_files(files: dict[str, bytes], directory: Path | None = None) -> None:
     """여러 파일을 쓴다. 하나라도 실패하면 이미 쓴 것을 지우고 예외를 다시 던진다."""
-    directory = get_image_dir()
+    directory = directory or get_image_dir()
     directory.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
     try:
@@ -50,14 +58,14 @@ def write_files(files: dict[str, bytes]) -> None:
                 file.write(data)
             written.append(name)
     except Exception:
-        remove_files(written)
+        remove_files(written, directory)
         raise
 
 
-def remove_files(names: list[str]) -> None:
+def remove_files(names: list[str], directory: Path | None = None) -> None:
     """파일을 지운다. DB는 이미 커밋된 뒤라, 실패해도 요청을 실패시키지 않고 기록만 남긴다."""
     for name in names:
-        path = path_for(name)
+        path = path_for(name, directory)
         if path is None:
             continue
         try:

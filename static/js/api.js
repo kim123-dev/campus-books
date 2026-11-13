@@ -96,6 +96,30 @@ function uploadWithProgress(path, formData, onProgress) {
   });
 }
 
+/**
+ * 로그인이 필요한 사진을 받아 Blob으로 돌려준다. (쪽지 사진·신고된 쪽지 사진)
+ * <img src="...">로는 토큰을 붙일 수 없어 fetch로 받고, 화면은 URL.createObjectURL로 보여준다.
+ */
+async function requestBlob(path, query = {}) {
+  const url = new URL(path, window.location.origin);
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(url, { headers });
+  } catch {
+    throw new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw failure(response.status, data, response.headers.get("Retry-After"));
+  }
+  return response.blob();
+}
+
 // ---------- 화면에서 쓰는 API ----------
 
 /** 판매글 목록. params: q, status, course_name, min_price, max_price, page, size */
@@ -349,6 +373,26 @@ export function listMessages(conversationId, params) {
 /** 대화방 나가기. 내 목록에서만 사라지고 상대에게는 남는다. */
 export function leaveConversation(conversationId) {
   return request(`/conversations/${encodeURIComponent(conversationId)}/leave`, { method: "POST" });
+}
+
+/**
+ * 사진 한 장을 쪽지로 보낸다. 응답은 sendMessage와 같은 메시지(has_image: true).
+ * 413(25MB 초과), 422(형식·해상도·손상), 400(차단·탈퇴), 403(이용 정지), 429(쪽지 10초 5건·사진 10분 10장).
+ */
+export function sendMessageImage(conversationId, file, onProgress) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return uploadWithProgress(`/conversations/${encodeURIComponent(conversationId)}/images`, formData, onProgress);
+}
+
+/** 쪽지 사진(Blob). size: "thumb"(대화 화면) 또는 "full"(크게 보기). 대화 참여자만 받을 수 있다. */
+export function fetchMessageImage(messageId, size = "full") {
+  return requestBlob(`/messages/${encodeURIComponent(messageId)}/image`, { size });
+}
+
+/** 관리자: 쪽지 신고에 남은 사진(Blob). 신고된 메시지의 사진만 볼 수 있다. */
+export function fetchReportedImage(reportId) {
+  return requestBlob(`/admin/reports/${encodeURIComponent(reportId)}/image`);
 }
 
 export function sendMessage(conversationId, content) {
