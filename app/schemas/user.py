@@ -41,6 +41,31 @@ class UserCreate(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+# 탈퇴한 계정은 닉네임을 이 값으로 시작하게 바꾼다(account_service.erase_account). 다른 사람이 같은 모양의
+# 닉네임을 쓰면 관리 화면에서 탈퇴 계정처럼 보이므로 닉네임 변경에서 막는다.
+WITHDRAWN_NICKNAME_PREFIX = "withdrawn-"
+
+
+class NicknameUpdate(BaseModel):
+    """닉네임 변경 요청. 가입과 같은 규칙(앞뒤 공백 제거, 2~30자)으로 검사한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nickname: str = Field(min_length=2, max_length=30)
+
+    @field_validator("nickname", mode="before")
+    @classmethod
+    def strip_nickname(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("nickname")
+    @classmethod
+    def reject_withdrawn_prefix(cls, value: str) -> str:
+        if value.lower().startswith(WITHDRAWN_NICKNAME_PREFIX):
+            raise ValueError(f"'{WITHDRAWN_NICKNAME_PREFIX}'로 시작하는 닉네임은 쓸 수 없습니다.")
+        return value
+
+
 class UserResponse(BaseModel):
     """회원 정보 응답. password_hash는 포함하지 않는다."""
 
@@ -58,6 +83,8 @@ class MeResponse(UserResponse):
     role: UserRole
     # 정지 중이면 종료 시각(UTC), 아니면 null. 기간이 지난 정지는 null로 보여준다.
     suspended_until: datetime | None = None
+    # 닉네임을 다시 바꿀 수 있는 시각(UTC). 지금 바꿀 수 있으면 null. 화면이 변경 버튼 옆에 안내한다.
+    nickname_changeable_at: datetime | None = None
 
 
 class LoginForm(BaseModel):

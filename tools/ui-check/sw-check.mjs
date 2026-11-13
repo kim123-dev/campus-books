@@ -25,7 +25,8 @@ const cachedUrls = () =>
     for (const name of await caches.keys()) for (const req of await (await caches.open(name)).keys()) urls.push(new URL(req.url).pathname + new URL(req.url).search);
     return urls;
   })()`);
-const headerUser = () => evaluate(`document.querySelector('.site-nav__user')?.textContent ?? null`);
+// 헤더는 닉네임을 "내 정보" 링크 이름(aria-label "내 정보, ○○님")에 담는다.
+const headerUser = () => evaluate(`document.querySelector('.site-nav__me')?.getAttribute('aria-label')?.replace('내 정보, ', '') ?? null`);
 const inboxReady = "document.getElementById('result-summary') && !document.getElementById('result-summary').textContent.includes('불러오는 중')";
 const partners = () => evaluate(`[...document.querySelectorAll('.conversation-card__partner')].map(e => e.textContent)`);
 const setToken = (token) => evaluate(`localStorage.setItem('campus-books.token', ${JSON.stringify(token)})`);
@@ -74,7 +75,7 @@ try {
   await waitUntil("navigator.serviceWorker.controller !== null", 8000);
   // 서비스 워커가 화면을 맡은 상태(캐시에서 나오는 상태)로 다시 연다.
   await goto("/static/conversations.html", inboxReady);
-  await waitUntil(`document.querySelector('.site-nav__user')`, 5000);
+  await waitUntil(`document.querySelector('.site-nav__me')`, 5000);
   const buyerHeader = await headerUser();
   const buyerPartners = await partners();
   check("구매자로 로그인: 헤더 이름, 쪽지함 상대", buyerHeader === "구매자지은님" && buyerPartners.length === 3 && buyerPartners.every((n) => n === "판매자민수"), `${buyerHeader} / ${buyerPartners.join(",")}`);
@@ -95,7 +96,7 @@ try {
   // 다른 계정(판매자)으로 로그인
   await setToken(seed.seller_token);
   await goto("/static/conversations.html", inboxReady);
-  await waitUntil(`document.querySelector('.site-nav__user')`, 5000);
+  await waitUntil(`document.querySelector('.site-nav__me')`, 5000);
   const sellerHeader = await headerUser();
   const sellerPartners = await partners();
   check("판매자로 바꾼 뒤: 헤더·쪽지함이 판매자 것", sellerHeader === "판매자민수님" && sellerPartners.length === 3 && sellerPartners.every((n) => n === "구매자지은"), `${sellerHeader} / ${sellerPartners.join(",")}`);

@@ -228,6 +228,15 @@ class WrongPasswordError(BadRequestError):
     message = "현재 비밀번호가 올바르지 않습니다."
 
 
+class SameNicknameError(BadRequestError):
+    message = "지금 쓰고 있는 닉네임과 같습니다."
+
+
+class NicknameChangeTooSoonError(BadRequestError):
+    # 실제 메시지는 다시 바꿀 수 있는 날짜를 넣어 만든다. (account_service.change_nickname)
+    message = "닉네임은 30일에 한 번만 바꿀 수 있습니다."
+
+
 class AdminCannotWithdrawError(BadRequestError):
     # 관리자가 모두 탈퇴하면 신고를 처리할 사람이 없어진다. 관리자 해제는 서버(CLI)에서 한다.
     message = "관리자 계정은 탈퇴할 수 없습니다."

@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>내 글 | Campus Books</title>
-    <link rel="stylesheet" href="/static/css/style.css" />
     <!-- 홈 화면 앱(PWA): 앱 정보·아이콘, 아이폰 홈 화면 아이콘과 이름, 서비스 워커 등록 -->
     <meta name="theme-color" content="#5b3fd6" />
     <link rel="manifest" href="/static/manifest.json" />
@@ -15,84 +14,10 @@
     <meta name="apple-mobile-web-app-title" content="Campus Books" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <script type="module" src="/static/js/pwa.js"></script>
-    <script type="module" src="/static/js/pages/my-posts.js"></script>
+    <!-- 내 글은 내 정보 화면의 탭으로 옮겼다. 이 주소로 들어오면 그 탭으로 보낸다. -->
+    <script src="/static/js/legacy-me-redirect.js" data-tab="posts"></script>
   </head>
   <body>
-    <header id="site-header" class="site-header"></header>
-
-    <main class="container">
-      <h1 class="page-title">내 글</h1>
-
-      <!-- 내 정보는 헤더가 받아 온 /users/me 결과로 채운다. -->
-      <section id="profile" class="card profile-card" aria-label="내 정보" hidden>
-        <div class="profile-card__info">
-          <p id="profile-nickname" class="profile-card__nickname"></p>
-          <p id="profile-meta" class="profile-card__meta"></p>
-        </div>
-        <div class="profile-card__actions">
-          <a class="button" href="/static/alerts.html">찾는 교재 알림</a>
-          <a class="button" href="/static/blocks.html">차단 목록</a>
-          <a class="button button--primary" href="/static/post-form.html">글쓰기</a>
-        </div>
-      </section>
-
-      <!-- 계정 관리. 버튼을 누르면 해당 폼이 펼쳐진다. -->
-      <section id="account" class="card account-card" aria-label="계정 관리" hidden>
-        <div class="account-card__buttons">
-          <button id="password-toggle" type="button" class="button" aria-expanded="false" aria-controls="password-form">
-            비밀번호 변경
-          </button>
-          <button id="withdraw-toggle" type="button" class="button button--danger" aria-expanded="false" aria-controls="withdraw-form">
-            회원 탈퇴
-          </button>
-        </div>
-        <p id="account-notice" class="account-card__notice" role="status" hidden></p>
-
-        <form id="password-form" class="account-form" novalidate hidden>
-          <div class="field">
-            <label for="current-password">현재 비밀번호</label>
-            <input id="current-password" name="current_password" type="password" autocomplete="current-password" required />
-            <p class="field-error" data-error-for="current_password" hidden></p>
-          </div>
-          <div class="field">
-            <label for="new-password">새 비밀번호</label>
-            <input id="new-password" name="new_password" type="password" autocomplete="new-password" aria-describedby="new-password-hint" required />
-            <p id="new-password-hint" class="field-hint">8~64자</p>
-            <p class="field-error" data-error-for="new_password" hidden></p>
-          </div>
-          <div class="field">
-            <label for="new-password-confirm">새 비밀번호 확인</label>
-            <input id="new-password-confirm" name="new_password_confirm" type="password" autocomplete="new-password" required />
-            <p class="field-error" data-error-for="new_password_confirm" hidden></p>
-          </div>
-          <p class="form-error" role="alert" hidden></p>
-          <button type="submit" class="button button--primary">변경하기</button>
-        </form>
-
-        <form id="withdraw-form" class="account-form" novalidate hidden>
-          <p class="field-hint">
-            탈퇴하면 내 글과 사진, 찜, 차단 목록이 모두 삭제되고 되돌릴 수 없습니다.
-            주고받은 쪽지는 상대방에게 "탈퇴한 사용자"로 남습니다.
-          </p>
-          <div class="field">
-            <label for="withdraw-password">비밀번호 확인</label>
-            <input id="withdraw-password" name="password" type="password" autocomplete="current-password" required />
-            <p class="field-error" data-error-for="password" hidden></p>
-          </div>
-          <p class="form-error" role="alert" hidden></p>
-          <button type="submit" class="button button--danger">탈퇴하기</button>
-        </form>
-      </section>
-
-      <p id="result-summary" class="result-summary" aria-live="polite">불러오는 중…</p>
-      <p id="list-error" class="form-error" role="alert" hidden></p>
-
-      <p id="empty-actions" class="empty-actions" hidden>
-        <a class="button button--primary" href="/static/post-form.html">첫 글 쓰기</a>
-      </p>
-
-      <ul id="post-list" class="post-list"></ul>
-      <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
-    </main>
+    <p><a href="/static/me.html?tab=posts">내 정보 화면으로 이동</a></p>
   </body>
 </html>

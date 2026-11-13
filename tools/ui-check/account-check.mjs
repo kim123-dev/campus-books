@@ -1,4 +1,4 @@
-// 비밀번호 변경·회원 탈퇴 화면(내 글)을 헤드리스 Chrome으로 확인한다.
+// 내 정보 화면(닉네임·비밀번호 변경, 회원 탈퇴)을 헤드리스 Chrome으로 확인한다.
 // 사용: WIDTH=375 tools/ui-check/run.sh account-check
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -31,10 +31,27 @@ b.listeners.push((msg) => {
 try {
   await b.goto("/static/index.html");
   await b.evaluate(`localStorage.setItem("campus-books.token", ${JSON.stringify(token)})`);
-  await b.goto("/static/my-posts.html", "!document.getElementById('account').hidden");
+  await b.goto("/static/me.html", "!document.getElementById('account').hidden");
 
-  check("계정 관리 버튼 2개 보임", await b.evaluate(`!document.getElementById('password-toggle').hidden && !document.getElementById('withdraw-toggle').hidden`));
+  check("계정 관리 버튼 3개 보임", await b.evaluate(`['nickname-toggle', 'password-toggle', 'withdraw-toggle'].every((id) => !document.getElementById(id).hidden)`));
   check("가로 스크롤 없음", await b.evaluate(`document.documentElement.scrollWidth <= ${W}`));
+
+  // 내 정보 카드: 이메일·가입일, 매너 점수, 공개 프로필 링크
+  check("내 정보: 이메일·가입일", await b.evaluate(`document.getElementById('profile-meta').textContent.includes('가입')`));
+  check("내 정보: 매너 점수 한 줄", await b.waitUntil(`document.getElementById('profile-manner').textContent.startsWith('매너 점수')`));
+  check("내 정보: 공개 프로필 링크", await b.evaluate(`document.getElementById('profile-public-link').getAttribute('href').startsWith('/static/user.html?id=')`));
+
+  // 닉네임 변경: 성공 → 카드 이름과 안내가 바뀜, 두 번째는 30일 제한 안내
+  const newNick = `새이름${Date.now() % 100000}`;
+  await b.evaluate(`document.getElementById('nickname-toggle').click()`);
+  await b.evaluate(`(() => { const f = document.getElementById('nickname-form'); f.nickname.value = ${JSON.stringify(newNick)}; f.requestSubmit(); })()`);
+  check("닉네임 변경: 카드 이름이 새 닉네임", await b.waitUntil(`document.getElementById('profile-nickname').textContent === ${JSON.stringify(newNick + "님")}`));
+  check("닉네임 변경: 완료 안내와 다음 변경 가능 날짜", await b.evaluate(`document.getElementById('account-notice').textContent.includes('바꿨습니다') && document.getElementById('nickname-hint').textContent.includes('부터 다시 바꿀 수 있어요')`));
+  await b.evaluate(`document.getElementById('nickname-toggle').click()`);
+  await b.evaluate(`(() => { const f = document.getElementById('nickname-form'); f.nickname.value = '또다른이름'; f.requestSubmit(); })()`);
+  check("닉네임 변경: 30일 안에 다시 바꾸면 칸 아래 안내", await b.waitUntil(`document.querySelector('[data-error-for=nickname]').textContent.includes('30일에 한 번')`));
+  await b.screenshot(`account-nickname-${W}.png`);
+  check("닉네임 폼: 가로 스크롤 없음", await b.evaluate(`document.documentElement.scrollWidth <= ${W}`));
 
   // 비밀번호 변경: 틀린 현재 비밀번호 → 칸 아래 에러
   await b.evaluate(`document.getElementById('password-toggle').click()`);

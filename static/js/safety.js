@@ -15,9 +15,9 @@ export const REPORT_REASONS = [
 
 export const REPORT_DONE_TEXT = "신고가 접수되었습니다. 신고한 사실과 신고자는 상대에게 알려지지 않아요.";
 export const BLOCK_DONE_TEXT = "차단했습니다. 서로 쪽지를 보낼 수 없고, 이 사용자의 글은 목록에 보이지 않습니다.";
-export const BLOCK_LIST_TEXT = "차단 목록은 내 글 화면에서 확인·해제할 수 있어요.";
+export const BLOCK_LIST_TEXT = "차단 목록은 내 정보 화면에서 확인·해제할 수 있어요.";
 export const UNBLOCK_DONE_TEXT = "차단을 해제했습니다.";
-const MY_POSTS_PAGE = "/static/my-posts.html";
+const ME_PAGE = "/static/me.html";
 
 /** 차단 전에 무엇이 달라지는지 알려주고 확인한다. 기존 삭제 확인과 같이 브라우저 확인 창을 쓴다. */
 export function confirmBlock(nickname) {
@@ -33,7 +33,7 @@ export function confirmUnblock(nickname) {
   return window.confirm(`${nickname}님 차단을 해제할까요? 다시 쪽지를 주고받을 수 있고 글도 목록에 보여요.`);
 }
 
-/** 차단 완료 안내 내용. 마지막 줄에 내 글 화면으로 가는 링크를 붙인다. */
+/** 차단 완료 안내 내용. 마지막 줄에 내 정보 화면으로 가는 링크를 붙인다. */
 export function blockDoneContent() {
   return [
     el("span", { className: "safety-notice__line", text: BLOCK_DONE_TEXT }),
@@ -41,7 +41,7 @@ export function blockDoneContent() {
       "span",
       { className: "safety-notice__line" },
       `${BLOCK_LIST_TEXT} `,
-      el("a", { href: MY_POSTS_PAGE, text: "내 글 화면으로" }),
+      el("a", { href: ME_PAGE, text: "내 정보 화면으로" }),
     ),
   ];
 }

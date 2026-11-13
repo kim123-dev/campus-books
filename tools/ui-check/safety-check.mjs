@@ -168,9 +168,9 @@ try {
   await autoConfirm();
   await evaluate(`${buttonByText("판매자 차단")}.click()`);
   await waitUntil(`!!${buttonByText("판매자 차단 해제")}`);
-  check("차단: 확인 창에 차단 목록 위치 안내", (await evaluate("window.lastConfirm ?? ''")).includes("차단 목록은 내 글 화면에서 확인·해제할 수 있어요."));
+  check("차단: 확인 창에 차단 목록 위치 안내", (await evaluate("window.lastConfirm ?? ''")).includes("차단 목록은 내 정보 화면에서 확인·해제할 수 있어요."));
   const notice = await evaluate("({ text: document.getElementById('safety-notice').textContent, link: document.querySelector('#safety-notice a')?.getAttribute('href') })");
-  check("차단: 완료 안내에 '차단 목록은 내 글 화면에서 확인·해제할 수 있어요' + 링크", notice.text.includes("차단 목록은 내 글 화면에서 확인·해제할 수 있어요.") && notice.link === "/static/my-posts.html", JSON.stringify(notice));
+  check("차단: 완료 안내에 '차단 목록은 내 정보 화면에서 확인·해제할 수 있어요' + 링크", notice.text.includes("차단 목록은 내 정보 화면에서 확인·해제할 수 있어요.") && notice.link === "/static/me.html", JSON.stringify(notice));
   check("차단: 문의 버튼 대신 안내, 하트 숨김", ((await text(".post-detail__contact-login")) ?? "").startsWith("차단한 사용자의 글입니다") && (await evaluate("document.querySelector('.wish-button') === null && document.querySelector('.contact-bar').hidden")));
   check("차단: 서버에 저장", (await getJson("/users/me/blocks", seed.buyer_token)).items.map((i) => i.user.id).includes(sellerId));
   check(`${W}px: 상세 가로 스크롤 없음`, await noHorizontalScroll());
@@ -214,7 +214,7 @@ try {
   // 차단 목록: 내 글 → 차단 목록 → 해제
   await api("POST", `/users/${sellerId}/block`, seed.buyer_token);
   const blocksLink = ".profile-card__actions a[href=\"/static/blocks.html\"]";
-  await goto("/static/my-posts.html", `document.querySelector(${JSON.stringify(blocksLink)})`);
+  await goto("/static/me.html", `document.querySelector(${JSON.stringify(blocksLink)})`);
   check("내 글: '차단 목록' 링크", (await text(blocksLink)) === "차단 목록");
   check(`${W}px: 내 글 가로 스크롤 없음`, await noHorizontalScroll());
   await evaluate(`document.querySelector(${JSON.stringify(blocksLink)}).click()`);

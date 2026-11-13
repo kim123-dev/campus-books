@@ -192,7 +192,7 @@ try {
   check(`${W}px: 목록 가로 스크롤 없음`, await noHorizontalScroll());
   await screenshot("10-3-list.png");
 
-  await goto("/static/my-posts.html", "document.querySelectorAll('.post-card').length > 0");
+  await goto("/static/me.html", "document.querySelectorAll('.post-card').length > 0");
   check("내 글: 썸네일 표시", await evaluate(`[...document.querySelectorAll('.post-card')].some(c => c.getAttribute('href').endsWith('id=${photoPostId}') && c.querySelector('.post-card__thumb').src.includes('_thumb.webp'))`));
 
   // 수정: 첫 사진을 빼고 새 사진 하나 추가

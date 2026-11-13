@@ -6,6 +6,7 @@ from tests.admin_helpers import make_review, report_post, user_id
 # 응답에 email 필드가 있어도 되는 API. 여기에 없는 API의 응답 형식에 email이 생기면 테스트가 실패한다.
 ALLOWED = {
     ("GET", "/users/me"),
+    ("PATCH", "/users/me"),  # 닉네임 변경 응답도 본인 정보(MeResponse)다.
     ("POST", "/auth/signup"),
     ("GET", "/admin/users"),
     ("GET", "/admin/users/{user_id}"),

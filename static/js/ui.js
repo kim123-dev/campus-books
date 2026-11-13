@@ -199,7 +199,7 @@ export function renderEmptyState(container, text, { image = null } = {}) {
   container.replaceChildren(...(picture ? [picture] : []), text);
 }
 
-// ---------- 판매글 카드와 페이지 이동 (목록 화면과 내 글 화면이 함께 쓴다) ----------
+// ---------- 판매글 카드와 페이지 이동 (목록 화면과 내 정보 화면이 함께 쓴다) ----------
 
 /** 사진이 없는 글에 보여줄 기본 그림 */
 export const PLACEHOLDER_IMAGE = "/static/img/book-placeholder.svg";

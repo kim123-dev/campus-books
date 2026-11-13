@@ -106,7 +106,7 @@ try {
   // ---------- 로그인 목록: 탭 바 ----------
   await setToken(seed.buyer_token);
   await goto("/static/index.html", "document.querySelectorAll('.post-card').length > 0 && document.getElementById('nav-messages')");
-  check("탭 바: 5개(홈·찜·글쓰기·쪽지·내 정보)", (await evaluate("[...document.querySelectorAll('.tab-bar__label')].map(l => l.textContent).join()")) === "홈,찜,글쓰기,쪽지,내 정보");
+  check("탭 바: 4개(홈·글쓰기·쪽지·내 정보)", (await evaluate("[...document.querySelectorAll('.tab-bar__label')].map(l => l.textContent).join()")) === "홈,글쓰기,쪽지,내 정보");
   check("탭 바: 화면 맨 아래 고정", await evaluate(`(() => { const r = document.querySelector('.tab-bar').getBoundingClientRect(); return Math.abs(r.bottom - ${H}) < 1 && r.left === 0 && Math.abs(r.right - ${W}) < 1 && getComputedStyle(document.querySelector('.tab-bar')).position === 'fixed'; })()`));
   check("헤더: 로그인 메뉴 숨김(탭 바가 대신)", await evaluate("document.querySelector('.site-nav').getClientRects().length === 0"));
   const unread = (await api("GET", "/conversations/unread-count", seed.buyer_token)).body.unread_count;
@@ -161,7 +161,7 @@ try {
 
   // ---------- 탭별 화면 ----------
   const pages = [
-    ["찜", "/static/wishlist.html", "찜"],
+    ["찜 목록 탭", "/static/me.html?tab=wishlist", "내 정보"],
     ["쪽지함", "/static/conversations.html", "쪽지"],
     ["차단 목록", "/static/blocks.html", "내 정보"],
   ];
@@ -173,7 +173,7 @@ try {
 
   // 내 정보(판매자): 로그아웃 버튼
   await setToken(seed.seller_token);
-  await goto("/static/my-posts.html", "!document.getElementById('profile').hidden");
+  await goto("/static/me.html", "!document.getElementById('profile').hidden");
   check("내 정보: 탭 바 '내 정보' 선택", (await tabBar.current()) === "내 정보");
   check("내 정보: 로그아웃 버튼(일반 사용자는 관리 없음)", await evaluate("(() => { const t = [...document.querySelectorAll('.profile-card__actions > *')].filter(e => e.getClientRects().length).map(e => e.textContent); return t.includes('로그아웃') && !t.includes('관리'); })()"));
   await audit("내 정보(판매자)");
@@ -181,12 +181,12 @@ try {
 
   // 관리자: 내 정보 안에 관리
   await setToken(admin);
-  await goto("/static/my-posts.html", "!document.getElementById('profile').hidden");
-  check("관리자 내 정보: '관리' 버튼", await evaluate("[...document.querySelectorAll('.profile-card__actions a')].some(a => a.textContent === '관리' && a.getClientRects().length && a.getAttribute('href') === '/static/admin.html')"));
+  await goto("/static/me.html", "!document.getElementById('profile').hidden");
+  check("관리자 내 정보: '관리' 버튼", await evaluate("[...document.querySelectorAll('.profile-card__actions a')].some(a => a.textContent === '관리' && a.getClientRects().length && a.getAttribute('href') === '/static/admin-dashboard.html')"));
   await goto("/static/admin.html", ready + " && document.querySelectorAll('.report-card').length > 0");
   check("관리: 탭 바 '내 정보' 선택", (await tabBar.current()) === "내 정보");
   await audit("관리");
-  await goto("/static/my-posts.html", "!document.getElementById('profile').hidden");
+  await goto("/static/me.html", "!document.getElementById('profile').hidden");
   await evaluate("[...document.querySelectorAll('.profile-card__actions button')].find(b => b.textContent === '로그아웃').click()");
   await waitUntil("!localStorage.getItem('campus-books.token') && document.readyState === 'complete'");
   check("내 정보: 로그아웃하면 토큰 삭제", await evaluate("!localStorage.getItem('campus-books.token')"));

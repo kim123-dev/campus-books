@@ -1,15 +1,70 @@
-"""내 계정 관리: 비밀번호 변경과 회원 탈퇴."""
+"""내 계정 관리: 닉네임 변경, 비밀번호 변경, 회원 탈퇴."""
 
 import secrets
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import AdminCannotWithdrawError, WrongPasswordError
+from app.core.exceptions import (
+    AdminCannotWithdrawError,
+    DuplicateNicknameError,
+    NicknameChangeTooSoonError,
+    SameNicknameError,
+    WrongPasswordError,
+)
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models import Post, Report, User, UserBlock, UserRole, Wishlist
-from app.schemas.user import PasswordChange, WithdrawRequest
+from app.models import NicknameChange, Post, Report, User, UserBlock, UserRole, Wishlist
+from app.schemas.user import NicknameUpdate, PasswordChange, WithdrawRequest
 from app.services import alert_service, image_storage, post_service, user_service
+
+# 닉네임을 자주 바꾸면 거래 상대가 같은 사람인지 알아보기 어렵고, 신고를 피해 이름을 바꿀 수도 있다.
+NICKNAME_CHANGE_INTERVAL = timedelta(days=30)
+
+
+def nickname_changeable_at(db: Session, user: User, now: datetime | None = None) -> datetime | None:
+    """닉네임을 다시 바꿀 수 있는 시각(UTC). 지금 바꿀 수 있으면 None. 가입 때 정한 닉네임은 바로 바꿀 수 있다."""
+    last = db.scalar(
+        select(NicknameChange.created_at)
+        .where(NicknameChange.user_id == user.id)
+        .order_by(NicknameChange.created_at.desc(), NicknameChange.id.desc())
+        .limit(1)
+    )
+    if last is None:
+        return None
+    available = user_service.as_utc(last) + NICKNAME_CHANGE_INTERVAL
+    return available if available > (now or user_service.utc_now()) else None
+
+
+def change_nickname(db: Session, user: User, data: NicknameUpdate, now: datetime | None = None) -> User:
+    """닉네임 변경. 순서: 409 다른 사람이 쓰는 닉네임 → 400 지금과 같음 → 400 30일 안에 이미 바꿈.
+    401(로그인)·403(정지)·422(형식)는 라우터 의존성과 스키마가 먼저 걸러낸다.
+    """
+    now = now or user_service.utc_now()
+    taken = db.scalar(select(User.id).where(User.nickname == data.nickname, User.id != user.id))
+    if taken is not None:
+        raise DuplicateNicknameError()
+    if data.nickname == user.nickname:
+        raise SameNicknameError()
+    available = nickname_changeable_at(db, user, now)
+    if available is not None:
+        local = available.astimezone(user_service.KST)
+        raise NicknameChangeTooSoonError(
+            f"닉네임은 30일에 한 번만 바꿀 수 있습니다. {local.month}월 {local.day}일 {local:%H:%M}부터 바꿀 수 있어요."
+        )
+
+    # DB에는 시간대 없이 UTC로 저장한다. (정지 종료 시각과 같은 방식)
+    db.add(NicknameChange(user_id=user.id, old_nickname=user.nickname, new_nickname=data.nickname, created_at=now.replace(tzinfo=None)))
+    user.nickname = data.nickname
+    try:
+        db.commit()
+    except IntegrityError:
+        # 동시에 같은 닉네임으로 바꾸면 위 확인을 둘 다 통과할 수 있다. DB unique 제약이 마지막으로 막는다.
+        db.rollback()
+        raise DuplicateNicknameError() from None
+    db.refresh(user)
+    return user
 
 
 def change_password(db: Session, user: User, data: PasswordChange) -> str:
@@ -29,7 +84,7 @@ def change_password(db: Session, user: User, data: PasswordChange) -> str:
 def withdraw(db: Session, user: User, data: WithdrawRequest) -> None:
     """회원 탈퇴. 순서: 400 관리자 → 400 비밀번호 틀림.
 
-    - 지운다: 내 글(사진 파일 포함), 내 찜, 내가 한·받은 차단, 찾는 교재 조건과 알림
+    - 지운다: 내 글(사진 파일 포함), 내 찜, 내가 한·받은 차단, 찾는 교재 조건과 알림, 닉네임 변경 기록
     - 남긴다: 쪽지 대화방(상대 화면에는 "탈퇴한 사용자"), 신고 기록(내 id만 비운다)
 
     사용자 행은 지우지 않고 개인정보를 지운 "탈퇴 표시"로 남긴다. 대화방·쪽지가 사용자 id를
@@ -56,6 +111,8 @@ def erase_account(db: Session, user: User) -> list[str]:
     for post in db.scalars(select(Post).where(Post.seller_id == user.id)).all():
         image_names += post_service.delete_post_rows(db, post)
     db.execute(delete(Wishlist).where(Wishlist.user_id == user.id))
+    # 예전 닉네임도 개인정보라 함께 지운다.
+    db.execute(delete(NicknameChange).where(NicknameChange.user_id == user.id))
     alert_service.delete_for_user(db, user.id)
     db.execute(
         delete(UserBlock).where(or_(UserBlock.blocker_id == user.id, UserBlock.blocked_id == user.id))

@@ -134,13 +134,14 @@ try {
   check("비로그인: 하트 누르면 로그인 화면 (next=목록)", await evaluate("location.pathname === '/static/login.html' && new URLSearchParams(location.search).get('next') === '/static/index.html'"), await evaluate("location.href"));
   await goto("/static/wishlist.html");
   await waitUntil("location.pathname === '/static/login.html'");
-  check("비로그인: 찜 목록 화면은 로그인으로", await evaluate("location.pathname === '/static/login.html'"));
+  // 예전 찜 주소 → 내 정보 화면의 찜 탭 → 로그인 화면. 로그인하면 찜 탭으로 돌아온다.
+  check("비로그인: 예전 찜 주소도 로그인으로 (next=내 정보 찜 탭)", await evaluate("location.pathname === '/static/login.html' && new URLSearchParams(location.search).get('next') === '/static/me.html?tab=wishlist'"), await evaluate("location.href"));
 
   // 구매자 로그인: 내 글(p3)에는 하트 없음, 남의 글 찜하기
   await setToken(seed.buyer_token);
   // 모바일은 헤더 메뉴 대신 하단 탭 바 (14단계)
   await goto(listUrl, listReady + " && document.getElementById('nav-messages')");
-  check("탭 바: '찜' 탭", (await evaluate("document.querySelector('.tab-bar a[href=\"/static/wishlist.html\"] .tab-bar__label')?.textContent")) === "찜");
+  check("탭 바: '찜' 탭은 없고 '내 정보' 탭", (await evaluate("[...document.querySelectorAll('.tab-bar__label')].map(l => l.textContent).join()")) === "홈,글쓰기,쪽지,내 정보");
   check("목록: 내 글 카드에는 하트 없음", (await evaluate(`${heartOf(seed.p3)} === null`)) && (await pressed(heartOf(seed.p1))) === "false");
   const placement = await evaluate(`(() => {
     const b = ${heartOf(seed.p1)}.getBoundingClientRect();
@@ -186,8 +187,14 @@ try {
   check("목록: 찜한 판매 완료 글은 하트 유지, 찜 안 한 판매 완료 글은 하트 없음", (await pressed(heartOf(seed.p2))) === "true" && (await evaluate(`${heartOf(soldPlain)} === null`)));
 
   // 찜 목록 화면
-  await evaluate("document.querySelector('.tab-bar a[href=\"/static/wishlist.html\"]').click()");
-  await waitUntil("location.pathname === '/static/wishlist.html' && document.querySelectorAll('.post-card').length > 0");
+  // 하단 탭 '내 정보' → '찜 목록' 탭
+  await evaluate("document.querySelector('.tab-bar a[href=\"/static/me.html\"]').click()");
+  await waitUntil("location.pathname === '/static/me.html' && !document.getElementById('me-tabs').hidden && document.getElementById('result-summary').textContent !== '불러오는 중…'");
+  await evaluate("document.querySelector('.tabs__item[data-tab=wishlist]').click()");
+  await waitUntil("location.search === '?tab=wishlist' && document.querySelector('.post-card .wish-button')");
+  check("찜 목록 탭: 누르면 주소 ?tab=wishlist, 탭 선택 표시", await evaluate("document.querySelector('.tabs__item[data-tab=wishlist]').getAttribute('aria-current') === 'page' && !document.querySelector('.tabs__item[data-tab=posts]').hasAttribute('aria-current')"));
+  const tabSize = await evaluate("[...document.querySelectorAll('.tabs__item')].map(t => Math.round(t.getBoundingClientRect().height))");
+  check("찜 목록 탭: 탭 높이 44px 이상", tabSize.every((h) => h >= 44), JSON.stringify(tabSize));
   const wishCards = await evaluate("[...document.querySelectorAll('.post-list__item')].map(li => ({ href: li.querySelector('a').getAttribute('href'), pressed: li.querySelector('.wish-button')?.getAttribute('aria-pressed'), sold: !!li.querySelector('.badge--sold') }))");
   check("찜 목록: 찜한 2개, 최근 찜(p2)이 먼저, 모두 채운 하트", wishCards.length === 2 && wishCards[0].href.endsWith(`id=${seed.p2}`) && wishCards.every((c) => c.pressed === "true"), JSON.stringify(wishCards));
   check("찜 목록: 판매 완료 글은 배지 표시", wishCards[0].sold === true && wishCards[1].sold === false);
@@ -197,7 +204,7 @@ try {
   await evaluate(`${heartOf(seed.p2)}.click()`);
   await waitUntil(`${heartOf(seed.p2)}.getAttribute('aria-pressed') === 'false'`);
   check("찜 목록: 해제해도 카드는 그 자리에 (빈 하트)", (await evaluate("document.querySelectorAll('.post-list__item').length")) === 2 && (await pressed(heartOf(seed.p2))) === "false");
-  await goto("/static/wishlist.html", "document.querySelectorAll('.post-card').length > 0");
+  await goto("/static/me.html?tab=wishlist", "document.querySelectorAll('.post-card').length > 0");
   check("찜 목록: 새로고침하면 해제한 글은 사라짐", (await evaluate("document.querySelectorAll('.post-card').length")) === 1);
 
   // 실패 알림: 화면을 연 뒤 글이 삭제됨
@@ -209,7 +216,8 @@ try {
   check("실패: 삭제된 글 하트 → 서버 메시지 알림", toast.text === "게시글을 찾을 수 없습니다." && toast.role === "alert", JSON.stringify(toast));
   check(`${W}px: 알림이 화면 안에`, await evaluate(`(() => { const r = document.querySelector('.toast').getBoundingClientRect(); return r.left >= 0 && r.right <= ${W}; })()`));
   await screenshot("11-4-toast.png");
-  await goto("/static/wishlist.html", "document.getElementById('result-summary').textContent !== '불러오는 중…'");
+  await goto("/static/wishlist.html?page=1", "location.pathname === '/static/me.html' && document.getElementById('result-summary').textContent !== '불러오는 중…'");
+  check("예전 찜 주소: 내 정보 찜 탭으로 이동 (page 유지)", await evaluate("location.search === '?tab=wishlist&page=1'"), await evaluate("location.search"));
   check("글 삭제: 찜 목록에서도 사라짐 (빈 목록 안내)", (await evaluate("document.querySelectorAll('.post-card').length")) === 0 && !(await evaluate("document.getElementById('empty-actions').hidden")));
 
   // 하단 탭 바가 화면 안에 (14단계: 헤더 메뉴 대신)

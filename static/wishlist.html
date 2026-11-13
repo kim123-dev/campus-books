@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>찜 목록 | Campus Books</title>
-    <link rel="stylesheet" href="/static/css/style.css" />
     <!-- 홈 화면 앱(PWA): 앱 정보·아이콘, 아이폰 홈 화면 아이콘과 이름, 서비스 워커 등록 -->
     <meta name="theme-color" content="#5b3fd6" />
     <link rel="manifest" href="/static/manifest.json" />
@@ -15,24 +14,10 @@
     <meta name="apple-mobile-web-app-title" content="Campus Books" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <script type="module" src="/static/js/pwa.js"></script>
-    <script type="module" src="/static/js/pages/wishlist.js"></script>
+    <!-- 찜 목록은 내 정보 화면의 탭으로 옮겼다. 이 주소로 들어오면 그 탭으로 보낸다. -->
+    <script src="/static/js/legacy-me-redirect.js" data-tab="wishlist"></script>
   </head>
   <body>
-    <header id="site-header" class="site-header"></header>
-
-    <main class="container">
-      <h1 class="page-title">찜 목록</h1>
-
-      <p id="result-summary" class="result-summary" aria-live="polite">불러오는 중…</p>
-      <p id="list-error" class="form-error" role="alert" hidden></p>
-
-      <p id="empty-actions" class="empty-actions" hidden>
-        <a class="button button--primary" href="/static/index.html">교재 둘러보기</a>
-      </p>
-
-      <!-- 목록 화면과 같은 카드. 하트를 눌러 해제해도 카드는 새로고침 전까지 그 자리에 남는다. -->
-      <ul id="post-list" class="post-list"></ul>
-      <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
-    </main>
+    <p><a href="/static/me.html?tab=wishlist">내 정보 화면으로 이동</a></p>
   </body>
 </html>

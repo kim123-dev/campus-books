@@ -56,12 +56,25 @@ def test_post_form_page_is_served(client: TestClient) -> None:
     assert "/static/js/pages/post-form.js" in response.text
 
 
-def test_my_posts_page_is_served(client: TestClient) -> None:
-    response = client.get("/static/my-posts.html")
+def test_me_page_is_served(client: TestClient) -> None:
+    response = client.get("/static/me.html")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "/static/js/pages/my-posts.js" in response.text
+    assert "/static/js/pages/me.js" in response.text
+    # 내 글·찜 목록이 탭으로 들어 있다.
+    assert 'data-tab="posts"' in response.text and 'data-tab="wishlist"' in response.text
+
+
+@pytest.mark.parametrize(("page", "tab"), [("my-posts.html", "posts"), ("wishlist.html", "wishlist")])
+def test_old_list_pages_redirect_to_me(client: TestClient, page: str, tab: str) -> None:
+    # 예전 주소는 지우지 않고 내 정보 화면의 탭으로 보내는 이동용 화면으로 남긴다.
+    response = client.get(f"/static/{page}")
+
+    assert response.status_code == 200
+    assert f'<script src="/static/js/legacy-me-redirect.js" data-tab="{tab}"></script>' in response.text
+    source = (STATIC_DIR / "js" / "legacy-me-redirect.js").read_text(encoding="utf-8")
+    assert "location.replace(`/static/me.html?${params}`)" in source and 'params.set("page", page)' in source
 
 
 @pytest.mark.parametrize(
@@ -76,16 +89,13 @@ def test_message_pages_are_served(client: TestClient, page: str, script: str) ->
     assert f"/static/js/pages/{script}" in response.text
 
 
-def test_wishlist_page_is_served(client: TestClient) -> None:
-    response = client.get("/static/wishlist.html")
+def test_header_links_to_me_instead_of_my_posts_and_wishlist() -> None:
+    source = (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
+    items = re.search(r"function loggedInItems\(me\) \{(.*?)\n\}", source, re.S)
+    assert items, "auth.js에서 loggedInItems를 찾지 못했습니다."
 
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/html")
-    assert "/static/js/pages/wishlist.js" in response.text
-
-
-def test_header_links_to_wishlist() -> None:
-    assert '"/static/wishlist.html"' in (STATIC_DIR / "js" / "auth.js").read_text(encoding="utf-8")
+    assert "href: ME_PAGE" in items.group(1)
+    assert 'text: "내 글"' not in items.group(1) and 'text: "찜"' not in items.group(1)
 
 
 ADMIN_HTML = sorted(STATIC_DIR.glob("admin*.html"))
@@ -309,9 +319,9 @@ def test_blocks_page_is_served(client: TestClient) -> None:
     assert "/static/js/pages/blocks.js" in response.text
 
 
-def test_my_posts_links_to_blocks(client: TestClient) -> None:
-    # 차단 완료 안내가 "내 글 화면에서 확인·해제"라고 알려주므로 그 화면에 링크가 있어야 한다.
-    assert 'href="/static/blocks.html"' in client.get("/static/my-posts.html").text
+def test_me_page_links_to_blocks(client: TestClient) -> None:
+    # 차단 완료 안내가 "내 정보 화면에서 확인·해제"라고 알려주므로 그 화면에 링크가 있어야 한다.
+    assert 'href="/static/blocks.html"' in client.get("/static/me.html").text
 
 
 def test_front_report_rules_match_server() -> None:
@@ -368,9 +378,11 @@ def test_tab_bar_links_to_main_pages() -> None:
     assert tabs, "auth.js에서 TABS를 찾지 못했습니다."
 
     labels = re.findall(r'label: "([^"]+)"', tabs.group(1))
-    assert labels == ["홈", "찜", "글쓰기", "쪽지", "내 정보"]
-    for page in ["HOME_PAGE", "WISHLIST_PAGE", "POST_FORM_PAGE", "CONVERSATIONS_PAGE", "MY_POSTS_PAGE"]:
+    assert labels == ["홈", "글쓰기", "쪽지", "내 정보"]
+    for page in ["HOME_PAGE", "POST_FORM_PAGE", "CONVERSATIONS_PAGE", "ME_PAGE"]:
         assert f"href: {page}" in tabs.group(1)
+    # 칸 수와 CSS 열 수가 같아야 탭이 한 줄에 고르게 놓인다.
+    assert f"grid-template-columns: repeat({len(labels)}, minmax(0, 1fr));" in STYLE_CSS.read_text(encoding="utf-8")
 
 
 def test_mobile_inputs_are_at_least_16px() -> None:

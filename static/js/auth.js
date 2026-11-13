@@ -9,8 +9,9 @@ export const SIGNUP_PAGE = "/static/signup.html";
 const HOME_PAGE = "/static/index.html";
 const LOGO_IMAGE = "/static/img/logo.png";
 const POST_FORM_PAGE = "/static/post-form.html";
-const MY_POSTS_PAGE = "/static/my-posts.html";
-const WISHLIST_PAGE = "/static/wishlist.html";
+// 내 글·찜 목록은 내 정보 화면의 탭이다. 예전 주소(my-posts.html, wishlist.html)는 이 화면으로 넘겨준다.
+const ME_PAGE = "/static/me.html";
+const LEGACY_ME_PAGES = ["/static/my-posts.html", "/static/wishlist.html"];
 const CONVERSATIONS_PAGE = "/static/conversations.html";
 // 헤더의 "관리" 링크는 대시보드로 간다. (신고 화면 admin.html은 관리 메뉴에서)
 const ADMIN_PAGE = "/static/admin-dashboard.html";
@@ -138,10 +139,7 @@ function loggedInItems(me) {
   const logoutButton = el("button", { type: "button", className: "link-button", text: "로그아웃" });
   logoutButton.addEventListener("click", logout);
   return [
-    el("span", { className: "site-nav__user", text: `${me.nickname}님` }),
     el("a", { href: POST_FORM_PAGE, text: "글쓰기" }),
-    el("a", { href: MY_POSTS_PAGE, text: "내 글" }),
-    el("a", { href: WISHLIST_PAGE, text: "찜" }),
     el(
       "a",
       { href: CONVERSATIONS_PAGE, className: "site-nav__messages", attrs: { id: "nav-messages" } },
@@ -149,12 +147,14 @@ function loggedInItems(me) {
       el("span", { className: "nav-badge", attrs: { id: "nav-unread", "aria-hidden": "true" }, hidden: true }),
     ),
     // 관리자에게만 보인다. 링크를 숨기는 것은 편의일 뿐이고, 실제 권한은 서버가 /admin API마다 확인한다.
+    // 닉네임은 따로 보여주지 않고 "내 정보" 링크 이름에 담는다. (화면 낭독기: "내 정보, 책벌레님")
+    el("a", { href: ME_PAGE, className: "site-nav__me", text: "내 정보", attrs: { "aria-label": `내 정보, ${me.nickname}님` } }),
     ...(me.role === "ADMIN" ? [el("a", { href: ADMIN_PAGE, text: "관리" })] : []),
     logoutButton,
   ];
 }
 
-// 찾는 교재 알림 종. PC와 모바일 모두 헤더 오른쪽에 보인다. (하단 탭 바는 이미 5칸이라 늘리지 않는다)
+// 찾는 교재 알림 종. PC와 모바일 모두 헤더 오른쪽에 보인다. (하단 탭 바에 넣지 않고 헤더에 둔다)
 function alertBell() {
   return el(
     "a",
@@ -171,12 +171,12 @@ function alertBell() {
 // ---------- 모바일 하단 탭 바 ----------
 
 // also: 이 탭에서 들어가는 화면. 그 화면에서도 이 탭을 현재 탭으로 표시한다. alsoPrefix는 주소 앞부분이 같은 화면들.
+// 찜은 내 정보 화면의 탭으로 옮겨 4칸으로 줄였다. 칸이 넓어져 누르기 쉽다.
 const TABS = [
   { href: HOME_PAGE, label: "홈", icon: "home" },
-  { href: WISHLIST_PAGE, label: "찜", icon: "heart" },
   { href: POST_FORM_PAGE, label: "글쓰기", icon: "plus", modifier: "write" },
   { href: CONVERSATIONS_PAGE, label: "쪽지", icon: "chat", id: "tab-messages", badgeId: "tab-unread" },
-  { href: MY_POSTS_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ALERTS_PAGE], alsoPrefix: ADMIN_PAGE_PREFIX },
+  { href: ME_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ALERTS_PAGE, ...LEGACY_ME_PAGES], alsoPrefix: ADMIN_PAGE_PREFIX },
 ];
 
 /**

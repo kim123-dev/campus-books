@@ -401,6 +401,11 @@ export function getMe() {
   return request("/users/me");
 }
 
+/** 내 정보 수정. 지금은 닉네임만 바꿀 수 있다(30일에 한 번). data: { nickname } */
+export function updateMe(data) {
+  return request("/users/me", { method: "PATCH", json: data });
+}
+
 // ---------- 에러 변환 ----------
 
 function toApiError(status, data) {

@@ -190,12 +190,6 @@ a {
   color: var(--color-primary);
 }
 
-.site-nav__user {
-  color: var(--color-text);
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
 .site-header__right {
   display: flex;
   align-items: center;
@@ -1354,7 +1348,7 @@ a.button {
   }
 }
 
-/* ---------- 내 글 화면 ---------- */
+/* ---------- 내 정보 화면 ---------- */
 
 .profile-card {
   display: flex;
@@ -1394,10 +1388,11 @@ a.button {
   gap: 8px;
 }
 
+/* 본문 글자 기준(16px)을 지킨다. 모바일 확인(mobile-check)이 본문 글자 크기를 검사한다. */
 .account-card__notice {
   margin: 12px 0 0;
   color: var(--color-muted);
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 
 .account-form {
@@ -2183,7 +2178,25 @@ a.button {
   margin: 0;
 }
 
-/* 내 글 화면: "차단 목록"과 "글쓰기"를 나란히, 좁으면 줄을 바꾼다. */
+/* 내 정보 화면: 공개 프로필 링크. 손가락으로 누르기 쉽게 44px 높이를 둔다. */
+.profile-card__link {
+  margin: 0;
+}
+
+.profile-card__link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* 내 정보 화면의 "내 글 | 찜 목록" 탭. 계정 관리 카드와 띄운다. */
+.me-tabs {
+  margin-top: 24px;
+}
+
+/* 내 정보 화면: 알림·차단 목록 버튼을 나란히, 좁으면 줄을 바꾼다. */
 .profile-card__actions {
   display: flex;
   flex-wrap: wrap;
@@ -2781,7 +2794,7 @@ a.button {
     left: 0;
     z-index: 15;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
     background: rgba(255, 255, 255, 0.97);
     box-shadow: 0 -1px 0 rgba(17, 24, 39, 0.08);

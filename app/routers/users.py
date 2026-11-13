@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser
+from app.core.deps import ActiveUser, CurrentUser
+from app.models import User
 from app.schemas.post import PageQuery, PostListResponse, SizeQuery
-from app.schemas.user import MeResponse, PasswordChange, TokenResponse, WithdrawRequest
+from app.schemas.user import MeResponse, NicknameUpdate, PasswordChange, TokenResponse, WithdrawRequest
 from app.services import account_service, post_service, user_service, wishlist_service
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -20,10 +21,35 @@ router = APIRouter(prefix="/users", tags=["users"])
     summary="내 정보 조회",
     responses={401: {"description": "토큰 없음, 만료·변조된 토큰, 존재하지 않는 사용자"}},
 )
-def read_me(current_user: CurrentUser) -> MeResponse:
+def read_me(current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]) -> MeResponse:
+    return _me_response(db, current_user)
+
+
+# 내 정보 화면에서 닉네임을 바꾼다. 정지 중에는 바꿀 수 없다(403). 신고를 받은 뒤 이름을 바꿔 피하지 못하게 하기 위해서다.
+@router.patch(
+    "/me",
+    response_model=MeResponse,
+    summary="내 닉네임 변경 (30일에 한 번)",
+    responses={
+        400: {"description": "지금과 같은 닉네임, 30일 안에 이미 바꿈"},
+        401: {"description": "로그인 필요"},
+        403: {"description": "이용 정지 중"},
+        409: {"description": "다른 사람이 쓰는 닉네임"},
+    },
+)
+def update_me(
+    data: NicknameUpdate, current_user: ActiveUser, db: Annotated[Session, Depends(get_db)]
+) -> MeResponse:
+    return _me_response(db, account_service.change_nickname(db, current_user, data))
+
+
+def _me_response(db: Session, user: User) -> MeResponse:
     # 기간이 지난 정지는 null로 보여준다. 화면은 이 값이 있을 때만 정지 안내를 띄운다.
-    return MeResponse.model_validate(current_user).model_copy(
-        update={"suspended_until": user_service.active_suspension_end(current_user)}
+    return MeResponse.model_validate(user).model_copy(
+        update={
+            "suspended_until": user_service.active_suspension_end(user),
+            "nickname_changeable_at": account_service.nickname_changeable_at(db, user),
+        }
     )
 
 
