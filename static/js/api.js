@@ -284,6 +284,11 @@ export function reportReview(reviewId, data) {
 }
 
 /** 사용자 신고. data: {reason, description}. 409(이미 신고), 429(횟수 제한) */
+/** 쪽지 한 건 신고. 상대가 보낸 메시지만 신고할 수 있다. data: {reason, description} */
+export function reportMessage(messageId, data) {
+  return request(`/messages/${encodeURIComponent(messageId)}/reports`, { method: "POST", json: data });
+}
+
 export function reportUser(userId, data) {
   return request(`/users/${encodeURIComponent(userId)}/reports`, { method: "POST", json: data });
 }

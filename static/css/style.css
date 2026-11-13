@@ -1808,6 +1808,37 @@ a.button {
   box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
 }
 
+/* 상대 말풍선 옆 "⋯"(이 메시지 신고). 눈에 덜 띄게 옅은 색이지만 누르는 영역은 44px이다. */
+.message__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.message__row > .message__bubble {
+  min-width: 0;
+}
+
+.message__menu {
+  flex: 0 0 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 1.125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.message__menu:hover,
+.message__menu:focus-visible {
+  background: var(--color-fill);
+  color: var(--color-text);
+}
+
 .message__time {
   margin-top: 4px;
   color: var(--color-muted);

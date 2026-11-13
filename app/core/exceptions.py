@@ -73,6 +73,10 @@ class UserNotFoundError(NotFoundError):
     message = "사용자를 찾을 수 없습니다."
 
 
+class MessageNotFoundError(NotFoundError):
+    message = "메시지를 찾을 수 없습니다."
+
+
 class ReportNotFoundError(NotFoundError):
     message = "신고를 찾을 수 없습니다."
 
@@ -180,6 +184,14 @@ class BlockedByUserMessageError(BadRequestError):
 
 class CannotReportOwnPostError(BadRequestError):
     message = "본인 글은 신고할 수 없습니다."
+
+
+class CannotReportOwnMessageError(BadRequestError):
+    message = "내가 보낸 메시지는 신고할 수 없습니다."
+
+
+class CannotDeletePostForMessageReportError(BadRequestError):
+    message = "쪽지 신고에는 글 삭제를 할 수 없습니다."
 
 
 class CannotReportSelfError(BadRequestError):

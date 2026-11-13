@@ -13,7 +13,7 @@ const STATUSES = ["PENDING", "RESOLVED", "ALL"];
 const REASON_LABELS = Object.fromEntries(REPORT_REASONS.map(([value, label]) => [value, label.replace(/\s*\(.*\)$/, "")]));
 // 서버 규칙과 같은 값. (app/models/report.py, app/schemas/admin.py) 최종 검사는 서버가 한다.
 export const ACTION_LABELS = { DISMISS: "기각", DELETE_POST: "글 삭제", SUSPEND: "기간 정지", HIDE_REVIEW: "후기 숨김" };
-const TARGET_LABELS = { POST: "글 신고", USER: "사용자 신고", REVIEW: "후기 신고" };
+const TARGET_LABELS = { POST: "글 신고", USER: "사용자 신고", REVIEW: "후기 신고", MESSAGE: "쪽지 신고" };
 const RATING_TEXT = { GOOD: "좋아요", BAD: "아쉬워요" };
 const SUSPEND_DAY_OPTIONS = [1, 3, 7, 30];
 const MAX_NOTE = 500;
@@ -151,6 +151,7 @@ function renderReportCard(report) {
     renderPeople(report),
     isPost ? renderSnapshot(report) : null,
     report.review ? renderReviewTarget(report.review) : null,
+    report.message ? renderMessageTarget(report) : null,
     report.description ? el("p", { className: "report-card__description", text: report.description }) : null,
     !resolved && report.other_pending_count > 0
       ? el("p", {
@@ -219,6 +220,24 @@ function renderReviewTarget(review) {
     el("p", { className: "report-card__snapshot-content", text: review.content || "글 없이 평가만 남긴 후기입니다." }),
     el("p", { className: "report-card__snapshot-hint", text: reviewee }),
   );
+}
+
+/** 쪽지 신고의 대상 메시지. 신고 시점의 사본이고, 관리자는 대화 전체가 아니라 이 메시지만 본다. */
+function renderMessageTarget(report) {
+  const { message } = report;
+  return el(
+    "div",
+    { className: "report-card__snapshot" },
+    el("p", { className: "report-card__snapshot-title" }, el("span", { text: `쪽지 · ${formatDate(message.sent_at)} 보냄` })),
+    message.content ? el("p", { className: "report-card__snapshot-content", text: message.content }) : null,
+    message.has_image ? renderReportedPhoto(report.id) : null,
+    el("p", { className: "report-card__snapshot-hint", text: "신고 시점의 메시지입니다. 대화의 다른 메시지는 보이지 않아요." }),
+  );
+}
+
+// 쪽지 사진은 공개 주소가 없다. 관리자 토큰을 붙여 받아 화면 안에서만 보여준다. (사진 기능에서 채운다)
+function renderReportedPhoto() {
+  return null;
 }
 
 function renderResolution(resolution) {

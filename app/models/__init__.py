@@ -8,7 +8,14 @@ from app.models.nickname_change import NicknameChange
 from app.models.post import BookCondition, Post, PostStatus
 from app.models.post_image import MAX_IMAGES_PER_POST, PostImage
 from app.models.recovery import PasswordResetAttempt, RecoveryCode
-from app.models.report import Report, ReportAction, ReportReason, ReportStatus, ReportTargetType
+from app.models.report import (
+    MessageReportSnapshot,
+    Report,
+    ReportAction,
+    ReportReason,
+    ReportStatus,
+    ReportTargetType,
+)
 from app.models.review import Review, ReviewRating
 from app.models.trade import Trade
 from app.models.user import User, UserRole
@@ -27,6 +34,7 @@ __all__ = [
     "Conversation",
     "ConversationUserState",
     "Message",
+    "MessageReportSnapshot",
     "NicknameChange",
     "PasswordResetAttempt",
     "Post",

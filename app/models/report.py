@@ -12,6 +12,7 @@ class ReportTargetType(StrEnum):
     POST = "POST"
     USER = "USER"
     REVIEW = "REVIEW"  # 거래 후기. 피신고자는 후기를 쓴 사람이다.
+    MESSAGE = "MESSAGE"  # 쪽지 한 건. 피신고자는 보낸 사람이다. 내용 사본은 message_report_snapshots에 둔다.
 
 
 class ReportReason(StrEnum):
@@ -97,3 +98,24 @@ class Report(Base):
     reporter: Mapped["User | None"] = relationship(foreign_keys=[reporter_id])
     reported_user: Mapped["User | None"] = relationship(foreign_keys=[reported_user_id])
     resolved_by: Mapped["User | None"] = relationship(foreign_keys=[resolved_by_id])
+
+
+class MessageReportSnapshot(Base):
+    """쪽지 신고 시점의 메시지 사본. 신고 한 건에 한 줄이다.
+
+    쪽지는 지우지 않지만, 보낸 사람이 탈퇴하거나 대화 상대가 나가도 관리자가 신고된 그 메시지만 정확히 볼 수 있게
+    내용·보낸 사람·보낸 시각을 그대로 복사해 둔다. 관리자는 대화 전체가 아니라 이 사본만 본다.
+    reports 테이블에 컬럼을 더하면 ALTER가 필요하므로 새 테이블로 둔다.
+    """
+
+    __tablename__ = "message_report_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("reports.id", ondelete="CASCADE"), unique=True)
+    # 원본 메시지 번호. 메시지는 지우지 않지만, 사본만으로 판단할 수 있게 FK 없이 번호만 남긴다.
+    message_id: Mapped[int]
+    conversation_id: Mapped[int]
+    content: Mapped[str] = mapped_column(Text)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # 사진 메시지면 그 사진 파일 이름(서버가 만든 이름). 관리자 사진 API가 이 값으로 파일을 찾는다.
+    image_filename: Mapped[str | None] = mapped_column(String(64), nullable=True)

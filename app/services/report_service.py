@@ -3,6 +3,7 @@
 신고당한 사람에게 가는 어떤 응답에도 신고 여부나 신고자가 드러나지 않는다.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -11,17 +12,20 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
+    CannotReportOwnMessageError,
     CannotReportOwnPostError,
     CannotReportOwnReviewError,
     CannotReportSelfError,
     DuplicateReportError,
+    MessageNotFoundError,
+    NotConversationParticipantError,
     ReportRateLimitError,
     ReviewNotFoundError,
     UserNotFoundError,
 )
-from app.models import Report, ReportTargetType, Review, User
+from app.models import Conversation, Message, MessageReportSnapshot, Report, ReportTargetType, Review, User
 from app.schemas.report import ReportCreate
-from app.services import post_service, user_service
+from app.services import conversation_service, post_service, user_service
 
 
 @dataclass(frozen=True)
@@ -89,6 +93,48 @@ def report_review(db: Session, review_id: int, reporter: User, data: ReportCreat
     )
 
 
+def report_message(db: Session, message_id: int, reporter: User, data: ReportCreate) -> Report:
+    """쪽지 한 건 신고. 순서: 404 없는 메시지 → 403 대화 참여자 아님 → 404 내가 나가며 숨긴 메시지
+    → 400 내가 보낸 메시지 → 409 이미 신고 → 429 횟수 제한.
+    신고 시점의 내용을 사본으로 남긴다. 피신고자는 보낸 사람(탈퇴했으면 비움)이다.
+    """
+    message = db.get(Message, message_id)
+    if message is None:
+        raise MessageNotFoundError()
+    conversation = db.get(Conversation, message.conversation_id)
+    if reporter.id not in (conversation.buyer_id, conversation.seller_id):
+        raise NotConversationParticipantError()
+    # 나가면서 숨긴 메시지는 나에게 없는 것과 같다. (화면에서 볼 수 없으니 신고할 수도 없다)
+    if message.id <= conversation_service.cleared_through(db, conversation.id, reporter.id):
+        raise MessageNotFoundError()
+    if message.sender_id == reporter.id:
+        raise CannotReportOwnMessageError()
+    sender = db.get(User, message.sender_id)
+    image_filename = conversation_service.message_image_filename(db, message.id)
+
+    def add_snapshot(report: Report) -> None:
+        db.add(
+            MessageReportSnapshot(
+                report_id=report.id,
+                message_id=message.id,
+                conversation_id=conversation.id,
+                content=message.content,
+                sent_at=message.created_at,
+                image_filename=image_filename,
+            )
+        )
+
+    return _create(
+        db,
+        reporter,
+        data,
+        target_type=ReportTargetType.MESSAGE,
+        target_id=message.id,
+        reported_user_id=None if sender is None or user_service.is_withdrawn(sender) else sender.id,
+        add_related=add_snapshot,
+    )
+
+
 def _create(
     db: Session,
     reporter: User,
@@ -99,7 +145,9 @@ def _create(
     reported_user_id: int | None,
     post_title_snapshot: str | None = None,
     post_content_snapshot: str | None = None,
+    add_related: Callable[[Report], None] | None = None,
 ) -> Report:
+    """신고 저장. add_related는 신고 번호가 정해진 뒤 같은 트랜잭션에 함께 넣을 행(쪽지 사본 등)을 더한다."""
     if _already_reported(db, reporter.id, target_type, target_id):
         raise DuplicateReportError()
     _check_rate_limit(db, reporter)
@@ -116,6 +164,9 @@ def _create(
     )
     db.add(report)
     try:
+        if add_related is not None:
+            db.flush()  # 신고 번호를 받아 사본이 가리키게 한다. 중복이면 여기서 IntegrityError가 난다.
+            add_related(report)
         db.commit()
     except IntegrityError:
         # 같은 신고 두 개가 동시에 들어와 다른 요청이 먼저 저장했다. (unique 제약)

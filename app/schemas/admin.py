@@ -145,6 +145,15 @@ class AdminReviewBrief(BaseModel):
     hidden: bool  # 이미 숨긴 후기인지
 
 
+class AdminMessageBrief(BaseModel):
+    """쪽지 신고의 대상 메시지(신고 시점 사본). 보낸 사람은 피신고자(reported_user)로 따로 보여준다."""
+
+    content: str
+    sent_at: datetime
+    conversation_id: int
+    has_image: bool = False
+
+
 class ReportResolution(BaseModel):
     """처리 기록."""
 
@@ -169,6 +178,8 @@ class AdminReportResponse(BaseModel):
     post_exists: bool | None
     # 후기 신고의 대상 후기. 다른 신고면 null.
     review: AdminReviewBrief | None = None
+    # 쪽지 신고의 대상 메시지 사본. 다른 신고면 null. 관리자는 대화 전체가 아니라 이 메시지만 본다.
+    message: AdminMessageBrief | None = None
     reporter: AdminUserBrief | None  # 신고자가 탈퇴했으면 null
     reported_user: ReportedUserBrief | None
     status: ReportStatus

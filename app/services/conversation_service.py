@@ -217,6 +217,11 @@ def send_message(
     return _to_message_response(message, sender)
 
 
+def message_image_filename(db: Session, message_id: int) -> str | None:
+    """사진 메시지면 사진 파일 이름. 쪽지 신고 사본에 남긴다."""
+    return None
+
+
 def cleared_through(db: Session, conversation_id: int, user_id: int) -> int:
     """이 번호 이하의 메시지는 이 사용자에게 숨긴다(나가기). 나간 적이 없으면 0."""
     state = _get_state(db, conversation_id, user_id)

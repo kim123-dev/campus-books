@@ -6,7 +6,16 @@
 //   내 메시지인지는 서버 응답의 is_mine을 그대로 쓴다.
 // - 토큰은 탭끼리 공유된다. 다른 탭에서 계정이 바뀌면 이 화면이 새 계정 토큰으로 폴링·전송하게 되어
 //   상대 메시지가 내 말풍선으로 그려지거나 다른 계정 이름으로 전송되므로, 계정이 바뀌면 멈춘다.
-import { blockUser, createReview, getConversation, listMessages, reportUser, sendMessage, unblockUser } from "../api.js";
+import {
+  blockUser,
+  createReview,
+  getConversation,
+  listMessages,
+  reportMessage,
+  reportUser,
+  sendMessage,
+  unblockUser,
+} from "../api.js";
 import { redirectToLogin, refreshUnreadBadge, renderHeader, suspensionText } from "../auth.js";
 import {
   REPORT_DONE_TEXT,
@@ -14,6 +23,7 @@ import {
   blockDoneContent,
   confirmBlock,
   confirmUnblock,
+  openActionMenu,
   openReportDialog,
 } from "../safety.js";
 import { getToken, onTokenChangedInOtherTab } from "../token.js";
@@ -410,12 +420,14 @@ function addMessages(messages) {
 }
 
 function renderMessage(message) {
+  const bubble = el("p", { className: "message__bubble", text: message.content });
   const item = el(
     "li",
     { className: `message ${message.is_mine ? "message--mine" : "message--theirs"}` },
     // 말풍선 위치만으로는 누가 보냈는지 알 수 없는 화면 낭독기 사용자를 위해 글자로 붙인다.
     el("span", { className: "visually-hidden", text: message.is_mine ? "나: " : "상대: " }),
-    el("p", { className: "message__bubble", text: message.content }),
+    // 상대 메시지에만 "⋯"(이 메시지 신고)를 둔다. 내 메시지는 서버도 신고를 400으로 막는다.
+    message.is_mine ? bubble : el("div", { className: "message__row" }, bubble, messageMenuButton(message)),
     el("time", {
       className: "message__time",
       text: formatShortDate(message.created_at),
@@ -424,6 +436,30 @@ function renderMessage(message) {
   );
   item.dataset.id = String(message.id);
   return item;
+}
+
+function messageMenuButton(message) {
+  const button = el("button", {
+    type: "button",
+    className: "message__menu",
+    text: "⋯",
+    attrs: { "aria-label": "이 메시지 메뉴", "aria-haspopup": "dialog" },
+  });
+  button.addEventListener("click", async () => {
+    const choice = await openActionMenu({ heading: "상대가 보낸 메시지", items: [{ key: "report", label: "이 메시지 신고", danger: true }] });
+    if (choice === "report") {
+      // 신고 창에 어떤 메시지인지 앞부분을 보여준다. 길면 줄여서 창이 커지지 않게 한다.
+      const preview = message.content.length > 40 ? `${message.content.slice(0, 40)}…` : message.content;
+      const reported = await openReportDialog({
+        heading: "메시지 신고",
+        targetText: preview ? `“${preview}”` : "사진 메시지",
+        send: (data) => reportMessage(message.id, data),
+      });
+      if (reported) showSafetyNotice(REPORT_DONE_TEXT);
+    }
+    button.focus();
+  });
+  return button;
 }
 
 function isNearBottom() {

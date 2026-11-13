@@ -9,6 +9,7 @@ from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.exceptions import (
+    CannotDeletePostForMessageReportError,
     CannotDeletePostForReviewReportError,
     CannotDeletePostForUserReportError,
     CannotHideReviewForOtherReportError,
@@ -22,6 +23,7 @@ from app.core.exceptions import (
 from app.models import (
     AdminActionType,
     AdminTargetType,
+    MessageReportSnapshot,
     Post,
     Report,
     ReportAction,
@@ -32,6 +34,7 @@ from app.models import (
     UserRole,
 )
 from app.schemas.admin import (
+    AdminMessageBrief,
     AdminReportResponse,
     AdminReviewBrief,
     AdminUserBrief,
@@ -48,8 +51,8 @@ from app.services import admin_log_service, image_storage, post_service, user_se
 def list_reports(
     db: Session, page: int, size: int, status: ReportStatus | None = None, reported_user_id: int | None = None
 ) -> tuple[list[AdminReportResponse], int]:
-    """신고 목록. 미처리 먼저, 그 안에서 최신순. 쿼리 수는 신고 수와 상관없이 5번 이하다.
-    (개수 + 목록·사용자 JOIN + 남아 있는 글 + 신고된 후기 + 피신고자별 미처리 수)
+    """신고 목록. 미처리 먼저, 그 안에서 최신순. 쿼리 수는 신고 수와 상관없이 6번 이하다.
+    (개수 + 목록·사용자 JOIN + 남아 있는 글 + 신고된 후기 + 쪽지 사본 + 피신고자별 미처리 수)
     """
     conditions = [Report.status == status] if status is not None else []
     if reported_user_id is not None:
@@ -73,9 +76,10 @@ def list_reports(
     )
     existing_posts = _existing_post_ids(db, reports)
     reviews = _reported_reviews(db, reports)
+    messages = _reported_messages(db, reports)
     pending_counts = _pending_counts(db, reports)
     now = user_service.utc_now()
-    items = [_to_response(report, existing_posts, reviews, pending_counts, now) for report in reports]
+    items = [_to_response(report, existing_posts, reviews, messages, pending_counts, now) for report in reports]
     return items, total
 
 
@@ -110,6 +114,23 @@ def _reported_reviews(db: Session, reports: list[Report]) -> dict[int, AdminRevi
     }
 
 
+def _reported_messages(db: Session, reports: list[Report]) -> dict[int, AdminMessageBrief]:
+    """쪽지 신고의 사본을 신고 번호별로 한 번에 읽는다."""
+    report_ids = [r.id for r in reports if r.target_type == ReportTargetType.MESSAGE]
+    if not report_ids:
+        return {}
+    rows = db.scalars(select(MessageReportSnapshot).where(MessageReportSnapshot.report_id.in_(report_ids)))
+    return {
+        row.report_id: AdminMessageBrief(
+            content=row.content,
+            sent_at=row.sent_at,
+            conversation_id=row.conversation_id,
+            has_image=row.image_filename is not None,
+        )
+        for row in rows
+    }
+
+
 def _pending_counts(db: Session, reports: list[Report]) -> dict[int, int]:
     user_ids = {r.reported_user_id for r in reports if r.reported_user_id is not None}
     if not user_ids:
@@ -126,6 +147,7 @@ def _to_response(
     report: Report,
     existing_posts: set[int],
     reviews: dict[int, AdminReviewBrief],
+    messages: dict[int, AdminMessageBrief],
     pending_counts: dict[int, int],
     now: datetime,
 ) -> AdminReportResponse:
@@ -154,6 +176,7 @@ def _to_response(
         post_content_snapshot=report.post_content_snapshot,
         post_exists=(report.target_id in existing_posts) if is_post else None,
         review=reviews.get(report.target_id) if report.target_type == ReportTargetType.REVIEW else None,
+        message=messages.get(report.id),
         reporter=AdminUserBrief.model_validate(report.reporter) if report.reporter else None,
         reported_user=(
             ReportedUserBrief(
@@ -199,6 +222,8 @@ def resolve_report(
     elif data.action == ReportAction.DELETE_POST:
         if report.target_type == ReportTargetType.REVIEW:
             raise CannotDeletePostForReviewReportError()
+        if report.target_type == ReportTargetType.MESSAGE:
+            raise CannotDeletePostForMessageReportError()
         if report.target_type != ReportTargetType.POST:
             raise CannotDeletePostForUserReportError()
         post = db.get(Post, report.target_id)

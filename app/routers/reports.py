@@ -68,3 +68,24 @@ def report_user(
     db: Annotated[Session, Depends(get_db)],
 ) -> Report:
     return report_service.report_user(db, user_id, current_user, data)
+
+
+# 대화 화면에서 상대가 보낸 메시지 하나를 신고한다. 신고 시점의 내용이 사본으로 남는다.
+@router.post(
+    "/messages/{message_id}/reports",
+    response_model=ReportCreatedResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="쪽지 한 건 신고",
+    responses={
+        **REPORT_RESPONSES,
+        400: {"description": "내가 보낸 메시지"},
+        403: {"description": "대화 참여자가 아님"},
+    },
+)
+def report_message(
+    message_id: int,
+    data: ReportCreate,
+    current_user: ActiveUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> Report:
+    return report_service.report_message(db, message_id, current_user, data)

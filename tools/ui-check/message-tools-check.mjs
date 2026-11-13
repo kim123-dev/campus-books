@@ -1,8 +1,8 @@
-// 쪽지 도구(쪽지함 "⋯" 메뉴: 신고·차단·나가기)를 헤드리스 Chrome으로 확인한다.
+// 쪽지 도구(쪽지함 "⋯" 메뉴: 신고·차단·나가기, 대화의 메시지 신고, 관리자 쪽지 신고 카드)를 헤드리스 Chrome으로 확인한다.
 // 사용: WIDTH=375 tools/ui-check/run.sh message-tools-check
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { api, readSeed, startBrowser } from "./lib.mjs";
+import { api, makeAdmin, loginApi, readSeed, startBrowser } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -75,6 +75,39 @@ try {
   await b.goto(`/static/chat.html?id=${target}`, "document.querySelectorAll('.message').length > 0");
   const texts = await b.evaluate(`[...document.querySelectorAll('.message__bubble')].map((m) => m.textContent)`);
   check("다시 나타남: 대화에는 나간 뒤 메시지만", JSON.stringify(texts) === JSON.stringify(["다시 연락드려요"]), JSON.stringify(texts).slice(0, 200));
+
+  // ---------- 대화 화면: 상대 메시지마다 "⋯" → 이 메시지 신고 ----------
+  const room2 = seed.c2;
+  await api("POST", `/conversations/${room2}/messages`, seed.seller_token, { content: "신고할 메시지입니다" });
+  await b.goto(`/static/chat.html?id=${room2}`, "document.querySelectorAll('.message').length > 0");
+  check("대화: 상대 메시지에만 '⋯'", await b.evaluate(`document.querySelectorAll('.message--theirs .message__menu').length === document.querySelectorAll('.message--theirs').length && !document.querySelector('.message--mine .message__menu')`));
+  const msgBtn = `[...document.querySelectorAll('.message--theirs')].find((m) => m.textContent.includes('신고할 메시지입니다')).querySelector('.message__menu')`;
+  const msgSize = await b.evaluate(`(() => { const r = ${msgBtn}.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })()`);
+  check("대화: 메시지 '⋯' 44px", msgSize[0] >= 44 && msgSize[1] >= 44, JSON.stringify(msgSize));
+  check(`${W}px: 대화 가로 스크롤 없음`, await noScroll());
+  await b.evaluate(`${msgBtn}.click()`);
+  await b.waitUntil("document.querySelector('dialog.action-menu[open]')");
+  check("대화: 메뉴에 '이 메시지 신고'", JSON.stringify(await menuItems()) === JSON.stringify(["이 메시지 신고", "취소"]));
+  await choose("이 메시지 신고");
+  await b.waitUntil("document.querySelector('dialog.report-dialog:not(.action-menu)[open]')");
+  check("대화: 신고 창에 메시지 앞부분", await b.evaluate(`document.querySelector('.report-dialog__target').textContent.includes('신고할 메시지입니다')`));
+  await b.screenshot(`message-tools-report-${W}.png`);
+  await b.evaluate(`(() => { const d = document.querySelector('dialog.report-dialog:not(.action-menu)'); d.querySelector('input[value=ABUSE]').click(); d.querySelector('form').requestSubmit(); })()`);
+  check("대화: 메시지 신고 접수 안내", await b.waitUntil(`document.getElementById('chat-safety-notice').textContent.includes('신고가 접수되었습니다')`));
+
+  // ---------- 관리자: 쪽지 신고 카드 ----------
+  await api("POST", "/auth/signup", null, { email: "admin@uicheck.ac.kr", password: "check-password-123", nickname: "관리자" });
+  await makeAdmin(OUT, "admin@uicheck.ac.kr");
+  const admin = await loginApi("admin@uicheck.ac.kr", "check-password-123");
+  await b.evaluate(`localStorage.setItem("campus-books.token", ${JSON.stringify(admin)})`);
+  await b.goto("/static/admin.html", "document.querySelectorAll('.report-card').length > 0");
+  const card = "[...document.querySelectorAll('.report-card')].find((c) => c.querySelector('.report-card__type').textContent === '쪽지 신고')";
+  check("관리자: '쪽지 신고' 카드", await b.evaluate(`!!${card}`));
+  check("관리자: 신고된 메시지 내용만", await b.evaluate(`${card}.querySelector('.report-card__snapshot-content').textContent === '신고할 메시지입니다'`));
+  check("관리자: 쪽지 신고에는 글 삭제 없음", await b.evaluate(`![...${card}.querySelectorAll('input[type=radio]')].some((r) => r.value === 'DELETE_POST')`));
+  await b.evaluate(`${card}.scrollIntoView({ block: 'center' })`);
+  await b.screenshot(`message-tools-admin-${W}.png`);
+  check(`${W}px: 관리 화면 가로 스크롤 없음`, await noScroll());
 
   const jsErrors = b.exceptions.filter((e) => !String(e).startsWith("Failed to load resource"));
   check("JS 에러 없음", jsErrors.length === 0, jsErrors.join(" | "));
