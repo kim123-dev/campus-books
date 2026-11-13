@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -45,9 +46,13 @@ def password_fingerprint(password_hash: str) -> str:
 
     비밀번호를 바꾸면(또는 탈퇴하면) 그 전에 발급한 토큰을 모두 쓸 수 없게 하려고 쓴다.
     토큰 목록을 저장하거나 DB 컬럼을 추가하지 않아도 되는 가장 단순한 방법이다.
-    해시의 해시 일부만 넣으므로 토큰을 열어 봐도 비밀번호를 알아낼 수 없다.
+    토큰 내용은 누구나 열어 볼 수 있으므로 해시를 그대로(또는 키 없는 SHA-256으로) 넣지 않고, 서버 비밀 키(SECRET_KEY)로
+    HMAC-SHA256한 값을 넣는다. 키를 모르면 지문에서 해시를 거꾸로 맞혀 보거나, 유출된 해시와 지문을 맞춰 볼 수 없다.
+    다른 용도의 HMAC과 섞이지 않게 앞에 용도 표시를 붙인다.
     """
-    return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:16]
+    key = get_settings().SECRET_KEY.encode("utf-8")
+    message = b"password-fingerprint:" + password_hash.encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()[:32]
 
 
 @dataclass(frozen=True)

@@ -491,3 +491,47 @@ def test_server_reset_does_not_lock_question_change(client, db_session) -> None:
     run_reset_cli(EMAIL)
 
     assert security_question_service.changeable_at(db_session, user_row(db_session)) is None
+
+
+# ---------- 비밀번호 지문: 토큰을 열어 봐도 해시를 알 수 없음 ----------
+
+
+def _hash_pieces(password_hash: str) -> list[str]:
+    # bcrypt 해시 "$2b$04$<솔트 22자><해시 31자>"에서 8자씩 잘라 본 조각들
+    body = password_hash.split("$")[-1]
+    return [body[i : i + 8] for i in range(0, len(body) - 7)]
+
+
+def test_tokens_never_contain_password_hash_or_its_pieces(client, db_session) -> None:
+    signup(client)
+    password_hash = user_row(db_session).password_hash
+    reset_token = verify(client).json()["reset_token"]
+    access_token = login(client).json()["access_token"]
+
+    for token in (reset_token, access_token):
+        # 서명 없이도 누구나 열어 볼 수 있는 내용 전체
+        payload = jwt.decode(token, options={"verify_signature": False})
+        text = str(payload)
+        assert password_hash not in text
+        assert not any(piece in text for piece in _hash_pieces(password_hash))
+
+
+def test_fingerprint_is_hmac_with_server_key_not_plain_sha256(client, db_session) -> None:
+    import hashlib
+    import hmac
+
+    from app.core.config import get_settings
+
+    signup(client)
+    password_hash = user_row(db_session).password_hash
+    fingerprint = jwt.decode(verify(client).json()["reset_token"], options={"verify_signature": False})["rpw"]
+
+    # 키 없는 SHA-256(예전 방식)으로는 같은 값을 만들 수 없다.
+    assert fingerprint != hashlib.sha256(password_hash.encode()).hexdigest()[: len(fingerprint)]
+    # 서버 비밀 키로 HMAC한 값이고, 다른 키로는 다른 값이 나온다.
+    message = b"password-fingerprint:" + password_hash.encode()
+    expected = hmac.new(get_settings().SECRET_KEY.encode(), message, hashlib.sha256).hexdigest()[:32]
+    other_key = hmac.new(b"another-secret-key", message, hashlib.sha256).hexdigest()[:32]
+    assert fingerprint == expected != other_key
+    # 로그인 토큰도 같은 지문을 쓴다.
+    assert jwt.decode(login(client).json()["access_token"], options={"verify_signature": False})["pwd"] == expected
