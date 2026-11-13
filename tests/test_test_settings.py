@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
 from app.core.security import hash_password, verify_password
-from tests.conftest import test_engine
+from tests.conftest import SECURITY_QUESTION, test_engine
 
 
 # ---------- bcrypt 비용 ----------
@@ -25,7 +25,7 @@ def test_bcrypt_rounds_lowered_in_tests() -> None:
 def test_signup_stores_low_cost_hash_in_tests(client, db_session) -> None:
     from app.models import User
 
-    client.post("/auth/signup", json={"email": "a@campus.ac.kr", "password": "password123", "nickname": "가나"})
+    client.post("/auth/signup", json={"email": "a@campus.ac.kr", "password": "password123", "nickname": "가나", "security_question": SECURITY_QUESTION})
 
     assert db_session.query(User).one().password_hash.startswith("$2b$04$")
 

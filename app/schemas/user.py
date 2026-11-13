@@ -5,6 +5,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, fie
 
 from app.core.security import BCRYPT_MAX_BYTES
 from app.models import UserRole
+from app.schemas.security_question import ANSWER_RAW_MAX, PasswordResetNoticeResponse, SecurityQuestionInput
 
 
 # 가입과 비밀번호 변경이 같은 규칙을 쓰도록 한 곳에 둔다.
@@ -27,6 +28,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: NewPassword
     nickname: str = Field(min_length=2, max_length=30)
+    # 비밀번호를 잊었을 때 본인을 확인할 질문과 답. 가입할 때 꼭 정한다.
+    security_question: SecurityQuestionInput
 
     # 대소문자만 다른 이메일로 중복 가입하는 것을 막기 위해 소문자로 통일한다.
     @field_validator("email")
@@ -77,12 +80,6 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
-class SignupResponse(UserResponse):
-    """가입 응답. 복구 코드 원문은 이 응답에 한 번만 담기고 서버에는 해시만 남는다."""
-
-    recovery_code: str
-
-
 class MeResponse(UserResponse):
     """내 정보(/users/me)에만 쓰는 응답. 권한과 정지 상태는 본인에게만 보여준다."""
 
@@ -91,8 +88,12 @@ class MeResponse(UserResponse):
     suspended_until: datetime | None = None
     # 닉네임을 다시 바꿀 수 있는 시각(UTC). 지금 바꿀 수 있으면 null. 화면이 변경 버튼 옆에 안내한다.
     nickname_changeable_at: datetime | None = None
-    # 복구 코드를 발급받은 시각. 없으면 null이고, 화면이 발급을 권한다. 코드 원문은 다시 보여주지 않는다.
-    recovery_code_issued_at: datetime | None = None
+    # 등록한 본인 확인 질문. 없으면(또는 관리자면) null이고, 화면이 등록을 권한다. 답은 어디에도 보여주지 않는다.
+    security_question: str | None = None
+    # 질문을 다시 바꿀 수 있는 시각(UTC). 질문으로 비밀번호가 재설정된 지 7일이 안 됐을 때만 값이 있다.
+    security_question_changeable_at: datetime | None = None
+    # 아직 확인하지 않은 "비밀번호가 재설정됐어요" 안내. 없으면 null.
+    password_reset_notice: PasswordResetNoticeResponse | None = None
 
 
 class LoginForm(BaseModel):
@@ -134,29 +135,14 @@ class WithdrawRequest(BaseModel):
     password: str = Field(min_length=1)
 
 
-class RecoveryCodeIssueRequest(BaseModel):
-    """복구 코드 발급·재발급 요청. 토큰만 훔친 사람이 코드를 만들지 못하게 현재 비밀번호를 받는다."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    password: str = Field(min_length=1)
-
-
-class RecoveryCodeResponse(BaseModel):
-    """새 복구 코드. 이 응답에서만 원문을 볼 수 있다."""
-
-    recovery_code: str
-    issued_at: datetime
-
-
 class PasswordResetRequest(BaseModel):
-    """비밀번호 재설정 요청 (로그인하지 않은 상태). 새 비밀번호는 가입 때와 같은 규칙으로 검사한다."""
+    """비밀번호 재설정 2단계 (로그인하지 않은 상태). 새 비밀번호는 가입 때와 같은 규칙으로 검사한다."""
 
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
-    # 모양은 서비스가 맞춰 보고(하이픈·공백·소문자 허용), 틀리면 다른 실패와 같은 400으로 돌려준다.
-    recovery_code: str = Field(min_length=1, max_length=64)
+    # 답의 길이 규칙은 검사하지 않는다(틀린 답과 같은 400). 형식 오류(422)는 시도 횟수에 들어가지 않기 때문이다.
+    answer: str = Field(min_length=1, max_length=ANSWER_RAW_MAX)
     new_password: NewPassword
 
     # 가입·로그인과 같은 규칙으로 소문자로 맞춘다.
@@ -164,9 +150,3 @@ class PasswordResetRequest(BaseModel):
     @classmethod
     def normalize_email(cls, value: str) -> str:
         return value.lower()
-
-
-class PasswordResetResponse(BaseModel):
-    """재설정 성공. 쓴 코드는 소모되었으므로 다음에 쓸 새 코드를 한 번 보여준다."""
-
-    recovery_code: str

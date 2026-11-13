@@ -1,6 +1,6 @@
 // 로그인 상태 처리: 공통 헤더, 로그인 후 돌아갈 주소, 로그아웃.
 // 토큰 보관 자체는 token.js가 맡는다.
-import { getAlertUnreadCount, getMe, getUnreadCount } from "./api.js";
+import { dismissResetNotice, getAlertUnreadCount, getMe, getUnreadCount } from "./api.js";
 import { clearToken, getToken } from "./token.js";
 import { el, formatMonthDayTime, icon } from "./ui.js";
 
@@ -119,6 +119,7 @@ export async function renderHeader(container) {
         el("p", { className: "site-notice", attrs: { role: "status" } }, el("span", { className: "container", text: suspension })),
       );
     }
+    if (me.password_reset_notice) container.append(resetNotice(me.password_reset_notice));
     // 배지는 헤더를 그린 뒤 따로 채운다. 기다리지 않아서, 배지 요청이 늦어도 화면이 먼저 뜬다.
     refreshUnreadBadge();
     refreshAlertBadge();
@@ -129,6 +130,36 @@ export async function renderHeader(container) {
     nav.replaceChildren(...loggedOutLinks());
     return null;
   }
+}
+
+// 비밀번호가 재설정된 뒤 처음 로그인했을 때 한 번 보여준다. 본인이 하지 않은 재설정을 알아챌 수 있게 하기 위해서다.
+// "확인"을 누르면 서버에 기록하고 다시 보여주지 않는다.
+function resetNotice({ reset_at: resetAt, method }) {
+  const how = method === "SERVER" ? "서버 관리 명령으로" : "본인 확인 질문으로";
+  const box = el(
+    "p",
+    { className: "site-notice site-notice--action", attrs: { role: "status" } },
+    el(
+      "span",
+      { className: "container" },
+      el("span", {
+        text: `비밀번호가 재설정됐어요. (${formatMonthDayTime(resetAt)}, ${how}) 직접 하지 않았다면 바로 비밀번호와 본인 확인 질문을 바꿔 주세요.`,
+      }),
+    ),
+  );
+  const button = el("button", { type: "button", className: "button button--small", text: "확인" });
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await dismissResetNotice();
+      box.remove();
+    } catch {
+      // 실패하면 다음 화면에서 다시 보인다. 버튼만 다시 누를 수 있게 한다.
+      button.disabled = false;
+    }
+  });
+  box.firstChild.append(button);
+  return box;
 }
 
 function loggedOutLinks() {

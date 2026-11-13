@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app import cli
 from app.main import app
 from app.models import User, UserRole
-from tests.conftest import TestingSessionLocal
+from tests.conftest import SECURITY_QUESTION, TestingSessionLocal
 
 # /admin으로 시작하는 모든 API를 앱의 API 문서(OpenAPI)에서 찾는다. 나중에 추가한 관리자 API도 자동으로 검사된다.
 ADMIN_ROUTES = sorted(
@@ -82,14 +82,14 @@ def test_admin_can_use_admin_routes(client, make_admin_headers) -> None:
 
 @pytest.mark.parametrize("role", ["ADMIN", "USER", "admin"])
 def test_signup_with_role_field_returns_422(client, db_session, role) -> None:
-    body = {"email": "hacker@campus.ac.kr", "password": "password123", "nickname": "해커", "role": role}
+    body = {"email": "hacker@campus.ac.kr", "password": "password123", "nickname": "해커", "security_question": SECURITY_QUESTION, "role": role}
 
     assert client.post("/auth/signup", json=body).status_code == 422
     assert db_session.scalar(select(User)) is None
 
 
 def test_signup_with_other_unknown_field_returns_422(client) -> None:
-    body = {"email": "a@campus.ac.kr", "password": "password123", "nickname": "가나", "is_admin": True}
+    body = {"email": "a@campus.ac.kr", "password": "password123", "nickname": "가나", "security_question": SECURITY_QUESTION, "is_admin": True}
 
     assert client.post("/auth/signup", json=body).status_code == 422
 
@@ -137,7 +137,7 @@ def test_role_not_exposed_to_other_users(client, make_auth_headers, make_admin_h
     client.post(f"/users/{admin_id}/block", headers=buyer)
 
     signup = client.post(
-        "/auth/signup", json={"email": "new@campus.ac.kr", "password": "password123", "nickname": "새사람"}
+        "/auth/signup", json={"email": "new@campus.ac.kr", "password": "password123", "nickname": "새사람", "security_question": SECURITY_QUESTION}
     )
     responses = {
         "signup": signup.json(),

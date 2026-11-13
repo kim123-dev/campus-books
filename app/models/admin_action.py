@@ -21,9 +21,13 @@ class AdminActionType(StrEnum):
     UNHIDE_REVIEW = "UNHIDE_REVIEW"  # 후기 숨김 해제
     WITHDRAW_USER = "WITHDRAW_USER"  # 강제 탈퇴 (이메일 재가입 차단 포함)
     UNBAN_EMAIL = "UNBAN_EMAIL"  # 재가입 차단 해제
-    # 관리자 계정이 복구 코드로 비밀번호를 재설정함. 관리자 본인이 한 일이지만, 관리자 권한이 넘어갔을 수 있는
-    # 사건이라 다른 관리자가 볼 수 있게 남긴다. (admin_id와 대상 사용자가 같은 사람)
+    # 예전 복구 코드 기능으로 관리자 계정이 재설정한 기록. 기능은 없앴지만 운영 DB에 남은 줄을 읽을 수 있게 값은 둔다.
     RESET_PASSWORD_BY_CODE = "RESET_PASSWORD_BY_CODE"
+    # 본인 확인 질문으로 비밀번호를 재설정함. 관리자의 조치가 아니라 admin_id는 비어 있다. 남의 계정을 가져간
+    # 사건일 수 있어 관리자가 볼 수 있게 남긴다.
+    RESET_PASSWORD_BY_QUESTION = "RESET_PASSWORD_BY_QUESTION"
+    # 서버 명령(python -m app.cli reset-password)으로 재설정함. admin_id는 비어 있다.
+    RESET_PASSWORD_BY_SERVER = "RESET_PASSWORD_BY_SERVER"
 
 
 class AdminTargetType(StrEnum):

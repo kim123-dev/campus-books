@@ -14,7 +14,7 @@ def call(method, path, body=None, token=None, form=False):
 pw = secrets.token_urlsafe(12)
 tokens = {}
 for email, nick in [("seller@uicheck.ac.kr","판매자민수"),("buyer@uicheck.ac.kr","구매자지은")]:
-    call("POST","/auth/signup",{"email":email,"password":pw,"nickname":nick})
+    call("POST","/auth/signup",{"email":email,"password":pw,"nickname":nick,"security_question":{"question_key":"CHILDHOOD_SHOP","answer":"확인용가게"}})
     tokens[nick] = call("POST","/auth/login",{"username":email,"password":pw},form=True)["access_token"]
 s, b = tokens["판매자민수"], tokens["구매자지은"]
 p1 = call("POST","/posts",{"title":"자료구조 교재 팝니다 (필기 거의 없음)","book_title":"C언어로 쉽게 풀어쓴 자료구조","course_name":"자료구조","condition":"GOOD","price":15000,"open_chat_url":"https://open.kakao.com/o/sTest123"},s)

@@ -62,6 +62,8 @@ def client(db_session: Session) -> Iterator[TestClient]:
 
 
 TEST_PASSWORD = "password123"
+# 가입에 꼭 필요한 본인 확인 질문. 테스트 사용자는 모두 이 질문과 답으로 가입한다.
+SECURITY_QUESTION = {"question_key": "CHILDHOOD_SHOP", "answer": "해피마트"}
 
 
 # 가입 + 로그인을 거쳐 Authorization 헤더를 만든다. 여러 사용자가 필요한 테스트를 위해 팩토리로 둔다.
@@ -70,7 +72,7 @@ def make_auth_headers(client: TestClient) -> Callable[..., dict[str, str]]:
     def _make(email: str = "seller@campus.ac.kr", nickname: str = "판매자") -> dict[str, str]:
         signup = client.post(
             "/auth/signup",
-            json={"email": email, "password": TEST_PASSWORD, "nickname": nickname},
+            json={"email": email, "password": TEST_PASSWORD, "nickname": nickname, "security_question": SECURITY_QUESTION},
         )
         assert signup.status_code == 201, signup.text
         login = client.post("/auth/login", data={"username": email, "password": TEST_PASSWORD})

@@ -1049,65 +1049,70 @@ a.button {
   min-height: 44px;
 }
 
-/* 재설정 화면 위 안내: 코드가 없으면 재설정할 수 없다는 경고라 초록(완료) 대신 주의 색 */
-.form-notice--warning {
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
+/* ---------- 본인 확인 질문 (가입·재설정·내 정보) ---------- */
+
+.question-fields {
+  margin: 4px 0 0;
+  padding: 16px 16px 0;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-control);
 }
 
-/* ---------- 복구 코드 (가입 직후·재설정 직후·내 정보) ---------- */
-
-.recovery-code {
+/* 질문·직접 만든 질문·답 칸 사이 간격 (가입 폼과 같은 18px). 내 정보 폼에서도 같은 모양 */
+.question-fields > div,
+#question-fields {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
+  padding-bottom: 16px;
 }
 
-.recovery-code p {
+.question-fields legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.reset-question__email {
   margin: 0;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
 }
 
-.recovery-code__value {
-  padding: 16px;
-  border: 2px dashed var(--color-primary);
+.reset-question__label {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.reset-question__text {
+  margin: 0;
+  padding: 14px 16px;
   border-radius: var(--radius-control);
   background: var(--color-primary-soft);
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 1.25rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-align: center;
   overflow-wrap: anywhere;
-  user-select: all;
 }
 
-.recovery-code__actions {
-  display: flex;
-  justify-content: center;
-}
-
-.recovery-code__status:empty {
-  display: none;
-}
-
-.recovery-code__warning {
+.account-card__notice--warning {
   color: var(--color-danger);
   font-weight: 600;
 }
 
-.recovery-code__check {
+/* 비밀번호 재설정 안내: 문구 옆에 "확인" 버튼 */
+.site-notice--action .container {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  font-weight: 600;
-  cursor: pointer;
+  gap: 8px 12px;
 }
 
-.recovery-code__check input {
-  width: 22px;
-  height: 22px;
-  margin: 0;
+.site-notice--action .container > span {
+  flex: 1 1 220px;
+}
+
+.button--small {
+  min-height: 36px;
+  padding: 4px 14px;
+  font-size: 0.875rem;
 }
 
 /* ---------- 상세 화면 ---------- */

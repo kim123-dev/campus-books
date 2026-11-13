@@ -112,6 +112,7 @@ try {
   // ---------- 13단계: 신고 관리·이용 정지 (375px) ----------
   const { execFileSync } = await import("node:child_process");
   const call = async (method, path, token, body) => {
+    if (path === "/auth/signup") body = { ...body, security_question: { question_key: "CHILDHOOD_SHOP", answer: "확인용가게" } };
     const response = await fetch(BASE + path, {
       method,
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },

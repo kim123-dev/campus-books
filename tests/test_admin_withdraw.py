@@ -14,7 +14,7 @@ from app.core.config import get_settings
 from app.models import AdminAction, BannedEmail, Post, User
 from app.services import email_ban_service
 from tests.admin_helpers import last_log, log_count, report_post, user_id
-from tests.conftest import TEST_PASSWORD
+from tests.conftest import SECURITY_QUESTION, TEST_PASSWORD
 from tests.test_post_images import make_image, upload
 
 EMAIL = "bad@campus.ac.kr"
@@ -36,7 +36,7 @@ def withdraw(client, headers, uid, reason="사기 반복", **body):
 
 
 def signup(client, email=EMAIL, nickname="새닉네임"):
-    return client.post("/auth/signup", json={"email": email, "password": TEST_PASSWORD, "nickname": nickname})
+    return client.post("/auth/signup", json={"email": email, "password": TEST_PASSWORD, "nickname": nickname, "security_question": SECURITY_QUESTION})
 
 
 def unban(client, headers, email=EMAIL, reason="소명 받아들임"):

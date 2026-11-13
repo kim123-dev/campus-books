@@ -130,12 +130,20 @@ function renderEntry(entry) {
     el(
       "p",
       { className: "admin-card__line" },
-      `${userLabel(entry.admin)} → `,
+      `${actorLabel(entry)} → `,
       entry.target_user ? adminUserLink(entry.target_user) : el("span", { text: targetText(entry) }),
     ),
     el("p", { className: "admin-card__reason", text: entry.reason ? `사유: ${entry.reason}` : "사유 없음" }),
     details.length ? el("p", { className: "admin-card__meta", text: details.join(" · ") }) : null,
   );
+}
+
+// 조치한 사람. 비밀번호 재설정은 관리자가 아니라 본인(질문 확인)이나 서버 명령이 한 일이라 관리자 칸이 비어 있다.
+function actorLabel(entry) {
+  if (entry.admin) return userLabel(entry.admin);
+  if (entry.action === "RESET_PASSWORD_BY_QUESTION") return "본인(질문 확인)";
+  if (entry.action === "RESET_PASSWORD_BY_SERVER") return "서버 명령";
+  return userLabel(null);
 }
 
 // 사용자와 관계없는 조치(재가입 차단 해제 등)의 대상 표시

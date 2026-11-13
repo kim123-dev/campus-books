@@ -425,12 +425,22 @@ export function withdraw(password) {
   return request("/users/me/withdraw", { method: "POST", json: { password } });
 }
 
-/** 복구 코드 발급·재발급. 이전 코드는 바로 무효가 된다. 응답: { recovery_code, issued_at } */
-export function issueRecoveryCode(password) {
-  return request("/users/me/recovery-code", { method: "POST", json: { password } });
+/** 본인 확인 질문 등록·변경 (현재 비밀번호 확인). 응답: 내 정보(MeResponse) */
+export function setSecurityQuestion(password, securityQuestion) {
+  return request("/users/me/security-question", { method: "PUT", json: { password, security_question: securityQuestion } });
 }
 
-/** 복구 코드로 비밀번호 재설정(로그인 없이). 응답: { recovery_code } 다음에 쓸 새 코드 */
+/** "비밀번호가 재설정됐어요" 안내를 확인했다. */
+export function dismissResetNotice() {
+  return request("/users/me/password-reset-notice/dismiss", { method: "POST" });
+}
+
+/** 재설정 1단계(로그인 없이): 이메일로 그 계정의 질문 받기. 응답: { question } */
+export function getResetQuestion(email) {
+  return request("/auth/password-reset/question", { method: "POST", json: { email } });
+}
+
+/** 재설정 2단계(로그인 없이): { email, answer, new_password }. 성공하면 204 */
 export function resetPassword(data) {
   return request("/auth/password-reset", { method: "POST", json: data });
 }

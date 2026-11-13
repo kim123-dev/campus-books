@@ -24,9 +24,6 @@
       <section class="card auth-card">
         <h1 class="page-title">회원가입</h1>
 
-        <!-- 가입에 성공하면 폼 대신 복구 코드를 한 번 보여준다. (recovery-code.js) -->
-        <div id="signup-code" hidden></div>
-
         <form id="signup-form" class="auth-form" novalidate>
           <div class="field">
             <label for="email">이메일</label>
@@ -67,6 +64,12 @@
             <p id="nickname-hint" class="field-hint">2~30자, 다른 학생에게 판매자 이름으로 보입니다.</p>
             <p class="field-error" data-error-for="nickname" hidden></p>
           </div>
+
+          <!-- 본인 확인 질문과 답 (security-question.js가 채운다) -->
+          <fieldset class="question-fields">
+            <legend>비밀번호를 잊었을 때</legend>
+            <div id="signup-question"></div>
+          </fieldset>
 
           <p id="signup-error" class="form-error" role="alert" hidden></p>
 

@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.core.security import verify_password
 from app.models import User
+from tests.conftest import SECURITY_QUESTION
 
 SIGNUP_URL = "/auth/signup"
 
 
 # 테스트마다 바꾸고 싶은 필드만 덮어쓸 수 있게 기본 요청값을 둔다.
 def signup(client: TestClient, **overrides: Any):
-    payload = {"email": "student@campus.ac.kr", "password": "password123", "nickname": "책벌레"}
+    payload = {"email": "student@campus.ac.kr", "password": "password123", "nickname": "책벌레", "security_question": SECURITY_QUESTION}
     payload.update(overrides)
     return client.post(SIGNUP_URL, json=payload)
 
@@ -30,8 +31,8 @@ def test_signup_success(client: TestClient) -> None:
     assert body["email"] == "student@campus.ac.kr"
     assert body["nickname"] == "책벌레"
     assert "created_at" in body
-    # 복구 코드는 가입 응답에서만 한 번 볼 수 있다. (tests/test_password_reset.py)
-    assert len(body["recovery_code"]) == 19
+    # 본인 확인 질문과 답은 가입 응답에 담지 않는다.
+    assert set(body) == {"id", "email", "nickname", "created_at"}
     # 비밀번호 관련 값은 응답에 절대 포함되면 안 된다.
     assert "password" not in body
     assert "password_hash" not in body
@@ -127,9 +128,9 @@ def test_signup_rejects_invalid_input(client: TestClient, overrides: dict[str, s
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("missing_field", ["email", "password", "nickname"])
+@pytest.mark.parametrize("missing_field", ["email", "password", "nickname", "security_question"])
 def test_signup_rejects_missing_field(client: TestClient, missing_field: str) -> None:
-    payload = {"email": "student@campus.ac.kr", "password": "password123", "nickname": "책벌레"}
+    payload = {"email": "student@campus.ac.kr", "password": "password123", "nickname": "책벌레", "security_question": SECURITY_QUESTION}
     del payload[missing_field]
 
     response = client.post(SIGNUP_URL, json=payload)

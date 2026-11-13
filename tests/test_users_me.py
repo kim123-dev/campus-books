@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import ALGORITHM, create_access_token
+from tests.conftest import SECURITY_QUESTION
 
 ME_URL = "/users/me"
 EMAIL = "student@campus.ac.kr"
@@ -19,7 +20,7 @@ INVALID_TOKEN = {"detail": "인증 정보가 유효하지 않거나 만료되었
 @pytest.fixture
 def user_id(client: TestClient) -> int:
     response = client.post(
-        "/auth/signup", json={"email": EMAIL, "password": PASSWORD, "nickname": "책벌레"}
+        "/auth/signup", json={"email": EMAIL, "password": PASSWORD, "nickname": "책벌레", "security_question": SECURITY_QUESTION}
     )
     return response.json()["id"]
 
@@ -58,7 +59,8 @@ def test_me_returns_current_user(client: TestClient, user_id: int, token: str) -
     assert body["email"] == EMAIL
     assert body["nickname"] == "책벌레"
     # role·정지 상태는 내 정보에만 있다. (다른 사용자 응답에는 없음: test_admin_auth.py)
-    assert set(body) == {"id", "email", "nickname", "created_at", "role", "suspended_until", "nickname_changeable_at", "recovery_code_issued_at"}
+    assert set(body) == {"id", "email", "nickname", "created_at", "role", "suspended_until", "nickname_changeable_at",
+        "security_question", "security_question_changeable_at", "password_reset_notice"}
     assert (body["role"], body["suspended_until"]) == ("USER", None)
 
 

@@ -16,7 +16,7 @@ from app.services import user_service
 
 def record(
     db: Session,
-    admin: User,
+    admin: User | None,
     action: AdminActionType,
     target_type: AdminTargetType,
     target_id: int,
@@ -25,9 +25,11 @@ def record(
     reason: str | None = None,
     detail: dict[str, Any] | None = None,
 ) -> AdminAction:
-    """기록 한 줄을 세션에 넣는다(커밋은 호출한 쪽). detail에는 이메일 같은 개인정보를 넣지 않는다."""
+    """기록 한 줄을 세션에 넣는다(커밋은 호출한 쪽). detail에는 이메일 같은 개인정보를 넣지 않는다.
+    admin이 None이면 관리자가 한 일이 아닌 기록이다(본인 확인 질문·서버 명령으로 비밀번호 재설정).
+    """
     entry = AdminAction(
-        admin_id=admin.id,
+        admin_id=admin.id if admin is not None else None,
         action=action,
         target_type=target_type,
         target_id=target_id,

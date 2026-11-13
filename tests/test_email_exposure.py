@@ -7,6 +7,7 @@ from tests.admin_helpers import make_review, report_post, user_id
 ALLOWED = {
     ("GET", "/users/me"),
     ("PATCH", "/users/me"),  # 닉네임 변경 응답도 본인 정보(MeResponse)다.
+    ("PUT", "/users/me/security-question"),  # 본인 확인 질문 등록·변경 응답도 본인 정보(MeResponse)다.
     ("POST", "/auth/signup"),
     ("GET", "/admin/users"),
     ("GET", "/admin/users/{user_id}"),

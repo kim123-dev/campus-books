@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.core.exceptions import InvalidTokenError
 from app.core.security import ALGORITHM, create_access_token, decode_access_token
+from tests.conftest import SECURITY_QUESTION
 
 LOGIN_URL = "/auth/login"
 EMAIL = "student@campus.ac.kr"
@@ -20,7 +21,7 @@ INVALID_CREDENTIALS = {"detail": "이메일 또는 비밀번호가 올바르지 
 @pytest.fixture
 def user_id(client: TestClient) -> int:
     response = client.post(
-        "/auth/signup", json={"email": EMAIL, "password": PASSWORD, "nickname": "책벌레"}
+        "/auth/signup", json={"email": EMAIL, "password": PASSWORD, "nickname": "책벌레", "security_question": SECURITY_QUESTION}
     )
     return response.json()["id"]
 

@@ -323,9 +323,27 @@ def test_login_links_to_password_reset(client: TestClient) -> None:
     assert 'href="/static/reset-password.html">비밀번호를 잊으셨나요?</a>' in client.get("/static/login.html").text
     page = client.get("/static/reset-password.html")
     assert page.status_code == 200 and "/static/js/pages/reset-password.js" in page.text
-    # 코드를 잃으면 재설정할 수 없다는 안내가 재설정·내 정보·가입 직후(recovery-code.js) 모두에 있다.
-    assert "복구 코드를 잃어버렸다면 재설정할 수 없습니다." in page.text
-    assert "복구 코드를 잃어버리면 비밀번호를 재설정할 수 없어요." in (STATIC_DIR / "js" / "recovery-code.js").read_text(encoding="utf-8")
+    assert "본인 확인 질문" in page.text
+    # 복구 코드 방식은 본인 확인 질문으로 바꾸면서 지웠다.
+    assert not (STATIC_DIR / "js" / "recovery-code.js").exists()
+
+
+def test_security_question_presets_match_server() -> None:
+    # 화면(security-question.js)의 질문 목록이 서버와 같아야 가입·변경 때 고른 질문이 422가 되지 않는다.
+    import re
+
+    from app.schemas.security_question import PRESET_QUESTIONS
+
+    source = (STATIC_DIR / "js" / "security-question.js").read_text(encoding="utf-8")
+    block = source[source.index("export const PRESET_QUESTIONS = {") : source.index("};")]
+    assert dict(re.findall(r'^  ([A-Z_]+): "([^"]+)",$', block, re.MULTILINE)) == PRESET_QUESTIONS
+    # 답을 정할 때 보여주는 안내
+    assert "남이 쉽게 알 수 없는 답으로 정해 주세요" in source
+
+
+def test_signup_and_me_pages_use_security_question() -> None:
+    for name in ("signup.js", "me.js"):
+        assert "renderSecurityQuestionFields" in (STATIC_DIR / "js" / "pages" / name).read_text(encoding="utf-8")
 
 
 def test_me_page_links_to_blocks(client: TestClient) -> None:

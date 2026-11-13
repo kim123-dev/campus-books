@@ -249,9 +249,18 @@ class NicknameChangeTooSoonError(BadRequestError):
     message = "닉네임은 30일에 한 번만 바꿀 수 있습니다."
 
 
-class InvalidRecoveryCodeError(BadRequestError):
-    # 없는 이메일, 틀린 코드, 코드를 발급받지 않은 계정, 탈퇴한 계정 모두 이 메시지다. (가입 여부를 숨긴다)
-    message = "이메일 또는 복구 코드가 맞지 않습니다."
+class InvalidSecurityAnswerError(BadRequestError):
+    # 없는 이메일, 틀린 답, 질문을 등록하지 않은 계정, 탈퇴한 계정, 관리자 계정 모두 이 메시지다. (가입 여부를 숨긴다)
+    message = "이메일 또는 답이 맞지 않습니다."
+
+
+class AdminSecurityQuestionError(BadRequestError):
+    message = "관리자 계정은 본인 확인 질문을 쓸 수 없습니다. 비밀번호를 잊으면 서버 명령으로 재설정합니다."
+
+
+class SecurityQuestionChangeTooSoonError(BadRequestError):
+    # 실제 메시지는 다시 바꿀 수 있는 날짜를 넣어 만든다. (security_question_service.set_question)
+    message = "본인 확인 질문으로 비밀번호가 재설정된 뒤 7일 동안은 질문을 바꿀 수 없어요."
 
 
 class AdminCannotWithdrawError(BadRequestError):
@@ -331,6 +340,10 @@ class ReportRateLimitError(TooManyRequestsError):
 
 class PasswordResetRateLimitError(TooManyRequestsError):
     message = "비밀번호 재설정을 너무 많이 시도했습니다. 잠시 후 다시 시도해 주세요."
+
+
+class PasswordResetLockedError(TooManyRequestsError):
+    message = "답을 여러 번 틀려 24시간 동안 이 이메일로 비밀번호를 재설정할 수 없습니다."
 
 
 class ImageUploadRateLimitError(TooManyRequestsError):

@@ -7,16 +7,22 @@ from app.core.database import get_db
 from app.core.deps import ActiveUser, CurrentUser
 from app.models import User
 from app.schemas.post import PageQuery, PostListResponse, SizeQuery
+from app.schemas.security_question import SecurityQuestionUpdate
 from app.schemas.user import (
     MeResponse,
     NicknameUpdate,
     PasswordChange,
-    RecoveryCodeIssueRequest,
-    RecoveryCodeResponse,
     TokenResponse,
     WithdrawRequest,
 )
-from app.services import account_service, post_service, recovery_service, user_service, wishlist_service
+from app.services import (
+    account_service,
+    password_reset_service,
+    post_service,
+    security_question_service,
+    user_service,
+    wishlist_service,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -57,7 +63,9 @@ def _me_response(db: Session, user: User) -> MeResponse:
         update={
             "suspended_until": user_service.active_suspension_end(user),
             "nickname_changeable_at": account_service.nickname_changeable_at(db, user),
-            "recovery_code_issued_at": recovery_service.issued_at(db, user),
+            "security_question": security_question_service.current_question(db, user),
+            "security_question_changeable_at": security_question_service.changeable_at(db, user),
+            "password_reset_notice": password_reset_service.pending_notice(db, user),
         }
     )
 
@@ -130,18 +138,30 @@ def withdraw_me(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# 기존 가입자가 처음 받거나, 잃어버렸을 때 새로 받는다. 정지 중에도 계정을 지킬 수 있게 CurrentUser를 쓴다.
-@router.post(
-    "/me/recovery-code",
-    response_model=RecoveryCodeResponse,
-    summary="복구 코드 발급·재발급 (이전 코드는 무효)",
+# 기존 가입자가 처음 등록하거나 바꾼다. 정지 중에도 계정을 지킬 수 있게 CurrentUser를 쓴다. (비밀번호 변경과 같은 이유)
+@router.put(
+    "/me/security-question",
+    response_model=MeResponse,
+    summary="본인 확인 질문 등록·변경 (현재 비밀번호 확인)",
     responses={
-        400: {"description": "현재 비밀번호 불일치"},
+        400: {"description": "비밀번호 불일치, 관리자 계정, 질문으로 재설정한 지 7일 안 됨"},
         401: {"description": "로그인 필요"},
     },
 )
-def issue_recovery_code(
-    data: RecoveryCodeIssueRequest, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
-) -> RecoveryCodeResponse:
-    code, issued_at = recovery_service.reissue(db, current_user, data.password)
-    return RecoveryCodeResponse(recovery_code=code, issued_at=issued_at)
+def set_security_question(
+    data: SecurityQuestionUpdate, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> MeResponse:
+    security_question_service.set_question(db, current_user, data)
+    return _me_response(db, current_user)
+
+
+# 다음 로그인 때 보여준 "비밀번호가 재설정됐어요" 안내를 확인했다.
+@router.post(
+    "/me/password-reset-notice/dismiss",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="비밀번호 재설정 안내 확인",
+    responses={401: {"description": "로그인 필요"}},
+)
+def dismiss_password_reset_notice(current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]) -> None:
+    password_reset_service.dismiss_notices(db, current_user)

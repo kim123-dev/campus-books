@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Report, UserBlock, Wishlist
-from tests.conftest import TEST_PASSWORD
+from tests.conftest import SECURITY_QUESTION, TEST_PASSWORD
 
 NEW_PASSWORD = "newpassword456"
 
@@ -176,6 +176,6 @@ def test_can_sign_up_again_with_same_email_after_withdraw(client: TestClient, se
     client.post("/users/me/withdraw", json={"password": TEST_PASSWORD}, headers=seller)
     again = client.post(
         "/auth/signup",
-        json={"email": "seller@campus.ac.kr", "password": TEST_PASSWORD, "nickname": "판매자"},
+        json={"email": "seller@campus.ac.kr", "password": TEST_PASSWORD, "nickname": "판매자", "security_question": SECURITY_QUESTION},
     )
     assert again.status_code == 201

@@ -116,7 +116,11 @@ export function readSeed(OUT) {
   return JSON.parse(readFileSync(join(OUT, "seed.json"), "utf8"));
 }
 
+// 가입에 꼭 필요한 본인 확인 질문. 확인 스크립트의 가입 요청에는 이 값이 자동으로 들어간다.
+export const SECURITY_QUESTION = { question_key: "CHILDHOOD_SHOP", answer: "확인용가게" };
+
 export async function api(method, path, token, body) {
+  if (path === "/auth/signup" && body && !body.security_question) body = { ...body, security_question: SECURITY_QUESTION };
   const isForm = body instanceof FormData;
   const response = await fetch(BASE + path, {
     method,
