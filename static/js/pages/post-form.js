@@ -1,7 +1,8 @@
 // 작성·수정 공용 화면. 주소에 ?id=가 있으면 수정 모드, 없으면 작성 모드다.
 // 입력 규칙 검사는 서버가 하고, 화면은 서버 메시지를 칸 아래(422)나 폼 아래(400·403·404)에 보여준다.
-// 사진은 글(JSON)을 저장한 뒤 지울 사진 → 새 사진 순서로 한 장씩 따로 보낸다.
-import { createPost, deletePostImage, getPost, updatePost, uploadPostImage } from "../api.js";
+// 사진은 고르는 즉시 "임시 사진"으로 올려 두고, 저장할 때 글(JSON)과 함께 사진 번호만 보낸다.
+// 글을 쓰는 동안 업로드가 끝나므로 저장 버튼을 누른 뒤 기다리는 시간이 거의 없다.
+import { createPost, deletePendingImage, getPost, updatePost, uploadPendingImage } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
 import { preparePhoto } from "../photo-resize.js";
 import { getToken } from "../token.js";
@@ -20,18 +21,21 @@ const HEIC_NAME = /\.hei[cf]$/i;
 // 이 브라우저가 열 수 없어 미리보기를 못 그리는 사진(예: 안드로이드 크롬의 HEIC)에 대신 보여줄 그림
 const NO_PREVIEW_IMAGE = "/static/img/book-placeholder.svg";
 
-// 사진 업로드가 일부 실패하면 작성 모드에서 수정 모드로 바뀌므로 let으로 둔다.
-let isEdit = new URLSearchParams(window.location.search).has("id");
-let postId = isEdit ? readPostIdFromUrl() : null;
-let submitLabel = isEdit ? "저장하기" : "등록하기";
+const isEdit = new URLSearchParams(window.location.search).has("id");
+const postId = isEdit ? readPostIdFromUrl() : null;
+const submitLabel = isEdit ? "저장하기" : "등록하기";
 
 // 이미 올라간 사진: {id, url, thumbnail_url, removed}. removed면 저장할 때 지운다.
 let existingPhotos = [];
-// 새로 고른 사진: {file, previewUrl}. file은 올리기 좋게 줄인 사진이고, previewUrl은 브라우저 안에서만 쓰는 임시 주소다.
-// (브라우저가 열 수 없는 사진이면 previewUrl이 null이다)
+// 새로 고른 사진: {file, previewUrl, state, pendingId, controller, done}.
+// - file은 올리기 좋게 줄인 사진, previewUrl은 브라우저 안에서만 쓰는 임시 주소다. (브라우저가 열 수 없는 사진이면 null)
+// - state: "uploading"(올리는 중) → "done"(서버에 임시 사진으로 올라감, pendingId가 생김) 또는 "failed"(다시 시도 가능)
+// - controller는 올리는 중에 사진을 빼면 전송을 멈추는 데 쓰고, done은 올리기가 끝나면(성공·실패 모두) 끝나는 Promise다.
 let newPhotos = [];
 // 고른 사진을 줄이는 중이면 true. 그동안에는 저장과 사진 추가를 막는다.
 let preparing = false;
+// 저장하는 중이면 true. 그동안에는 사진 추가·빼기를 막는다.
+let submitting = false;
 
 const pageStatus = document.getElementById("page-status");
 const pageError = document.getElementById("page-error");
@@ -174,7 +178,11 @@ async function onPhotosSelected() {
       continue;
     }
     const previewUrl = prepared.previewable ? URL.createObjectURL(prepared.file) : null;
-    newPhotos.push({ file: prepared.file, previewUrl });
+    const photo = { file: prepared.file, previewUrl, state: "uploading", pendingId: null, controller: null, done: null };
+    newPhotos.push(photo);
+    // 다음 사진을 줄이는 동안 이 사진은 먼저 올라가기 시작한다.
+    startUpload(photo);
+    renderPhotos();
   }
   showPhotoStatus("");
   setPreparing(false);
@@ -182,18 +190,61 @@ async function onPhotosSelected() {
   renderPhotos();
 }
 
+// 사진 한 장을 임시 사진으로 올린다. 기다리지 않고 시작만 하며, 끝나면 그 칸만 다시 그린다.
+function startUpload(photo) {
+  photo.state = "uploading";
+  photo.controller = new AbortController();
+  photo.done = uploadPendingImage(photo.file, (ratio) => showTileProgress(photo, ratio), photo.controller.signal)
+    .then((saved) => {
+      photo.state = "done";
+      photo.pendingId = saved.id;
+      // 올라가는 사이에 사진을 뺐다면 서버에 남은 임시 사진을 지운다.
+      if (!newPhotos.includes(photo)) discardPending(photo);
+    })
+    .catch((error) => {
+      if (error.aborted) return; // 사용자가 올리는 중에 뺀 사진
+      if (error.status === 401) {
+        // 토큰이 만료되었다. 저장도 할 수 없으므로 로그인 화면으로 보낸다. (입력한 내용은 남지 않는다)
+        redirectToLogin();
+        return;
+      }
+      photo.state = "failed";
+      if (newPhotos.includes(photo)) showPhotosError(error.message);
+    })
+    .finally(() => {
+      if (newPhotos.includes(photo)) renderPhotos();
+    });
+}
+
+// 진행률은 자주 바뀌므로 목록 전체를 다시 그리지 않고 그 칸의 글자만 바꾼다. (미리보기가 깜빡이지 않게)
+function showTileProgress(photo, ratio) {
+  // 다 보낸 뒤에도 서버가 사진을 처리하는 동안은 끝난 것이 아니므로 99%에서 멈춰 둔다.
+  if (photo.progressText) photo.progressText.textContent = `${Math.min(99, Math.floor(ratio * 100))}%`;
+}
+
+function removeNewPhoto(photo) {
+  newPhotos = newPhotos.filter((item) => item !== photo);
+  if (photo.state === "uploading") photo.controller.abort();
+  else if (photo.state === "done") discardPending(photo);
+  if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl); // 브라우저가 붙잡고 있는 미리보기 메모리를 놓아준다.
+  showPhotosError("");
+  renderPhotos();
+}
+
+// 뺀 사진은 서버에서도 바로 지운다. 실패해도 화면에는 알리지 않는다. (남은 임시 사진은 서버가 24시간 뒤 지운다)
+function discardPending(photo) {
+  deletePendingImage(photo.pendingId).catch(() => {});
+}
+
 function setPreparing(isPreparing) {
   preparing = isPreparing;
   submitButton.disabled = isPreparing;
-  photoInput.disabled = isPreparing || photoTotal() >= MAX_PHOTOS;
+  photoInput.disabled = isPreparing || submitting || photoTotal() >= MAX_PHOTOS;
 }
 
-// 사진 줄이기·올리기 진행 상황. 단계(몇 번째 사진)만 화면 낭독기로 읽히고, 자주 바뀌는 %는 읽지 않는다.
-function showPhotoStatus(step, percent = null) {
-  photoStatus.replaceChildren(
-    el("span", { text: step }),
-    ...(percent === null ? [] : [el("span", { text: ` · ${percent}%`, attrs: { "aria-hidden": "true" } })]),
-  );
+// 사진 줄이기 진행 상황(몇 번째 사진). 올리기 진행률은 사진 칸 위에 따로 보여준다.
+function showPhotoStatus(step) {
+  photoStatus.textContent = step;
   photoStatus.hidden = step === "";
 }
 
@@ -211,14 +262,7 @@ function renderPhotos() {
         renderPhotos();
       }),
     ),
-    ...newPhotos.map((photo, index) =>
-      photoTile(photo.previewUrl ?? NO_PREVIEW_IMAGE, `새 사진 ${index + 1}`, false, () => {
-        if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl); // 브라우저가 붙잡고 있는 미리보기 메모리를 놓아준다.
-        newPhotos = newPhotos.filter((item) => item !== photo);
-        showPhotosError("");
-        renderPhotos();
-      }),
-    ),
+    ...newPhotos.map((photo, index) => newPhotoTile(photo, `새 사진 ${index + 1}`)),
   ];
   photoList.replaceChildren(...tiles);
   photoList.hidden = tiles.length === 0;
@@ -226,7 +270,9 @@ function renderPhotos() {
   const total = photoTotal();
   photoCount.textContent = `${total}/${MAX_PHOTOS}`;
   // 3장이 차면 "사진 추가"를 막는다. (label은 disabled가 없으므로 input을 막고 모양만 바꾼다)
-  photoInput.disabled = preparing || total >= MAX_PHOTOS;
+  photoInput.disabled = preparing || submitting || total >= MAX_PHOTOS;
+  // 올리기가 끝나 칸을 다시 그려도 저장 중에는 버튼이 잠긴 채로 있게 한다.
+  for (const button of photoList.querySelectorAll("button")) button.disabled = submitting;
 }
 
 function photoTile(src, label, removed, onToggle) {
@@ -240,9 +286,47 @@ function photoTile(src, label, removed, onToggle) {
   return el(
     "li",
     { className: removed ? "photo-tile photo-tile--removed" : "photo-tile" },
-    el("img", { className: "photo-tile__image", src, alt: removed ? `${label} (저장하면 삭제됨)` : label }),
+    // 사진 위에 올리기 상태를 겹쳐 보여줄 수 있게 틀로 감싼다.
+    el(
+      "div",
+      { className: "photo-tile__frame" },
+      el("img", { className: "photo-tile__image", src, alt: removed ? `${label} (저장하면 삭제됨)` : label }),
+    ),
     button,
   );
+}
+
+// 새로 고른 사진 칸. 올리는 중이면 사진 위에 %를, 실패하면 "실패"와 다시 시도 버튼을 보여준다.
+function newPhotoTile(photo, label) {
+  const tile = photoTile(photo.previewUrl ?? NO_PREVIEW_IMAGE, label, false, () => removeNewPhoto(photo));
+  photo.progressText = null;
+  if (photo.state === "done") return tile;
+
+  const failed = photo.state === "failed";
+  tile.classList.add(failed ? "photo-tile--failed" : "photo-tile--uploading");
+  // 칸이 좁아(375px 화면에서 약 100px) 올리는 중에는 %만 보여준다.
+  // 화면 낭독기에는 "올리는 중"만 읽히고, 자주 바뀌는 %는 읽지 않는다.
+  const badge = el("span", { className: "photo-tile__state", text: failed ? "실패" : null });
+  if (!failed) {
+    photo.progressText = el("span", { text: "0%", attrs: { "aria-hidden": "true" } });
+    badge.append(el("span", { className: "visually-hidden", text: "올리는 중" }), photo.progressText);
+  }
+  tile.querySelector(".photo-tile__frame").append(badge);
+  if (failed) {
+    const retry = el("button", {
+      type: "button",
+      className: "photo-tile__button",
+      text: "다시 시도",
+      attrs: { "aria-label": `${label} 다시 올리기` },
+    });
+    retry.addEventListener("click", () => {
+      showPhotosError("");
+      startUpload(photo);
+      renderPhotos();
+    });
+    tile.insertBefore(retry, tile.lastElementChild);
+  }
+  return tile;
 }
 
 function showPhotosError(message) {
@@ -259,6 +343,7 @@ function showPhotosError(message) {
  * - 책 상태·가격을 비우면 작성에서는 빼고 보내 서버가 "필수 항목입니다."를 주게 하고,
  *   수정에서는 null을 보내 서버가 거절하게 한다. 수정에서 빼면 "변경 안 함"으로 조용히 넘어가기 때문이다.
  * - status는 보내지 않는다. 상태는 상세 화면에서만 바꾼다.
+ * - 사진은 번호만 보낸다. 작성은 올려 둔 임시 사진(image_ids), 수정은 지울 사진과 새 임시 사진을 함께 보낸다.
  */
 function readPayload() {
   const payload = {};
@@ -269,6 +354,14 @@ function readPayload() {
   const price = form.elements.price.value.trim();
   payload.condition = condition === "" ? emptyValue : condition;
   payload.price = price === "" ? emptyValue : Number(price);
+
+  const pendingIds = newPhotos.map((photo) => photo.pendingId);
+  if (isEdit) {
+    payload.remove_image_ids = existingPhotos.filter((photo) => photo.removed).map((photo) => photo.id);
+    payload.add_image_ids = pendingIds;
+  } else {
+    payload.image_ids = pendingIds;
+  }
   return payload;
 }
 
@@ -276,6 +369,19 @@ async function onSubmit(event) {
   event.preventDefault();
   clearFormErrors(form, formError);
   setSubmitting(true);
+
+  // 아직 올라가는 사진이 있으면 끝날 때까지만 기다린다. (보통은 글을 쓰는 동안 이미 끝나 있다)
+  if (newPhotos.some((photo) => photo.state === "uploading")) {
+    submitButton.textContent = "사진 올리는 중…";
+    await Promise.all(newPhotos.map((photo) => photo.done));
+    submitButton.textContent = "저장 중…";
+  }
+  // 올리지 못한 사진을 빼고 저장하면 사진이 빠진 글이 올라가므로, 어떻게 할지 사용자가 정하게 한다.
+  if (newPhotos.some((photo) => photo.state !== "done")) {
+    showPhotosError("올리지 못한 사진이 있습니다. 다시 시도하거나 빼 주세요.");
+    setSubmitting(false);
+    return;
+  }
 
   let saved;
   try {
@@ -293,73 +399,18 @@ async function onSubmit(event) {
     return;
   }
 
-  const failures = await savePhotos(saved.id);
-  if (failures === null) return; // 로그인 화면으로 이동했다.
-  if (failures.length === 0) {
-    // replace를 써서, 뒤로 가기를 눌렀을 때 입력이 끝난 폼으로 돌아오지 않게 한다.
-    window.location.replace(postDetailUrl(saved.id));
-    return;
-  }
-  await showPartialFailure(saved.id, failures);
-}
-
-/**
- * 지울 사진을 지우고 새 사진을 한 장씩 올린다. 실패한 사진의 메시지 목록을 돌려준다. (401이면 null)
- * 지우기를 먼저 해야 "3장 중 1장 바꾸기"가 3장 제한(400)에 걸리지 않는다.
- */
-async function savePhotos(id) {
-  const failures = [];
-  const tasks = [
-    ...existingPhotos.filter((photo) => photo.removed).map((photo) => () => deletePostImage(id, photo.id)),
-    ...newPhotos.map((photo) => (onProgress) => uploadPostImage(id, photo.file, onProgress)),
-  ];
-  for (const [index, task] of tasks.entries()) {
-    const step = `사진 저장 중 ${index + 1}/${tasks.length}`;
-    submitButton.textContent = `${step}…`;
-    showPhotoStatus(step);
-    try {
-      // 지우기는 진행률이 없고, 올리기는 보낸 비율을 %로 보여준다.
-      await task((ratio) => showPhotoStatus(step, Math.floor(ratio * 100)));
-    } catch (error) {
-      if (error.status === 401) {
-        redirectToLogin();
-        return null;
-      }
-      failures.push(error.message);
-    }
-  }
-  showPhotoStatus("");
-  return failures;
-}
-
-// 글은 저장됐으므로 다시 저장해도 글이 두 번 생기지 않게 수정 모드로 바꾸고, 서버의 현재 사진을 다시 보여준다.
-async function showPartialFailure(id, failures) {
+  // 글과 사진이 한 번에 저장됐다. 미리보기 메모리를 놓아주고 상세 화면으로 간다.
   for (const photo of newPhotos) if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
-  newPhotos = [];
-  if (!isEdit) {
-    isEdit = true;
-    postId = String(id);
-    submitLabel = "저장하기";
-    window.history.replaceState(null, "", `/static/post-form.html?id=${encodeURIComponent(id)}`);
-    showForm();
-  }
-  try {
-    setExistingPhotos((await getPost(id)).images);
-  } catch {
-    setExistingPhotos([]);
-  }
-  const count = failures.length;
-  formError.textContent = `글은 저장됐지만 사진 ${count}장을 처리하지 못했습니다: ${[...new Set(failures)].join(" ")}`;
-  formError.hidden = false;
-  setSubmitting(false);
+  // replace를 써서, 뒤로 가기를 눌렀을 때 입력이 끝난 폼으로 돌아오지 않게 한다.
+  window.location.replace(postDetailUrl(saved.id));
 }
 
 function setSubmitting(isSubmitting) {
+  submitting = isSubmitting;
   submitButton.disabled = isSubmitting;
-  // 저장하는 동안 사진을 바꾸면 무엇이 올라갔는지 헷갈리므로 막는다.
-  photoInput.disabled = isSubmitting || photoTotal() >= MAX_PHOTOS;
-  for (const button of photoList.querySelectorAll("button")) button.disabled = isSubmitting;
   submitButton.textContent = isSubmitting ? "저장 중…" : submitLabel;
+  // 저장하는 동안 사진을 바꾸면 무엇이 저장되는지 헷갈리므로 사진 추가·빼기를 막는다.
+  renderPhotos();
 }
 
 function postDetailUrl(id) {

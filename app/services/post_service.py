@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.exceptions import (
     AlreadySoldError,
     BuyerOnlyForSoldError,
+    ImageNotFoundError,
     InvalidStatusTransitionError,
     NoTradeToChangeError,
     NotPostOwnerError,
@@ -15,7 +16,7 @@ from app.core.exceptions import (
 from app.models import Conversation, Post, PostStatus, User, Wishlist
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
 from app.schemas.trade import PostBuyerResponse
-from app.services import alert_service, block_service, image_storage, trade_service
+from app.services import alert_service, block_service, image_storage, pending_image_service, trade_service
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
@@ -30,13 +31,25 @@ ALLOWED_TRANSITIONS: dict[PostStatus, set[PostStatus]] = {
 
 
 def create_post(db: Session, seller: User, data: PostCreate) -> Post:
-    """판매글 작성. status는 모델 기본값(ON_SALE)을 따른다."""
-    post = Post(seller_id=seller.id, **data.model_dump())
+    """판매글 작성. status는 모델 기본값(ON_SALE)을 따른다.
+
+    image_ids로 받은 임시 사진을 글과 한 트랜잭션으로 붙인다. 사진 없는 글이 먼저 공개되는 순간이 없고,
+    찾는 교재 알림도 사진이 붙은 글로 나간다. 400: 없는(지워진) 임시 사진.
+    """
+    post = Post(seller_id=seller.id, **data.model_dump(exclude={"image_ids"}))
     db.add(post)
-    # 알림에 글 번호가 필요하므로 먼저 INSERT한다. 글과 알림은 한 트랜잭션으로 함께 저장된다.
-    db.flush()
-    alert_service.notify_matching(db, post)
-    db.commit()
+    moved: list[str] = []
+    try:
+        # 사진과 알림에 글 번호가 필요하므로 먼저 INSERT한다. 글·사진·알림은 한 트랜잭션으로 함께 저장된다.
+        db.flush()
+        moved = pending_image_service.attach(db, post.id, seller, data.image_ids, used_slots=set())
+        alert_service.notify_matching(db, post)
+        db.commit()
+    except Exception:
+        # 글을 저장하지 못했으면 옮긴 사진 파일을 임시 폴더로 되돌려, 화면이 같은 번호로 다시 시도할 수 있게 한다.
+        db.rollback()
+        pending_image_service.restore_files(moved)
+        raise
     # created_at/updated_at은 DB가 채우므로 다시 읽어와야 응답에 담을 수 있다.
     db.refresh(post)
     return post
@@ -70,18 +83,43 @@ def to_detail_response(
 
 
 def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post:
-    """글 내용 수정. 보낸 필드만 바꾸고, 판매 완료된 글은 SoldPostNotEditableError(400)."""
+    """글 내용 수정. 보낸 필드만 바꾸고, 판매 완료된 글은 SoldPostNotEditableError(400).
+
+    사진 변경(remove_image_ids로 지우기, add_image_ids로 임시 사진 붙이기)도 같은 트랜잭션으로 저장한다.
+    순서: 404 → 403 → 400 판매 완료 → 404 이 글에 없는 사진 → 400 없는 임시 사진·3장 초과.
+    """
     post = get_editable_post(db, post_id, user)
 
     # exclude_unset: 요청에 없던 필드를 None으로 덮어쓰지 않게 한다. 빈 본문이면 아무것도 바뀌지 않는다.
     changes = data.model_dump(exclude_unset=True)
+    remove_ids = changes.pop("remove_image_ids", [])
+    add_ids = changes.pop("add_image_ids", [])
     rematch = alert_service.match_fields_changed(post, changes)
     for field, value in changes.items():
         setattr(post, field, value)
-    # 교재명·과목명·가격이 바뀌어 조건에 새로 맞게 된 사람에게 알린다. (이미 받은 사람은 건너뛴다)
-    if rematch:
-        alert_service.notify_matching(db, post)
-    return _commit_and_refresh(db, post)
+
+    removed_names: list[str] = []
+    moved: list[str] = []
+    try:
+        removed_names = _remove_images(db, post, remove_ids)
+        moved = pending_image_service.attach(
+            db, post.id, user, add_ids, used_slots={image.slot for image in post.images}
+        )
+        # 교재명·과목명·가격이 바뀌어 조건에 새로 맞게 된 사람에게 알린다. (이미 받은 사람은 건너뛴다)
+        if rematch:
+            alert_service.notify_matching(db, post)
+        # 값이 실제로 바뀐 경우에만 UPDATE가 나가므로, 변경이 없으면 updated_at도 그대로다.
+        db.commit()
+    except Exception:
+        db.rollback()
+        pending_image_service.restore_files(moved)
+        raise
+    # 지운 사진의 파일은 DB 커밋이 성공한 뒤에 지운다. (글 삭제와 같은 순서)
+    image_storage.remove_files(removed_names)
+    # 사진 목록을 다음 조회에서 다시 읽게 하고, DB가 갱신한 updated_at·첫 사진 썸네일을 다시 읽어온다.
+    db.expire(post, ["images"])
+    db.refresh(post)
+    return post
 
 
 def change_status(
@@ -270,9 +308,19 @@ def _get_own_post(db: Session, post_id: int, user: User) -> Post:
     return post
 
 
-def _commit_and_refresh(db: Session, post: Post) -> Post:
-    # 값이 실제로 바뀐 경우에만 UPDATE가 나가므로, 변경이 없으면 updated_at도 그대로다.
-    db.commit()
-    # updated_at은 DB가 갱신하므로 다시 읽어와야 응답에 최신 값이 담긴다.
-    db.refresh(post)
-    return post
+def _remove_images(db: Session, post: Post, image_ids: list[int]) -> list[str]:
+    """글의 사진을 지운다(커밋 전). 커밋 뒤에 지울 파일 이름을 돌려준다. 이 글의 사진이 아니면 404."""
+    if not image_ids:
+        return []
+    by_id = {image.id: image for image in post.images}
+    if any(image_id not in by_id for image_id in image_ids):
+        raise ImageNotFoundError()
+    names: list[str] = []
+    for image_id in image_ids:
+        image = by_id[image_id]
+        names += [image.filename, image.thumb_filename]
+        post.images.remove(image)  # delete-orphan이라 목록에서 빼면 행도 지워진다.
+    # 지운 칸(slot)에 새 사진이 들어갈 수 있도록 DELETE를 먼저 내보낸다.
+    # (한꺼번에 flush하면 INSERT가 DELETE보다 먼저 나가 slot unique 제약에 걸린다)
+    db.flush()
+    return names

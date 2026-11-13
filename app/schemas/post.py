@@ -5,7 +5,7 @@ from typing import Annotated, Any
 from fastapi import Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import BookCondition, PostStatus
+from app.models import MAX_IMAGES_PER_POST, BookCondition, PostStatus
 
 MAX_PRICE = 10_000_000
 MAX_PAGE_SIZE = 100
@@ -20,6 +20,20 @@ OPEN_CHAT_URL_ERROR = "카카오 오픈채팅 주소(https://open.kakao.com/...)
 # 범위를 벗어나면 FastAPI가 422를 돌려준다.
 PageQuery = Annotated[int, Query(ge=1, description="페이지 번호 (1부터 시작)")]
 SizeQuery = Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE, description="페이지당 글 수")]
+
+
+# 사진 번호 목록(임시 사진·글 사진). 문자열 "1"을 숫자로 바꾸지 않고 거절하며, 한 번에 3개까지만 받는다.
+ImageId = Annotated[int, Field(strict=True, gt=0)]
+
+
+def _image_ids_field(description: str) -> Any:
+    return Field(default_factory=list, max_length=MAX_IMAGES_PER_POST, description=description)
+
+
+def _check_unique_ids(value: list[int]) -> list[int]:
+    if len(set(value)) != len(value):
+        raise ValueError("같은 사진을 두 번 보낼 수 없습니다.")
+    return value
 
 
 # 작성과 수정이 같은 규칙으로 입력을 정리하도록 공용 함수로 둔다.
@@ -58,6 +72,8 @@ class PostCreate(BaseModel):
     open_chat_url: str | None = Field(
         default=None, max_length=MAX_OPEN_CHAT_URL_LENGTH, description="카카오 오픈채팅 주소"
     )
+    # 미리 올려 둔 임시 사진(POST /pending-images)의 번호. 보낸 순서대로 글의 사진이 된다.
+    image_ids: list[ImageId] = _image_ids_field("글에 붙일 임시 사진 번호 (최대 3개)")
 
     @field_validator("title", "book_title", mode="before")
     @classmethod
@@ -73,6 +89,11 @@ class PostCreate(BaseModel):
     @classmethod
     def check_open_chat_url(cls, value: str | None) -> str | None:
         return _check_open_chat_url(value)
+
+    @field_validator("image_ids")
+    @classmethod
+    def check_unique_image_ids(cls, value: list[int]) -> list[int]:
+        return _check_unique_ids(value)
 
 
 class PostUpdate(BaseModel):
@@ -90,6 +111,9 @@ class PostUpdate(BaseModel):
     open_chat_url: str | None = Field(
         default=None, max_length=MAX_OPEN_CHAT_URL_LENGTH, description="카카오 오픈채팅 주소"
     )
+    # 사진 변경도 글 내용과 한 번에 저장한다. 지우기를 먼저 하므로 "3장 중 1장 바꾸기"가 3장 제한에 걸리지 않는다.
+    remove_image_ids: list[ImageId] = _image_ids_field("지울 사진 번호 (이 글의 사진)")
+    add_image_ids: list[ImageId] = _image_ids_field("새로 붙일 임시 사진 번호 (빈 칸에 순서대로, 지운 사진의 자리부터)")
 
     @field_validator("title", "book_title", mode="before")
     @classmethod
@@ -105,6 +129,11 @@ class PostUpdate(BaseModel):
     @classmethod
     def check_open_chat_url(cls, value: str | None) -> str | None:
         return _check_open_chat_url(value)
+
+    @field_validator("remove_image_ids", "add_image_ids")
+    @classmethod
+    def check_unique_image_ids(cls, value: list[int]) -> list[int]:
+        return _check_unique_ids(value)
 
     # 필수 컬럼에 null을 명시적으로 보내면 DB 제약 위반(500)이 되기 전에 422로 막는다.
     # (검증기는 직접 보낸 값에만 실행되므로, 생략한 필드는 여기에 걸리지 않는다)
@@ -180,6 +209,14 @@ class PostImageResponse(BaseModel):
     @classmethod
     def to_url(cls, value: Any) -> Any:
         return _to_image_url(value)
+
+
+class PendingImageResponse(BaseModel):
+    """임시 사진 올리기 응답. 글을 저장할 때 보낼 번호만 준다. (파일 주소는 글에 붙은 뒤에 생긴다)"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
 
 
 class SellerResponse(BaseModel):

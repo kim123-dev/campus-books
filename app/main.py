@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -8,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 import app.models  # noqa: F401  모델을 등록해야 create_all이 테이블을 만든다.
 from app.core.config import get_settings
-from app.core.database import Base, engine
+from app.core.database import Base, SessionLocal, engine
 from app.core.exceptions import (
     AuthenticationError,
     BadRequestError,
@@ -30,6 +31,7 @@ from app.routers import (
     blocks,
     conversations,
     images,
+    pending_images,
     posts,
     profiles,
     reports,
@@ -37,7 +39,10 @@ from app.routers import (
     users,
     wishlist,
 )
+from app.services import pending_image_service
 from app.services.image_service import MAX_IMAGE_BYTES
+
+logger = logging.getLogger(__name__)
 
 # 실행 위치와 상관없이 프로젝트 루트의 static/ 폴더를 가리키도록 이 파일 기준으로 잡는다.
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -52,6 +57,13 @@ mimetypes.add_type("text/css", ".css")
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(bind=engine)
+    # 글에 붙지 않은 채 24시간이 지난 임시 사진을 치운다. (평소에는 사진을 올리는 요청이 함께 치운다)
+    # 정리에 실패해도 서버는 떠야 하므로 기록만 남긴다.
+    try:
+        with SessionLocal() as db:
+            pending_image_service.purge_expired(db)
+    except Exception:
+        logger.warning("오래된 임시 사진을 정리하지 못했습니다.", exc_info=True)
     yield
 
 
@@ -73,6 +85,7 @@ app.include_router(users.router)
 app.include_router(posts.router)
 app.include_router(conversations.router)
 app.include_router(images.router)
+app.include_router(pending_images.router)
 app.include_router(wishlist.router)
 app.include_router(blocks.router)
 app.include_router(reports.router)
@@ -93,7 +106,7 @@ MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024
 async def reject_large_upload(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    if request.method == "POST" and request.url.path.endswith("/images"):
+    if request.method == "POST" and request.url.path.endswith(("/images", "/pending-images")):
         length = request.headers.get("content-length")
         if length is not None and length.isdigit() and int(length) > MAX_UPLOAD_REQUEST_BYTES:
             return JSONResponse(

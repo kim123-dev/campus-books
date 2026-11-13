@@ -142,6 +142,11 @@ class TooManyImagesError(BadRequestError):
     message = "사진은 글 하나에 3장까지 올릴 수 있습니다."
 
 
+class PendingImageMissingError(BadRequestError):
+    # 임시 사진이 이미 지워졌거나(24시간 경과·직접 삭제) 내 사진이 아닐 때. 어느 쪽인지는 구분해 알려주지 않는다.
+    message = "올려 둔 사진을 찾을 수 없습니다. 사진을 다시 골라 주세요."
+
+
 class SoldPostNotEditableError(BadRequestError):
     message = "판매 완료된 글은 수정할 수 없습니다."
 

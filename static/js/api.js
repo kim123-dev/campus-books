@@ -69,8 +69,9 @@ function failure(status, data, retryAfterHeader) {
 /**
  * 파일 업로드. fetch는 보낸 양(진행률)을 알려주지 않으므로 XMLHttpRequest를 쓴다.
  * @param {(ratio: number) => void} [onProgress] 0~1 사이 값으로 보낸 비율을 알려준다.
+ * @param {AbortSignal} [signal] 취소하면 전송을 멈추고, aborted가 true인 ApiError로 끝난다.
  */
-function uploadWithProgress(path, formData, onProgress) {
+function uploadWithProgress(path, formData, onProgress, signal) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", new URL(path, window.location.origin));
@@ -90,7 +91,13 @@ function uploadWithProgress(path, formData, onProgress) {
     });
     const offline = () => reject(new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."));
     xhr.addEventListener("error", offline);
-    xhr.addEventListener("abort", offline);
+    xhr.addEventListener("abort", () => {
+      // 사용자가 사진을 빼서 멈춘 것과 연결이 끊긴 것을 화면이 구분할 수 있게 표시해 둔다.
+      const error = new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      error.aborted = signal?.aborted === true;
+      reject(error);
+    });
+    signal?.addEventListener("abort", () => xhr.abort());
     // Content-Type은 브라우저가 multipart 경계(boundary) 값을 붙여 직접 정하므로 지정하지 않는다.
     xhr.send(formData);
   });
@@ -172,20 +179,18 @@ export function deletePost(postId) {
 }
 
 /**
- * 사진 한 장 올리기. 응답: {id, url, thumbnail_url}.
- * 413(25MB 초과), 422(형식·해상도·손상), 400(3장·판매 완료), 429. onProgress(0~1)로 보낸 비율을 알려준다.
+ * 임시 사진 한 장 올리기(글에 붙이기 전). 응답: {id}. 글을 저장할 때 이 id를 image_ids·add_image_ids로 보낸다.
+ * 413(25MB 초과), 422(형식·해상도·손상), 429. onProgress(0~1)로 보낸 비율을 알려주고, signal로 취소한다.
  */
-export function uploadPostImage(postId, file, onProgress) {
+export function uploadPendingImage(file, onProgress, signal) {
   const formData = new FormData();
   formData.append("file", file);
-  return uploadWithProgress(`/posts/${encodeURIComponent(postId)}/images`, formData, onProgress);
+  return uploadWithProgress("/pending-images", formData, onProgress, signal);
 }
 
-/** 사진 한 장 삭제. 서버가 파일도 함께 지운다. */
-export function deletePostImage(postId, imageId) {
-  return request(`/posts/${encodeURIComponent(postId)}/images/${encodeURIComponent(imageId)}`, {
-    method: "DELETE",
-  });
+/** 임시 사진 한 장 삭제(글쓰기 화면에서 사진을 뺐을 때). 서버가 파일도 함께 지운다. */
+export function deletePendingImage(pendingId) {
+  return request(`/pending-images/${encodeURIComponent(pendingId)}`, { method: "DELETE" });
 }
 
 // ---------- 찜 ----------

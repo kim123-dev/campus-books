@@ -589,6 +589,36 @@ a.button {
   opacity: 0.35;
 }
 
+/* 사진 위에 올리기 상태(올리는 중 64% / 실패)를 겹쳐 보여주는 틀 */
+.photo-tile__frame {
+  position: relative;
+}
+
+.photo-tile--uploading .photo-tile__image,
+.photo-tile--failed .photo-tile__image {
+  opacity: 0.5;
+}
+
+/* 숫자가 바뀌어도 글자 폭이 흔들리지 않게 고정폭 숫자를 쓴다. */
+.photo-tile__state {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  left: 6px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.65);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.photo-tile--failed .photo-tile__state {
+  background: var(--color-danger);
+}
+
 .photo-tile__button {
   min-height: 36px;
   padding: 0 8px;

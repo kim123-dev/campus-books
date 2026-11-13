@@ -17,7 +17,14 @@ from app.core.exceptions import (
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import NicknameChange, Post, Report, User, UserBlock, UserRole, Wishlist
 from app.schemas.user import NicknameUpdate, PasswordChange, WithdrawRequest
-from app.services import alert_service, image_storage, post_service, security_question_service, user_service
+from app.services import (
+    alert_service,
+    image_storage,
+    pending_image_service,
+    post_service,
+    security_question_service,
+    user_service,
+)
 
 # 닉네임을 자주 바꾸면 거래 상대가 같은 사람인지 알아보기 어렵고, 신고를 피해 이름을 바꿀 수도 있다.
 NICKNAME_CHANGE_INTERVAL = timedelta(days=30)
@@ -110,6 +117,8 @@ def erase_account(db: Session, user: User) -> list[str]:
     image_names: list[str] = []
     for post in db.scalars(select(Post).where(Post.seller_id == user.id)).all():
         image_names += post_service.delete_post_rows(db, post)
+    # 글에 붙이지 않고 올려만 둔 임시 사진도 지운다.
+    pending_image_service.delete_for_user(db, user.id)
     db.execute(delete(Wishlist).where(Wishlist.user_id == user.id))
     # 예전 닉네임도 개인정보라 함께 지운다.
     db.execute(delete(NicknameChange).where(NicknameChange.user_id == user.id))

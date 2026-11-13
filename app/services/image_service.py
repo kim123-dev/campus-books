@@ -29,8 +29,8 @@ from app.core.exceptions import (
     TooManyImagesError,
     UnsupportedImageError,
 )
-from app.models import MAX_IMAGES_PER_POST, Post, PostImage, User
-from app.services import image_storage, post_service
+from app.models import MAX_IMAGES_PER_POST, PendingImage, Post, PostImage, User
+from app.services import image_storage, pending_image_service, post_service
 
 # 장당 25MB. 화면이 보통 2000px JPEG(1MB 안팎)로 줄여 보내므로, 이 한도는 화면이 줄이지 못한
 # 사진(예: 안드로이드 크롬이 못 여는 HEIC)을 원본 그대로 받을 때를 위한 것이다.
@@ -93,7 +93,7 @@ def add_image(db: Session, post_id: int, user: User, upload: BinaryIO) -> PostIm
     post = post_service.get_editable_post(db, post_id, user)
     if len(post.images) >= MAX_IMAGES_PER_POST:
         raise TooManyImagesError()
-    _check_rate_limit(db, user)
+    check_rate_limit(db, user)
 
     # 무거운 처리(읽기·디코딩)는 싼 검사를 모두 통과한 뒤에 한다.
     image_bytes, thumb_bytes = process_upload(upload, user)
@@ -107,6 +107,22 @@ def add_image(db: Session, post_id: int, user: User, upload: BinaryIO) -> PostIm
         image_storage.remove_files([filename, thumb_filename])
         raise
     return image
+
+
+def add_pending_image(db: Session, user: User, upload: BinaryIO) -> PendingImage:
+    """임시 사진 한 장 올리기(글쓰기 화면이 사진을 고르는 즉시). 판정 순서: 429 → 413/422.
+
+    글에 붙이는 일과 3장 검사는 글을 저장할 때 한다. (pending_image_service.attach)
+    """
+    # 따로 정리 작업을 돌리지 않고, 누군가 사진을 올릴 때 오래된 임시 사진을 함께 치운다.
+    pending_image_service.purge_expired(db)
+    check_rate_limit(db, user)
+    # 변환 차례를 기다리고 사진을 푸는 동안(몇 초)에는 DB 연결이 필요 없다. 트랜잭션을 끝내 연결을 풀에 돌려줘,
+    # 업로드가 몰려도 다른 요청(목록·로그인)이 연결을 기다리지 않게 한다.
+    db.commit()
+
+    image_bytes, thumb_bytes = process_upload(upload, user)
+    return pending_image_service.create(db, user, image_bytes, thumb_bytes)
 
 
 def delete_image(db: Session, post_id: int, image_id: int, user: User) -> None:
@@ -238,7 +254,8 @@ def _insert_into_free_slot(db: Session, post: Post, filename: str, thumb_filenam
     raise TooManyImagesError()
 
 
-def _check_rate_limit(db: Session, user: User) -> None:
+def check_rate_limit(db: Session, user: User) -> None:
+    """최근 업로드 수가 한도를 넘으면 429. 글에 붙은 사진과 아직 붙지 않은 임시 사진을 함께 센다."""
     # 쪽지 도배 제한과 같은 방식: 저장된 created_at과 같은 기준인 DB 시간으로 최근 업로드 수를 센다.
     # 지금 남아 있는 사진만 세므로, 올렸다 지우기를 반복하면 덜 센다. (README 향후 개선 참고)
     db_now = db.scalar(select(func.now()))
@@ -249,5 +266,6 @@ def _check_rate_limit(db: Session, user: User) -> None:
         .join(Post, PostImage.post_id == Post.id)
         .where(Post.seller_id == user.id, PostImage.created_at > since)
     )
-    if (recent or 0) >= IMAGE_UPLOAD_RATE_LIMIT.max_uploads:
+    recent = (recent or 0) + pending_image_service.count_since(db, user, since)
+    if recent >= IMAGE_UPLOAD_RATE_LIMIT.max_uploads:
         raise ImageUploadRateLimitError(retry_after=IMAGE_UPLOAD_RATE_LIMIT.window_seconds)

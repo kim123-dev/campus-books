@@ -19,6 +19,8 @@ IMAGE_SUBDIR = "posts"
 # 쪽지 사진은 판매글 사진과 다른 폴더에 둔다. /images/{filename}은 posts 폴더만 찾으므로
 # 쪽지 사진 이름을 알아도 공개 주소로는 열 수 없다.
 MESSAGE_IMAGE_SUBDIR = "messages"
+# 글에 붙기 전의 임시 사진도 다른 폴더에 둔다. 글을 저장하기 전에는 공개 주소로 열 수 없다.
+PENDING_IMAGE_SUBDIR = "pending"
 
 
 def get_image_dir() -> Path:
@@ -29,6 +31,11 @@ def get_image_dir() -> Path:
 def get_message_image_dir() -> Path:
     """쪽지 사진 폴더. 테스트는 이 함수도 바꿔 끼운다."""
     return Path(get_settings().UPLOAD_DIR) / MESSAGE_IMAGE_SUBDIR
+
+
+def get_pending_image_dir() -> Path:
+    """임시 사진 폴더. 테스트는 이 함수도 바꿔 끼운다."""
+    return Path(get_settings().UPLOAD_DIR) / PENDING_IMAGE_SUBDIR
 
 
 def new_filenames() -> tuple[str, str]:
@@ -59,6 +66,28 @@ def write_files(files: dict[str, bytes], directory: Path | None = None) -> None:
             written.append(name)
     except Exception:
         remove_files(written, directory)
+        raise
+
+
+def move_files(names: list[str], source: Path, target: Path) -> None:
+    """파일을 다른 폴더로 옮긴다. 하나라도 실패하면 이미 옮긴 것을 되돌리고 예외를 다시 던진다.
+
+    같은 볼륨 안의 이름 바꾸기라 내용을 복사하지 않아 빠르다. (임시 사진을 글에 붙일 때 쓴다)
+    """
+    target.mkdir(parents=True, exist_ok=True)
+    moved: list[str] = []
+    try:
+        for name in names:
+            if not is_valid_filename(name):
+                raise FileNotFoundError(name)
+            (source / name).rename(target / name)
+            moved.append(name)
+    except OSError:
+        for name in moved:
+            try:
+                (target / name).rename(source / name)
+            except OSError:
+                logger.warning("옮긴 사진 파일을 되돌리지 못했습니다: %s", target / name, exc_info=True)
         raise
 
 
