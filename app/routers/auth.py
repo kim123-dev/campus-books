@@ -5,8 +5,19 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models import User
-from app.schemas.security_question import PasswordResetQuestionRequest, PasswordResetQuestionResponse
-from app.schemas.user import LoginForm, PasswordResetRequest, TokenResponse, UserCreate, UserResponse
+from app.schemas.security_question import (
+    PasswordResetQuestionRequest,
+    PasswordResetQuestionResponse,
+    PasswordResetVerifyResponse,
+)
+from app.schemas.user import (
+    LoginForm,
+    PasswordResetRequest,
+    PasswordResetVerifyRequest,
+    TokenResponse,
+    UserCreate,
+    UserResponse,
+)
 from app.services import auth_service, password_reset_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -56,16 +67,29 @@ def get_reset_question(
     return PasswordResetQuestionResponse(question=question)
 
 
-# 재설정 2단계. 성공하면 이 계정의 기존 토큰은 모두 무효가 된다.
+# 재설정 2단계. 새 비밀번호를 정하기 전에 답이 맞는지 알려준다. 요청마다 시도 횟수에 들어간다.
+@router.post(
+    "/password-reset/verify",
+    response_model=PasswordResetVerifyResponse,
+    summary="비밀번호 재설정 2단계: 답 확인 (맞으면 10분짜리 일회용 확인증)",
+    responses={
+        400: {"description": "이메일 또는 답 불일치 + 남은 시도 횟수 (가입 여부를 숨기려고 이유를 나누지 않음)"},
+        429: {"description": "이메일당 24시간에 5번 틀려 잠김(남은 시간), IP당 1시간 30회 초과"},
+    },
+)
+def verify_reset_answer(
+    data: PasswordResetVerifyRequest, request: Request, db: Annotated[Session, Depends(get_db)]
+) -> PasswordResetVerifyResponse:
+    return password_reset_service.verify_answer(db, data, _client_ip(request))
+
+
+# 재설정 3단계. 성공하면 이 계정의 기존 토큰과 확인증은 모두 쓸 수 없게 된다.
 @router.post(
     "/password-reset",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    summary="비밀번호 재설정 2단계: 답과 새 비밀번호",
-    responses={
-        400: {"description": "이메일 또는 답 불일치 (가입 여부를 숨기려고 이유를 나누지 않음)"},
-        429: {"description": "이메일당 24시간에 5번 틀려 잠김, IP당 1시간 30회 초과"},
-    },
+    summary="비밀번호 재설정 3단계: 확인증 + 새 비밀번호",
+    responses={400: {"description": "확인증 없음·만료(10분)·이미 사용·위조"}},
 )
-def reset_password(data: PasswordResetRequest, request: Request, db: Annotated[Session, Depends(get_db)]) -> None:
-    password_reset_service.reset_with_answer(db, data, _client_ip(request))
+def reset_password(data: PasswordResetRequest, db: Annotated[Session, Depends(get_db)]) -> None:
+    password_reset_service.reset_with_token(db, data)

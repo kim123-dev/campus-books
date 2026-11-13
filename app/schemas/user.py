@@ -135,18 +135,26 @@ class WithdrawRequest(BaseModel):
     password: str = Field(min_length=1)
 
 
-class PasswordResetRequest(BaseModel):
-    """비밀번호 재설정 2단계 (로그인하지 않은 상태). 새 비밀번호는 가입 때와 같은 규칙으로 검사한다."""
+class PasswordResetVerifyRequest(BaseModel):
+    """비밀번호 재설정 2단계: 본인 확인 질문의 답 확인 (로그인하지 않은 상태)."""
 
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
     # 답의 길이 규칙은 검사하지 않는다(틀린 답과 같은 400). 형식 오류(422)는 시도 횟수에 들어가지 않기 때문이다.
     answer: str = Field(min_length=1, max_length=ANSWER_RAW_MAX)
-    new_password: NewPassword
 
     # 가입·로그인과 같은 규칙으로 소문자로 맞춘다.
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: str) -> str:
         return value.lower()
+
+
+class PasswordResetRequest(BaseModel):
+    """비밀번호 재설정 3단계: 답 확인 때 받은 확인증 + 새 비밀번호. 새 비밀번호는 가입 때와 같은 규칙으로 검사한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reset_token: str = Field(min_length=1, max_length=1000)
+    new_password: NewPassword

@@ -440,7 +440,12 @@ export function getResetQuestion(email) {
   return request("/auth/password-reset/question", { method: "POST", json: { email } });
 }
 
-/** 재설정 2단계(로그인 없이): { email, answer, new_password }. 성공하면 204 */
+/** 재설정 2단계(로그인 없이): 답 확인 { email, answer }. 맞으면 { reset_token, expires_in } */
+export function verifyResetAnswer(data) {
+  return request("/auth/password-reset/verify", { method: "POST", json: data });
+}
+
+/** 재설정 3단계(로그인 없이): { reset_token, new_password }. 성공하면 204 */
 export function resetPassword(data) {
   return request("/auth/password-reset", { method: "POST", json: data });
 }

@@ -251,7 +251,13 @@ class NicknameChangeTooSoonError(BadRequestError):
 
 class InvalidSecurityAnswerError(BadRequestError):
     # 없는 이메일, 틀린 답, 질문을 등록하지 않은 계정, 탈퇴한 계정, 관리자 계정 모두 이 메시지다. (가입 여부를 숨긴다)
+    # 실제 메시지에는 남은 시도 횟수를 붙인다. (password_reset_service.verify_answer)
     message = "이메일 또는 답이 맞지 않습니다."
+
+
+class InvalidResetTokenError(BadRequestError):
+    # 확인증이 없거나, 10분이 지났거나, 이미 썼거나(비밀번호가 바뀜), 위조된 경우 모두 이 메시지다.
+    message = "본인 확인이 만료되었거나 올바르지 않습니다. 처음부터 다시 확인해 주세요."
 
 
 class AdminSecurityQuestionError(BadRequestError):

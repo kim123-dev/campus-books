@@ -34,7 +34,11 @@ def set_question(client: TestClient, auth: dict, question: dict = NEW_QUESTION, 
 
 
 def reset(client: TestClient, answer: str, new_password: str = "newpassword456"):
-    return client.post("/auth/password-reset", json={"email": EMAIL, "answer": answer, "new_password": new_password})
+    # 답 확인 → 확인증으로 변경. 답이 틀리면 답 확인 응답(400)을 돌려준다.
+    checked = client.post("/auth/password-reset/verify", json={"email": EMAIL, "answer": answer})
+    if checked.status_code != 200:
+        return checked
+    return client.post("/auth/password-reset", json={"reset_token": checked.json()["reset_token"], "new_password": new_password})
 
 
 # ---------- 가입할 때 ----------

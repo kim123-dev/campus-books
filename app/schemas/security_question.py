@@ -117,6 +117,13 @@ class PasswordResetQuestionResponse(BaseModel):
     question: str
 
 
+class PasswordResetVerifyResponse(BaseModel):
+    """답이 맞았을 때 주는 일회용 확인증. 새 비밀번호를 정할 때(POST /auth/password-reset) 그대로 보낸다."""
+
+    reset_token: str
+    expires_in: int = Field(description="확인증이 유효한 시간(초)")
+
+
 class PasswordResetNoticeResponse(BaseModel):
     """아직 확인하지 않은 재설정 안내. method: QUESTION(본인 확인 질문) 또는 SERVER(서버 명령)."""
 

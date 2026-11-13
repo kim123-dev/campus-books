@@ -1,9 +1,10 @@
 """비밀번호 재설정: 본인 확인 질문(로그인하지 않은 상태)과 서버 명령(관리자 비밀번호 분실).
 
-질문 방식의 흐름: 이메일 → 그 계정의 질문 → 답 + 새 비밀번호.
-질문이 하나뿐이라 맞혀 보기를 엄격하게 막는다.
+질문 방식의 흐름: 이메일 → 그 계정의 질문 → 답 확인(맞으면 10분짜리 일회용 확인증) → 확인증 + 새 비밀번호.
+답이 맞는지 새 비밀번호를 정하기 전에 알 수 있게 단계를 나눴다. 질문이 하나뿐이라 맞혀 보기를 엄격하게 막는다.
 - 이메일당: 최근 24시간에 5번 틀리면 마지막으로 틀린 때부터 24시간 잠근다. 잠긴 동안의 시도는 세지 않는다
-  (세면 잠금이 끝없이 늘어난다). 성공하면 그 전의 실패는 더 세지 않는다.
+  (세면 잠금이 끝없이 늘어난다). 답이 맞으면 그 전의 실패는 더 세지 않는다. 틀릴 때마다 남은 횟수를 알려준다.
+  없는 이메일도 같은 해시로 똑같이 세므로 남은 횟수로 가입 여부를 알 수 없다.
 - IP당: 질문 받기와 재설정 시도를 합쳐 1시간 30회.
 - 가입 여부를 숨긴다: 없는 이메일, 질문을 등록하지 않은 계정, 탈퇴한 계정, 관리자 계정에도 이메일마다 늘 같은
   "그럴듯한 질문"(준비된 질문 중 하나)을 보여주고, 재설정 실패는 이유와 상관없이 같은 400이며 bcrypt 비교도 한 번 한다.
@@ -21,12 +22,19 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import (
+    InvalidResetTokenError,
     InvalidSecurityAnswerError,
     PasswordResetLockedError,
     PasswordResetRateLimitError,
     UserNotFoundError,
 )
-from app.core.security import hash_password
+from app.core.security import (
+    RESET_TOKEN_MINUTES,
+    create_password_reset_token,
+    decode_password_reset_token,
+    hash_password,
+    password_fingerprint,
+)
 from app.models import (
     AdminActionType,
     AdminTargetType,
@@ -36,8 +44,8 @@ from app.models import (
     User,
     UserRole,
 )
-from app.schemas.security_question import PRESET_QUESTIONS, PasswordResetNoticeResponse
-from app.schemas.user import PasswordResetRequest
+from app.schemas.security_question import PRESET_QUESTIONS, PasswordResetNoticeResponse, PasswordResetVerifyResponse
+from app.schemas.user import PasswordResetRequest, PasswordResetVerifyRequest
 from app.services import admin_log_service, email_ban_service, security_question_service, user_service
 
 LOCK_WINDOW = timedelta(hours=24)
@@ -64,12 +72,12 @@ def get_question(db: Session, email: str, ip: str) -> str:
     return security_question_service.question_text(row) if row is not None else _decoy_question(email)
 
 
-def reset_with_answer(db: Session, data: PasswordResetRequest, ip: str) -> None:
-    """재설정 2단계. 순서: 422 형식(스키마) → 429 IP 횟수 → 429 이메일 잠금 → 400 이메일·답 불일치.
+def verify_answer(db: Session, data: PasswordResetVerifyRequest, ip: str) -> PasswordResetVerifyResponse:
+    """재설정 2단계: 답 확인. 순서: 422 형식(스키마) → 429 IP 횟수 → 429 이메일 잠금 → 400 이메일·답 불일치.
 
-    - 비밀번호 해시가 바뀌므로 이 계정의 기존 토큰은 모두 401이 된다. (토큰의 비밀번호 지문)
-    - 정지된 계정도 재설정할 수 있다. 정지는 그대로라 로그인은 여전히 403이다.
-    - 성공하면 관리 기록을 남기고, 다음 로그인 때 보여줄 안내를 만든다.
+    - 맞으면 10분짜리 일회용 확인증을 준다. 비밀번호는 아직 바꾸지 않는다.
+    - 틀리면 "남은 시도 N번"을 붙인 400. 5번째로 틀리면 바로 429(잠금)와 남은 시간을 알려준다.
+    - 없는 이메일·질문 없는 계정·탈퇴·관리자도 같은 방식으로 세고, bcrypt 비교도 한 번 해 응답과 시간이 같다.
     """
     email_hash = email_ban_service.hash_email(data.email)
     _check_ip_limit(db, ip)
@@ -86,11 +94,38 @@ def reset_with_answer(db: Session, data: PasswordResetRequest, ip: str) -> None:
     if row is None or not matched:
         # 실패한 시도도 횟수에 들어가야 하므로 기록을 저장한 뒤 실패를 알린다.
         db.commit()
-        raise InvalidSecurityAnswerError()
+        count, latest, now = _email_failures(db, email_hash)
+        remaining = MAX_FAILURES_PER_EMAIL - count
+        if remaining <= 0:
+            _raise_locked(latest, now)
+        raise InvalidSecurityAnswerError(f"이메일 또는 답이 맞지 않습니다. 남은 시도 {remaining}번 (24시간 기준)")
 
     attempt.success = True
-    _apply_reset(db, user, data.new_password, PasswordResetMethod.QUESTION)
     db.execute(delete(PasswordResetAttempt).where(PasswordResetAttempt.created_at < _db_now(db) - ATTEMPT_RETENTION))
+    db.commit()
+    return PasswordResetVerifyResponse(
+        reset_token=create_password_reset_token(user.id, user.password_hash),
+        expires_in=RESET_TOKEN_MINUTES * 60,
+    )
+
+
+def reset_with_token(db: Session, data: PasswordResetRequest) -> None:
+    """재설정 3단계: 확인증 + 새 비밀번호. 확인증이 없거나·만료·위조·이미 씀이면 모두 같은 400.
+
+    - 확인증에는 발급 당시 비밀번호 지문이 있다. 비밀번호가 바뀌면 지문이 달라지므로 한 번만 쓸 수 있다.
+    - 그사이 탈퇴했거나 관리자가 된 계정에도 쓸 수 없다.
+    - 비밀번호 해시가 바뀌므로 이 계정의 기존 토큰은 모두 401이 된다. 정지는 그대로다.
+    - 성공하면 관리 기록을 남기고, 다음 로그인 때 보여줄 안내를 만든다.
+    """
+    token = decode_password_reset_token(data.reset_token)
+    user = db.get(User, token.user_id)
+    if (
+        not _can_use_question(user)
+        or token.password_fingerprint != password_fingerprint(user.password_hash)
+        or security_question_service.get_row(db, user.id) is None
+    ):
+        raise InvalidResetTokenError()
+    _apply_reset(db, user, data.new_password, PasswordResetMethod.QUESTION)
     db.commit()
 
 
@@ -182,10 +217,10 @@ def _check_ip_limit(db: Session, ip: str) -> None:
         raise PasswordResetRateLimitError(retry_after=max(1, math.ceil(wait)))
 
 
-def _check_email_lock(db: Session, email_hash: str) -> None:
+def _email_failures(db: Session, email_hash: str) -> tuple[int, datetime | None, datetime]:
+    """최근 24시간 안, 마지막으로 답을 맞힌 뒤의 실패 횟수와 가장 최근 실패 시각."""
     now = _db_now(db)
-    # 성공한 뒤의 실패만 센다. 시각은 초 단위로만 저장되는 DB(SQLite)가 있어 같은 초의 앞뒤를 가릴 수 없으므로,
-    # 늘 커지는 id로 순서를 가린다.
+    # 시각은 초 단위로만 저장되는 DB(SQLite)가 있어 같은 초의 앞뒤를 가릴 수 없으므로, 늘 커지는 id로 순서를 가린다.
     last_success_id = db.scalar(
         select(func.max(PasswordResetAttempt.id)).where(
             PasswordResetAttempt.email_hash == email_hash, PasswordResetAttempt.success.is_(True)
@@ -199,7 +234,27 @@ def _check_email_lock(db: Session, email_hash: str) -> None:
             PasswordResetAttempt.id > (last_success_id or 0),
         )
     ).one()
+    return count, latest, now
+
+
+def _check_email_lock(db: Session, email_hash: str) -> None:
+    count, latest, now = _email_failures(db, email_hash)
     if count >= MAX_FAILURES_PER_EMAIL:
-        # 잠긴 동안에는 기록하지 않으므로, 가장 최근 실패가 5번째 실패다. 그때부터 24시간.
-        wait = (user_service.as_utc(latest) + LOCK_WINDOW - user_service.as_utc(now)).total_seconds()
-        raise PasswordResetLockedError(retry_after=max(1, math.ceil(wait)))
+        _raise_locked(latest, now)
+
+
+def _raise_locked(latest: datetime, now: datetime) -> None:
+    # 잠긴 동안에는 기록하지 않으므로, 가장 최근 실패가 5번째 실패다. 그때부터 24시간.
+    wait = max(1, math.ceil((user_service.as_utc(latest) + LOCK_WINDOW - user_service.as_utc(now)).total_seconds()))
+    raise PasswordResetLockedError(
+        retry_after=wait,
+        message=f"답을 {MAX_FAILURES_PER_EMAIL}번 틀려 이 이메일로는 비밀번호를 재설정할 수 없어요. {_wait_text(wait)} 뒤에 다시 시도해 주세요.",
+    )
+
+
+def _wait_text(seconds: int) -> str:
+    minutes = math.ceil(seconds / 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours and minutes:
+        return f"{hours}시간 {minutes}분"
+    return f"{hours}시간" if hours else f"{minutes}분"

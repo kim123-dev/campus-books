@@ -1092,6 +1092,24 @@ a.button {
   overflow-wrap: anywhere;
 }
 
+/* 재설정 3단계(새 비밀번호)는 답 확인 폼 바로 밑에 붙어 나오므로 폼 안 칸 사이와 같은 간격을 둔다 */
+#verify-form + #reset-form {
+  margin-top: 18px;
+}
+
+/* 답 확인 성공 안내와 잠긴 답 칸 */
+.field-success {
+  margin: 0;
+  color: var(--color-on-sale);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.field input[readonly] {
+  background: var(--color-on-sale-bg);
+  color: var(--color-sub);
+}
+
 .account-card__notice--warning {
   color: var(--color-danger);
   font-weight: 600;

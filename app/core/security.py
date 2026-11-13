@@ -7,7 +7,7 @@ import jwt
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import get_settings
-from app.core.exceptions import InvalidTokenError
+from app.core.exceptions import InvalidResetTokenError, InvalidTokenError
 
 # bcrypt는 72바이트를 넘는 비밀번호를 처리하지 못한다. (한글은 1자 = 3바이트)
 BCRYPT_MAX_BYTES = 72
@@ -89,3 +89,41 @@ def decode_access_token(token: str) -> AccessTokenData:
         return AccessTokenData(user_id=int(payload["sub"]), password_fingerprint=str(payload["pwd"]))
     except (jwt.InvalidTokenError, ValueError) as exc:
         raise InvalidTokenError() from exc
+
+
+# ---------- 비밀번호 재설정 확인증 ----------
+
+# 본인 확인 질문의 답을 맞힌 사람에게 주는 짧은 확인증. 새 비밀번호를 정하는 데 한 번만 쓴다.
+RESET_TOKEN_MINUTES = 10
+RESET_TOKEN_AUDIENCE = "password-reset"
+
+
+def create_password_reset_token(user_id: int, password_hash: str, expires_delta: timedelta | None = None) -> str:
+    """확인증 발급. 저장하지 않고 서명으로만 확인하므로 새 테이블이 필요 없다.
+
+    - 지금 비밀번호 지문을 넣는다. 비밀번호가 바뀌면(이 확인증으로 바꾼 직후 포함) 지문이 달라져 다시 쓸 수 없다.
+    - 로그인 토큰으로 쓰이지 않게 필드 이름(uid·rpw)을 다르게 하고 aud를 넣는다. 로그인 토큰 검사는 sub·pwd를
+      꼭 요구하고, PyJWT는 aud가 있는 토큰을 audience 없이 검사하면 거절한다. 반대로 로그인 토큰은 aud가 없어 여기서 거절된다.
+    """
+    payload = {
+        "uid": user_id,
+        "rpw": password_fingerprint(password_hash),
+        "aud": RESET_TOKEN_AUDIENCE,
+        "exp": datetime.now(UTC) + (expires_delta or timedelta(minutes=RESET_TOKEN_MINUTES)),
+    }
+    return jwt.encode(payload, get_settings().SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> AccessTokenData:
+    """확인증을 검증해 user id와 발급 당시 비밀번호 지문을 돌려준다. 만료·변조·로그인 토큰은 InvalidResetTokenError."""
+    try:
+        payload = jwt.decode(
+            token,
+            get_settings().SECRET_KEY,
+            algorithms=[ALGORITHM],
+            audience=RESET_TOKEN_AUDIENCE,
+            options={"require": ["exp", "uid", "rpw", "aud"]},
+        )
+        return AccessTokenData(user_id=int(payload["uid"]), password_fingerprint=str(payload["rpw"]))
+    except (jwt.InvalidTokenError, ValueError, TypeError) as exc:
+        raise InvalidResetTokenError() from exc

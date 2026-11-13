@@ -50,30 +50,48 @@ try {
     document.getElementById('signup-answer').value = ${JSON.stringify(answer)}; document.getElementById('signup-form').requestSubmit(); })()`);
   check("가입: 성공하면 로그인 화면으로", await b.waitUntil("location.pathname === '/static/login.html' && location.search.includes('joined=1')", 8000));
 
-  // ---------- 재설정: 1단계 이메일 → 2단계 질문 ----------
+  // ---------- 재설정: 1단계 이메일 → 2단계 질문·답 확인 → 3단계 새 비밀번호 ----------
   await b.goto("/static/reset-password.html", "document.getElementById('question-form')");
-  check("재설정: 처음에는 이메일 칸만", (await visible("#question-form")) && !(await visible("#reset-form")));
+  check("재설정: 처음에는 이메일 칸만", (await visible("#question-form")) && !(await visible("#verify-form")) && !(await visible("#reset-form")));
   check(`${W}px: 재설정 1단계 가로 스크롤 없음`, await noScroll());
   await b.screenshot(`reset-step1-${W}.png`);
   await b.evaluate(`(() => { const f = document.getElementById('question-form'); f.email.value = ${JSON.stringify(email.toUpperCase())}; f.requestSubmit(); })()`);
   check("재설정: 가입한 질문이 보임", await b.waitUntil(`document.getElementById('reset-question').textContent === '어릴 때 살던 동네에서 자주 가던 가게 이름은?'`));
-  check("재설정: 2단계 폼으로 바뀜", (await visible("#reset-form")) && !(await visible("#question-form")));
+  check("재설정: 답 칸과 인증 확인 버튼, 새 비밀번호 칸은 아직 없음", (await visible("#verify-form")) && (await visible("#verify-button")) && !(await visible("#reset-form")));
   check(`${W}px: 재설정 2단계 가로 스크롤 없음`, await noScroll());
   await b.screenshot(`reset-step2-${W}.png`);
 
-  // 틀린 답 → 400 안내, 맞는 답(띄어쓰기 다르게) → 로그인 화면(reset=1)
-  await b.evaluate(`(() => { const f = document.getElementById('reset-form'); f.answer.value = '틀린답'; f.new_password.value = ${JSON.stringify(newPw)}; f.new_password_confirm.value = ${JSON.stringify(newPw)}; f.requestSubmit(); })()`);
-  check("재설정: 틀린 답이면 안내", await b.waitUntil(`document.getElementById('reset-error').textContent.includes('이메일 또는 답이 맞지 않습니다')`));
-  await b.evaluate(`(() => { const f = document.getElementById('reset-form'); f.answer.value = '해피마트'; f.requestSubmit(); })()`);
+  // 틀린 답 → 답 칸 바로 아래에 남은 시도 횟수, 새 비밀번호 칸은 계속 숨김
+  await b.evaluate(`(() => { document.getElementById('answer').value = '틀린답'; document.getElementById('verify-form').requestSubmit(); })()`);
+  check("재설정: 틀린 답이면 답 칸 아래 안내와 남은 시도", await b.waitUntil(`document.querySelector('#verify-form [data-error-for=answer]').textContent.includes('남은 시도 4번')`));
+  check("재설정: 틀린 동안 새 비밀번호 칸 안 보임", !(await visible("#reset-form")));
+  check(`${W}px: 오답 안내 뒤 가로 스크롤 없음`, await noScroll());
+  await b.screenshot(`reset-wrong-${W}.png`);
+
+  // 맞는 답(띄어쓰기 다르게) → 확인됐어요, 답 칸 잠김, 새 비밀번호 칸 나타남
+  await b.evaluate(`(() => { document.getElementById('answer').value = '해피마트'; document.getElementById('verify-form').requestSubmit(); })()`);
+  check("재설정: 맞으면 '확인됐어요'", await b.waitUntil("!document.getElementById('verify-ok').hidden"));
+  check("재설정: 지난 오답 안내는 사라짐", !(await visible("#verify-form [data-error-for=answer]")));
+  check("재설정: 답 칸 잠김·인증 버튼 숨김", await b.evaluate("document.getElementById('answer').readOnly && document.getElementById('verify-button').hidden"));
+  check("재설정: 새 비밀번호 칸과 바꾸기 버튼이 나타남", await visible("#reset-form"));
+  check(`${W}px: 재설정 3단계 가로 스크롤 없음`, await noScroll());
+  await b.screenshot(`reset-step3-${W}.png`);
+
+  // 새 비밀번호 확인이 다르면 칸 아래 안내, 맞으면 로그인 화면(reset=1)
+  await b.evaluate(`(() => { const f = document.getElementById('reset-form'); f.new_password.value = ${JSON.stringify(newPw)}; f.new_password_confirm.value = 'different-pass'; f.requestSubmit(); })()`);
+  check("재설정: 새 비밀번호 확인 불일치 안내", (await text("#reset-form [data-error-for=new_password_confirm]")).includes("일치하지"));
+  await b.evaluate(`(() => { const f = document.getElementById('reset-form'); f.new_password_confirm.value = ${JSON.stringify(newPw)}; f.requestSubmit(); })()`);
   check("재설정: 성공하면 로그인 화면으로", await b.waitUntil("location.pathname === '/static/login.html' && location.search.includes('reset=1')", 8000));
   check("재설정: 새 비밀번호로 로그인", (await loginApi(email, newPw)) !== undefined);
 
-  // 가입하지 않은 이메일에도 질문이 나온다. (가입 여부를 알려주지 않음)
+  // 가입하지 않은 이메일에도 질문과 같은 모양의 오답 안내가 나온다. (가입 여부를 알려주지 않음)
   await b.goto("/static/reset-password.html", "document.getElementById('question-form')");
   await b.evaluate(`(() => { const f = document.getElementById('question-form'); f.email.value = 'nobody@uicheck.ac.kr'; f.requestSubmit(); })()`);
   check("재설정: 없는 이메일에도 질문이 보임", await b.waitUntil(`document.getElementById('reset-question').textContent.length > 5`));
+  await b.evaluate(`(() => { document.getElementById('answer').value = '아무거나'; document.getElementById('verify-form').requestSubmit(); })()`);
+  check("재설정: 없는 이메일도 같은 오답 안내", await b.waitUntil(`document.querySelector('#verify-form [data-error-for=answer]').textContent.includes('남은 시도 4번')`));
   await b.evaluate("document.getElementById('change-email').click()");
-  check("재설정: 이메일 바꾸기로 1단계로 돌아감", (await visible("#question-form")) && !(await visible("#reset-form")));
+  check("재설정: 이메일 바꾸기로 1단계로 돌아감", (await visible("#question-form")) && !(await visible("#verify-form")) && !(await visible("#reset-form")));
 
   // ---------- 다음 로그인: 재설정 안내 ----------
   const token = await loginApi(email, newPw);
