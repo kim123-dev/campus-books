@@ -22,12 +22,13 @@ from app.services import alert_service, block_service, image_storage, pending_im
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
 
-# 현재 상태에서 바꿀 수 있는 상태 목록. 판매 완료(SOLD)는 되돌릴 수 없는 마지막 상태다.
+# 현재 상태에서 바꿀 수 있는 상태 목록. 판매 완료(SOLD)는 실수를 고칠 수 있게 판매 중으로만 되돌릴 수 있다.
+# 되돌릴 때 거래 기록을 지우므로, 후기가 남은 거래는 되돌릴 수 없다(change_status의 409).
 # 같은 상태로의 변경은 이 표와 상관없이 항상 허용한다(멱등).
 ALLOWED_TRANSITIONS: dict[PostStatus, set[PostStatus]] = {
     PostStatus.ON_SALE: {PostStatus.RESERVED, PostStatus.SOLD},
     PostStatus.RESERVED: {PostStatus.ON_SALE, PostStatus.SOLD},
-    PostStatus.SOLD: set(),
+    PostStatus.SOLD: {PostStatus.ON_SALE},
 }
 
 
@@ -132,8 +133,12 @@ def change_status(
     db: Session, post_id: int, user: User, new_status: PostStatus, buyer_id: int | None = None
 ) -> Post:
     """판매 상태 변경. 판매 완료로 바꿀 때 구매자(buyer_id)를 함께 기록할 수 있다.
-    순서: 404 → 403 → 400 SOLD가 아닌데 구매자 → 409 이미 판매 완료(다른 구매자) → 400 전이 불가 → 400 후보 아님.
-    상태 변경과 거래 기록은 한 트랜잭션으로 저장한다.
+    순서: 404 → 403 → 400 SOLD가 아닌데 구매자 → 409 이미 판매 완료(다른 구매자) → 400 전이 불가
+    → 400 후보 아님 / 409 되돌리려는 거래에 후기가 있음.
+    상태 변경과 거래 기록(추가·삭제)은 한 트랜잭션으로 저장한다.
+
+    판매 완료 → 판매 중(되돌리기): 거래 기록을 지워 대화 화면의 "후기 남기기"도 사라지게 한다.
+    찾는 교재 알림은 새 글·조건에 맞게 바뀐 글에만 보내므로, 되돌려도 다시 보내지 않는다.
     """
     post = _get_own_post(db, post_id, user)
     if buyer_id is not None and new_status != PostStatus.SOLD:
@@ -149,6 +154,8 @@ def change_status(
 
     if buyer_id is not None:
         trade_service.record(db, post, buyer_id)
+    if post.status == PostStatus.SOLD:
+        trade_service.remove_for_revert(db, post.id)
     post.status = new_status
     try:
         db.commit()

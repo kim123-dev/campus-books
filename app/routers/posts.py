@@ -101,8 +101,8 @@ def update_post(
     summary="판매 상태 변경",
     responses={
         **OWNER_ONLY_RESPONSES,
-        400: {"description": "판매 완료된 글의 상태 변경, SOLD가 아닌데 구매자 지정, 구매자 후보가 아님"},
-        409: {"description": "이미 판매 완료된 글에 다른 구매자 지정"},
+        400: {"description": "판매 완료된 글을 판매 중 외의 상태로 변경, SOLD가 아닌데 구매자 지정, 구매자 후보가 아님"},
+        409: {"description": "이미 판매 완료된 글에 다른 구매자 지정, 후기가 있는 거래를 판매 중으로 되돌림"},
     },
 )
 def change_post_status(

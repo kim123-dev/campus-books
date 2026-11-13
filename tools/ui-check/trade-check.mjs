@@ -1,7 +1,7 @@
-// 판매 완료 때 구매자 고르기와 구매자 변경을 모바일 폭(기본 375px)으로 확인한다.
+// 판매 완료 때 구매자 고르기, 구매자 변경, 판매 중으로 되돌리기를 모바일 폭(기본 375px)으로 확인한다.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { readSeed, sleep, startBrowser } from "./lib.mjs";
+import { api, readSeed, sleep, startBrowser } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -67,7 +67,58 @@ try {
   check("되돌린 뒤에는 변경 버튼 없음", await evaluate(`!document.querySelector("#buyer-line button")`));
   await screenshot(`trade-reset-${W}.png`);
 
-  check("스크립트 오류 없음", exceptions.length === 0, exceptions.join(" | "));
+  // 3) 판매 중으로 되돌리기: 버튼 모양, 확인 창(취소하면 그대로), 되돌린 뒤 판매 중
+  const revertButton = () =>
+    evaluate(`(() => {
+      const b = [...document.querySelectorAll("#owner-actions button")].find((x) => x.textContent.trim() === "판매 중으로 되돌리기");
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { height: Math.round(r.height), bg: getComputedStyle(b).backgroundColor, primary: b.classList.contains("button--primary"), disabled: b.disabled };
+    })()`);
+  let revert = await revertButton();
+  check("판매 완료 글에 되돌리기 버튼", revert !== null);
+  check("되돌리기 버튼 높이 44px 이상", revert && revert.height >= 44, String(revert?.height));
+  check("되돌리기 버튼 기본색 #5B3FD6", revert?.bg === "rgb(91, 63, 214)", revert?.bg);
+  check("판매 완료 안내 문구", await evaluate(`document.querySelector(".owner-panel__notice")?.textContent.includes("판매 중으로 되돌릴 수 있어요")`));
+  check("되돌리기 줄 가로 넘침 없음", await evaluate(`document.documentElement.scrollWidth <= window.innerWidth`));
+  await screenshot(`trade-revert-button-${W}.png`);
+
+  await evaluate(`window.__confirms = []; window.confirm = (m) => { window.__confirms.push(m); return false; }`);
+  await clickText("#owner-actions button", "판매 중으로 되돌리기");
+  await sleep(300);
+  check("누르면 확인 창 한 번", await evaluate(`window.__confirms.length === 1 && window.__confirms[0].includes("판매 중으로 되돌릴까요")`));
+  check("취소하면 판매 완료 그대로", await evaluate(`document.querySelector(".post-detail__top .badge")?.textContent === "판매 완료"`));
+
+  await evaluate(`window.confirm = (m) => { window.__confirms.push(m); return true; }`);
+  await clickText("#owner-actions button", "판매 중으로 되돌리기");
+  const reverted = await waitUntil(`document.querySelector(".post-detail__top .badge")?.textContent === "판매 중"`);
+  check("확인하면 판매 중으로 되돌림", reverted);
+  check("되돌린 뒤 수정 버튼이 다시 보임", await evaluate(`[...document.querySelectorAll("#owner-actions a")].some((a) => a.textContent.trim() === "수정")`));
+  check("되돌린 뒤 거래한 사람 줄 없음", await evaluate(`!document.querySelector("#buyer-line")`));
+  await screenshot(`trade-reverted-${W}.png`);
+
+  // 4) 후기가 있으면: 버튼은 그대로 보이고, 누르면 409 메시지
+  const buyerId = (await api("GET", "/users/me", seed.buyer_token)).body.id;
+  await api("PATCH", `/posts/${seed.p1}/status`, seed.seller_token, { status: "SOLD", buyer_id: buyerId });
+  const detail = await api("GET", `/conversations/${seed.c1}`, seed.buyer_token);
+  const tradeId = detail.body?.trade?.trade_id;
+  const review = await api("POST", `/trades/${tradeId}/reviews`, seed.buyer_token, { rating: "GOOD", content: "친절했어요" });
+  check("확인용 후기 작성", review.status === 201, `${review.status}`);
+  await goto(`/static/post.html?id=${seed.p1}`, "document.querySelector('#owner-actions button')");
+  revert = await revertButton();
+  check("후기가 있어도 되돌리기 버튼은 보임", revert !== null);
+  await evaluate(`window.confirm = () => true`);
+  await clickText("#owner-actions button", "판매 중으로 되돌리기");
+  const blocked = await waitUntil(`document.querySelector("#action-error:not([hidden])")?.textContent.includes("후기가 이미 있어 되돌릴 수 없어요")`);
+  check("누르면 후기 때문에 못 되돌린다는 안내", blocked, await evaluate(`document.querySelector("#action-error")?.textContent ?? ""`));
+  check("안내 뒤에도 판매 완료 그대로", await evaluate(`document.querySelector(".post-detail__top .badge")?.textContent === "판매 완료"`));
+  check("안내 뒤 버튼이 다시 눌림", (await revertButton())?.disabled === false);
+  check("안내 줄 가로 넘침 없음", await evaluate(`document.documentElement.scrollWidth <= window.innerWidth`));
+  await screenshot(`trade-revert-blocked-${W}.png`);
+
+  // 4)의 409는 일부러 낸 응답이라 브라우저의 "Failed to load resource" 로그는 오류로 세지 않는다.
+  const jsErrors = exceptions.filter((e) => !String(e).includes("status of 409"));
+  check("스크립트 오류 없음", jsErrors.length === 0, jsErrors.join(" | "));
 } catch (error) {
   results.push(`ERROR ${error.stack}`);
 } finally {

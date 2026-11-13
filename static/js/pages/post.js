@@ -44,7 +44,7 @@ const OPEN_CHAT_PREFIX = "https://open.kakao.com/";
 const ALLOWED_TRANSITIONS = {
   ON_SALE: ["RESERVED", "SOLD"],
   RESERVED: ["ON_SALE", "SOLD"],
-  SOLD: [],
+  SOLD: ["ON_SALE"],
 };
 
 // "판매 완료으로"처럼 조사가 틀리지 않도록 버튼 문구를 따로 둔다.
@@ -53,6 +53,8 @@ const STATUS_BUTTON_LABELS = {
   RESERVED: "예약 중으로 변경",
   SOLD: "판매 완료로 변경",
 };
+// 판매 완료에서 판매 중으로 가는 버튼은 "변경"이 아니라 실수를 되돌리는 동작이라 문구와 색을 따로 둔다.
+const REVERT_SOLD_LABEL = "판매 중으로 되돌리기";
 
 const pageStatus = document.getElementById("page-status");
 const pageError = document.getElementById("page-error");
@@ -496,7 +498,12 @@ function renderOwnerActions(post) {
       : null;
 
   const statusButtons = nextStatuses.map((status) => {
-    const button = el("button", { type: "button", className: "button", text: STATUS_BUTTON_LABELS[status] });
+    const isRevert = post.status === "SOLD" && status === "ON_SALE";
+    const button = el("button", {
+      type: "button",
+      className: isRevert ? "button button--primary" : "button",
+      text: isRevert ? REVERT_SOLD_LABEL : STATUS_BUTTON_LABELS[status],
+    });
     button.addEventListener("click", () => onChangeStatus(post, status));
     return button;
   });
@@ -504,9 +511,13 @@ function renderOwnerActions(post) {
   const deleteButton = el("button", { type: "button", className: "button button--danger", text: "삭제" });
   deleteButton.addEventListener("click", () => onDelete(post));
 
+  // 후기가 있어 되돌릴 수 없는 경우에도 버튼은 숨기지 않고, 누르면 서버의 409 메시지를 보여준다.
   const soldNotice =
-    nextStatuses.length === 0
-      ? el("p", { className: "owner-panel__notice", text: "판매 완료된 글은 상태를 바꾸거나 수정할 수 없습니다." })
+    post.status === "SOLD"
+      ? el("p", {
+          className: "owner-panel__notice",
+          text: "판매 완료된 글은 수정할 수 없어요. 후기가 남기 전이면 판매 중으로 되돌릴 수 있어요.",
+        })
       : null;
 
   // 판매 완료된 글은 거래한 사람(구매자)을 보여주고, 후기가 없으면 바꿀 수 있게 한다. (서버에서 따로 불러온다)
@@ -550,6 +561,13 @@ function onChangeStatus(post, status) {
     onSell(post);
     return;
   }
+  // 되돌리면 거래 기록이 지워져 구매자가 후기를 남길 수 없게 되므로 한 번 확인한다.
+  if (
+    post.status === "SOLD" &&
+    !window.confirm("판매 중으로 되돌릴까요? 거래한 사람 기록이 지워져 서로 후기를 남길 수 없게 돼요.")
+  ) {
+    return;
+  }
   runAction(async () => {
     const updated = await changePostStatus(post.id, status);
     // 서버가 돌려준 최신 글로 배지, 버튼, 수정 시각, 연락 버튼을 다시 그린다.
@@ -557,13 +575,13 @@ function onChangeStatus(post, status) {
   });
 }
 
-/** 판매 완료: 거래한 사람을 고르는 창을 띄운다. 되돌릴 수 없는 마지막 상태라 창 안에서 한 번 더 알린다. */
+/** 판매 완료: 거래한 사람을 고르는 창을 띄운다. 후기가 남으면 되돌릴 수 없어 창 안에서 한 번 더 알린다. */
 function onSell(post) {
   runAction(async () => {
     const info = await getPostBuyer(post.id);
     const updated = await openBuyerDialog({
       heading: "판매 완료로 변경",
-      intro: "판매 완료로 바꾸면 되돌릴 수 없어요. 거래한 사람은 지금만 고를 수 있어요.",
+      intro: "후기가 남은 뒤에는 판매 중으로 되돌릴 수 없어요. 거래한 사람은 후기가 남기 전까지 바꿀 수 있어요.",
       candidates: info.candidates,
       currentBuyer: null,
       preselect: false,
@@ -624,7 +642,7 @@ async function runAction(task) {
       redirectToLogin();
       return;
     }
-    // 400(판매 완료된 글), 403(남의 글), 404(이미 삭제된 글)는 서버 메시지를 그대로 보여준다.
+    // 400(바꿀 수 없는 상태), 403(남의 글), 404(이미 삭제된 글), 409(후기가 있어 되돌릴 수 없음)는 서버 메시지를 그대로 보여준다.
     actionError.textContent = error.message;
     actionError.hidden = false;
     setBusy(false);

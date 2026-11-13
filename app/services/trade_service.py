@@ -9,7 +9,7 @@ from datetime import timedelta
 from sqlalchemy import Select, delete, exists, select, update
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import InvalidBuyerError, TradeHasReviewsError
+from app.core.exceptions import InvalidBuyerError, SoldRevertHasReviewsError, TradeHasReviewsError
 from app.models import Conversation, Message, Post, Review, Trade, User, UserBlock
 from app.schemas.trade import BuyerCandidateResponse, PostBuyerResponse
 from app.services import user_service
@@ -94,6 +94,20 @@ def change_buyer(db: Session, post: Post, trade: Trade, buyer_id: int | None) ->
     if result.rowcount != 1:
         db.rollback()
         raise TradeHasReviewsError()
+
+
+def remove_for_revert(db: Session, post_id: int) -> None:
+    """판매 완료를 판매 중으로 되돌릴 때 거래 기록을 지운다(커밋 전). 구매자 없이 완료한 글이면 할 일이 없다.
+    409: 후기가 하나라도 있음. 후기는 수정·삭제할 수 없어 거래를 지우면 후기의 근거가 사라지기 때문이다.
+    """
+    trade = get_for_post(db, post_id)
+    if trade is None:
+        return
+    # 확인과 삭제 사이에 후기가 저장되는 경우를 막으려고, 삭제 문장에도 "후기가 없을 때만" 조건을 붙인다.
+    result = db.execute(delete(Trade).where(Trade.id == trade.id, ~exists().where(Review.trade_id == trade.id)))
+    if result.rowcount != 1:
+        db.rollback()
+        raise SoldRevertHasReviewsError()
 
 
 def detach_post(db: Session, post_id: int) -> None:

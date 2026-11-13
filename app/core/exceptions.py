@@ -45,6 +45,11 @@ class TradeHasReviewsError(ConflictError):
     message = "후기가 남은 거래는 구매자를 바꿀 수 없습니다."
 
 
+class SoldRevertHasReviewsError(ConflictError):
+    # 후기는 수정·삭제할 수 없으므로, 후기가 달린 거래는 판매 완료를 되돌려 없앨 수 없다.
+    message = "후기가 이미 있어 되돌릴 수 없어요."
+
+
 class DuplicateReviewError(ConflictError):
     message = "이미 이 거래의 후기를 남겼습니다."
 
@@ -152,7 +157,8 @@ class SoldPostNotEditableError(BadRequestError):
 
 
 class InvalidStatusTransitionError(BadRequestError):
-    message = "판매 완료된 글은 상태를 변경할 수 없습니다."
+    # 판매 완료에서 갈 수 있는 곳은 "판매 중으로 되돌리기"뿐이다. (예약 중으로는 못 감)
+    message = "판매 완료된 글은 판매 중으로만 되돌릴 수 있습니다."
 
 
 class CannotContactOwnPostError(BadRequestError):

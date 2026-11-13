@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Post
 
-INVALID_TRANSITION = {"detail": "판매 완료된 글은 상태를 변경할 수 없습니다."}
+INVALID_TRANSITION = {"detail": "판매 완료된 글은 판매 중으로만 되돌릴 수 있습니다."}
 STATUSES = ["ON_SALE", "RESERVED", "SOLD"]
 
 
@@ -52,7 +52,7 @@ TRANSITIONS = [
     ("RESERVED", "ON_SALE", 200),
     ("RESERVED", "RESERVED", 200),
     ("RESERVED", "SOLD", 200),
-    ("SOLD", "ON_SALE", 400),
+    ("SOLD", "ON_SALE", 200),
     ("SOLD", "RESERVED", 400),
     ("SOLD", "SOLD", 200),
 ]
