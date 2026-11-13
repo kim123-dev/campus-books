@@ -36,7 +36,7 @@ node tools/ui-check/compare.mjs tools/ui-check/out before after
 | `mobile-check` | 모바일 탭 바, 목록·카드(로그인 상태 첫 화면 4장 이상), 터치 영역 44px, 글자 16px, 상세 갤러리, 대화 키보드 |
 | `home-check` | 목록 화면(375·1280px): 비로그인 배너(문구·버튼·그림 크기)와 로그인 띠(`<html data-signed-in>`, 높이), 배너·페이지 전체 밀림(CLS), 한 줄 검색과 필터 펼치기, 글이 없을 때 "첫 교재 올리기"와 로그인 거쳐 글쓰기로 |
 | `ui-check` | 쪽지(대화) 화면 |
-| `photo-check` | 사진 업로드 (개수 제한, 5MB 초과, 형식 오류, 부분 실패) |
+| `photo-check` | 사진 업로드 (고르는 즉시 임시 사진으로 올리기, 개수 제한, 형식 오류, 올리기 실패·다시 시도, 진행률, 올리는 중에 저장, 휴대폰 사진) |
 | `wish-check` | 찜하기 |
 | `safety-check` | 신고·차단 |
 | `admin-check` | 신고 관리, 이용 정지, `make-admin` CLI |

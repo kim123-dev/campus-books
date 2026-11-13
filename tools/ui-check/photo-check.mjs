@@ -1,4 +1,5 @@
 // 10단계 사진 업로드 화면을 375px 헤드리스 Chrome으로 확인한다. (DevTools 프로토콜 직접 사용, 추가 설치 없음)
+// 사진은 고르는 즉시 임시 사진(POST /pending-images)으로 올라가고, 저장할 때 글과 함께 붙는다.
 // 휴대폰 사진(큰 JPEG·EXIF 회전·MPO·HEIC)은 photo_fixtures.py가 실행할 때 만든다.
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -28,6 +29,8 @@ let ws;
 let nextId = 1;
 const pending = new Map();
 const exceptions = [];
+// 화면이 보낸 API 요청("POST /pending-images" 형태). 사진을 언제 올리고 지우는지 확인하는 데 쓴다.
+const requests = [];
 
 async function connect() {
   for (let i = 0; i < 50; i++) {
@@ -101,12 +104,17 @@ try {
       pending.delete(msg.id);
       msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
     }
+    if (msg.method === "Network.requestWillBeSent") {
+      const { method, url } = msg.params.request;
+      if (url.startsWith(BASE) && !url.includes("/static/")) requests.push(`${method} ${new URL(url).pathname}`);
+    }
     if (msg.method === "Runtime.exceptionThrown") exceptions.push(msg.params.exceptionDetails.exception?.description);
     if (msg.method === "Log.entryAdded" && msg.params.entry.level === "error") exceptions.push(msg.params.entry.text);
   });
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Log.enable");
+  await send("Network.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: W, height: 812, deviceScaleFactor: 2, mobile: true });
 
   // ---------- 10단계: 사진 업로드 (375px) ----------
@@ -115,14 +123,19 @@ try {
   if (made.status !== 0) throw new Error(`휴대폰 사진을 만들지 못했습니다: ${made.stderr}`);
   const PHONE_NAMES = ["large.jpg", "rotated.jpg", "motion.jpg", "photo.heic"];
   const files = (...names) => names.map((n) => join(PHONE_NAMES.includes(n) ? PHONE : FIXTURES, n));
-  async function pickFiles(names) {
+  // waitUpload가 false면 줄이기만 기다리고, 올라가는 중인 상태로 돌아온다. (진행률 확인용)
+  async function pickFiles(names, { waitUpload = true } = {}) {
     const { root } = await send("DOM.getDocument", { depth: 0 });
     const { nodeId } = await send("DOM.querySelector", { nodeId: root.nodeId, selector: "#photos" });
     await send("DOM.setFileInputFiles", { nodeId, files: files(...names) });
     // 고른 사진은 브라우저에서 줄인 뒤에 목록에 들어간다. "줄이는 중" 안내가 사라질 때까지 기다린다.
     await sleep(300);
     await waitUntil("document.getElementById('photo-status').hidden", 15000);
+    // 줄인 사진은 바로 임시 사진으로 올라간다. 올리기가 끝날(성공·실패) 때까지 기다린다.
+    if (waitUpload) await waitUntil("!document.querySelector('.photo-tile--uploading')", 15000);
   }
+  const submitButtonText = () => evaluate("document.querySelector('#post-form button[type=submit]').textContent");
+  const sent = (pattern) => requests.filter((r) => pattern.test(r)).length;
   // 미리보기 그림(= 실제로 올릴 파일)의 크기와 용량
   const previewInfo = (index) => evaluate(`(async () => { const i = document.querySelectorAll('.photo-tile__image')[${index}];
     await i.decode().catch(() => {}); const size = i.src.startsWith('blob:') ? (await (await fetch(i.src)).blob()).size : null;
@@ -147,6 +160,7 @@ try {
   check("작성: 2장 고르면 미리보기 2개, 2/3", (await tileCount()) === 2 && (await text("photo-count")) === "2/3");
   await waitUntil("[...document.querySelectorAll('.photo-tile__image')].every(i => i.complete && i.naturalWidth > 0)");
   check("작성: 미리보기는 blob 주소로 표시됨", await evaluate("[...document.querySelectorAll('.photo-tile__image')].every(i => i.src.startsWith('blob:') && i.naturalWidth > 0)"));
+  check("작성: 고르는 즉시 임시 사진으로 올라가고, 끝나면 칸에 표시가 남지 않음", sent(/^POST \/pending-images$/) === 2 && !(await evaluate("Boolean(document.querySelector('.photo-tile__state'))")), requests.join(", "));
 
   await pickFiles(["c.webp", "d.gif", "large.jpg"]);
   const pickError = await text("photos-error");
@@ -160,11 +174,14 @@ try {
 
   await evaluate("document.querySelectorAll('.photo-tile__button')[2].click()");
   check("작성: 새 사진 빼기 → 2/3", (await tileCount()) === 2 && (await text("photo-count")) === "2/3" && !(await evaluate("document.getElementById('photos').disabled")));
+  await sleep(500); // 삭제 요청은 화면이 기다리지 않고 보내므로 잠깐 기다린다.
+  check("작성: 뺀 사진은 서버의 임시 사진도 바로 지움", sent(/^DELETE \/pending-images\/\d+$/) === 1, requests.join(", "));
 
   await fillForm("사진 있는 컴퓨터 구조 교재");
   await evaluate("document.querySelector('#post-form button[type=submit]').click()");
   const reachedDetail = await waitUntil("location.pathname === '/static/post.html' && !document.getElementById('post-detail').hidden", 15000);
   check("작성: 글 + 사진 2장 저장 후 상세로 이동", reachedDetail, await evaluate("location.href"));
+  check("작성: 사진은 글 저장 요청에 번호로 함께 감 (글마다 따로 올리지 않음)", sent(/^POST \/posts$/) === 1 && sent(/^POST \/posts\/\d+\/images$/) === 0, requests.join(", "));
   const photoPostId = await evaluate("new URLSearchParams(location.search).get('id')");
 
   await waitUntil("document.querySelector('.gallery__main')?.complete");
@@ -202,6 +219,8 @@ try {
   await evaluate("document.querySelector('.photo-tile__button').click()");
   check("수정: 빼기 누르면 흐리게 + 되돌리기, 1/3", (await evaluate("document.querySelector('.photo-tile').classList.contains('photo-tile--removed') && document.querySelector('.photo-tile__button').textContent === '되돌리기'")) && (await text("photo-count")) === "1/3");
   await pickFiles(["c.webp"]);
+  const unsaved = await (await fetch(`${BASE}/posts/${photoPostId}`)).json();
+  check("수정: 저장 전에는 공개된 글의 사진이 그대로", JSON.stringify(unsaved.images) === JSON.stringify(before.images));
   await evaluate("document.querySelector('#post-form button[type=submit]').click()");
   await waitUntil("location.pathname === '/static/post.html' && !document.getElementById('post-detail').hidden", 15000);
   const after = await (await fetch(`${BASE}/posts/${photoPostId}`)).json();
@@ -209,25 +228,36 @@ try {
     JSON.stringify(after.images.map((i) => i.id)));
   check("수정: 지운 사진 파일은 404", (await fetch(BASE + before.images[0].url)).status === 404);
 
-  // 부분 실패: 화면 검사는 통과하지만(.jpg) 서버가 거절하는 파일
+  // 올리기 실패: 화면 검사는 통과하지만(.jpg) 서버가 거절하는 파일
   const totalBefore = (await (await fetch(`${BASE}/posts`)).json()).total;
   await goto("/static/post-form.html", "!document.getElementById('form-card').hidden");
   await pickFiles(["a.jpg", "fake.jpg"]);
+  const failedTile = await evaluate(`(() => { const t = document.querySelectorAll('.photo-tile'); return {
+    ok: !t[0].querySelector('.photo-tile__state'), failed: t[1].classList.contains('photo-tile--failed'),
+    state: t[1].querySelector('.photo-tile__state')?.textContent, buttons: [...t[1].querySelectorAll('button')].map(b => b.textContent) }; })()`);
+  check("올리기 실패: 그 칸에만 '실패'와 다시 시도·빼기", failedTile.ok && failedTile.failed && failedTile.state === "실패" && failedTile.buttons.join() === "다시 시도,빼기", JSON.stringify(failedTile));
+  check("올리기 실패: 서버 메시지를 사진 칸 아래에 표시", (await text("photos-error")).includes("JPG, PNG, WebP"), await text("photos-error"));
+  check(`${W}px: 실패한 사진이 있는 폼 가로 스크롤 없음`, await noHorizontalScroll());
+  await evaluate("document.querySelector('.photo-tile__button').scrollIntoView({block: 'center'})");
+  await screenshot("10-4-upload-failed.png");
   await fillForm("사진 일부 실패 글");
   await evaluate("document.querySelector('#post-form button[type=submit]').click()");
-  await waitUntil("!document.getElementById('form-error').hidden", 15000);
-  const failText = await text("form-error");
-  check("부분 실패: 글은 저장됐다는 안내 + 서버 메시지", failText.includes("글은 저장됐지만 사진 1장") && failText.includes("JPG, PNG, WebP"), failText);
-  check("부분 실패: 수정 모드로 전환 (?id=, 제목·버튼)", (await evaluate("/^\\?id=\\d+$/.test(location.search)")) && (await text("form-title")) === "판매글 수정" && (await evaluate("document.querySelector('#post-form button[type=submit]').textContent")) === "저장하기");
-  check("부분 실패: 성공한 1장은 올린 사진으로 표시", (await tileCount()) === 1 && (await text("photo-count")) === "1/3");
-  await screenshot("10-4-partial-failure.png");
+  await waitUntil("document.getElementById('photos-error').textContent.includes('올리지 못한 사진')", 5000);
+  check("올리기 실패: 실패한 사진이 있으면 저장을 막고 안내, 글은 생기지 않음",
+    (await text("photos-error")).includes("다시 시도하거나 빼 주세요") && (await evaluate("location.pathname")) === "/static/post-form.html"
+      && !(await evaluate("document.querySelector('#post-form button[type=submit]').disabled")) && (await (await fetch(`${BASE}/posts`)).json()).total === totalBefore);
+  await evaluate("document.querySelectorAll('.photo-tile')[1].querySelector('button:last-child').click()");
+  check("올리기 실패: 실패한 사진을 빼면 1/3", (await tileCount()) === 1 && (await text("photo-count")) === "1/3" && (await text("photos-error")) === "");
   await evaluate("document.querySelector('#post-form button[type=submit]').click()");
-  await waitUntil("location.pathname === '/static/post.html'", 15000);
-  check("부분 실패: 다시 저장해도 글이 하나만 생김", (await (await fetch(`${BASE}/posts`)).json()).total === totalBefore + 1);
+  await waitUntil("location.pathname === '/static/post.html' && !document.getElementById('post-detail').hidden", 15000);
+  const savedAfterFailure = await (await fetch(`${BASE}/posts/${await evaluate("new URLSearchParams(location.search).get('id')")}`)).json();
+  check("올리기 실패: 뺀 뒤 저장하면 글 하나에 성공한 사진 1장", (await (await fetch(`${BASE}/posts`)).json()).total === totalBefore + 1 && savedAfterFailure.images.length === 1);
 
   // ---------- 휴대폰 사진: 줄이기, EXIF 회전, MPO, 진행률, HEIC ----------
   await goto("/static/post-form.html", "!document.getElementById('form-card').hidden");
-  await pickFiles(["large.jpg", "rotated.jpg", "motion.jpg"]);
+  // 올리는 속도를 느리게 해, 올라가는 중의 진행률(%)과 "올리는 중에 저장"을 확인한다.
+  await send("Network.emulateNetworkConditions", { offline: false, latency: 20, downloadThroughput: -1, uploadThroughput: 150 * 1024 });
+  await pickFiles(["large.jpg", "rotated.jpg", "motion.jpg"], { waitUpload: false });
   const large = await previewInfo(0);
   check("휴대폰: 2700만 화소 JPEG를 절반(3000px)으로 줄임", large.w === 3000 && large.h === 2250 && large.size < 2 * 1024 * 1024 && (await text("photos-error")) === "", JSON.stringify(large));
   const rotated = await previewInfo(1);
@@ -237,16 +267,22 @@ try {
   writeFileSync(join(OUT, "prepared-large.jpg"), Buffer.from(dataUrl.split(",")[1], "base64"));
   check(`${W}px: 사진 3장 고른 폼 가로 스크롤 없음`, await noHorizontalScroll());
 
-  await fillForm("휴대폰 사진 글");
-  // 올리는 속도를 느리게 해 진행률(%)이 보이는지 확인한다.
-  await send("Network.enable");
-  await send("Network.emulateNetworkConditions", { offline: false, latency: 20, downloadThroughput: -1, uploadThroughput: 400 * 1024 });
-  await evaluate("document.querySelector('#post-form button[type=submit]').click()");
-  await waitUntil("/· \\d+%/.test(document.getElementById('photo-status').textContent)", 15000);
-  check("진행률: '사진 저장 중 n/3 · %' 표시, 저장 버튼 잠금", await evaluate("/^사진 저장 중 [1-3]\\/3 · \\d+%$/.test(document.getElementById('photo-status').textContent) && document.querySelector('#post-form button[type=submit]').disabled"),
-    await text("photo-status"));
+  await waitUntil("/^[1-9]\\d?%$/.test(document.querySelector('.photo-tile--uploading .photo-tile__state [aria-hidden=true]')?.textContent ?? '')", 15000);
+  const uploadingTile = await evaluate(`(() => { const t = document.querySelector('.photo-tile--uploading'); if (!t) return null; return {
+    percent: t.querySelector('.photo-tile__state [aria-hidden=true]').textContent, spoken: t.querySelector('.photo-tile__state .visually-hidden')?.textContent,
+    buttons: [...t.querySelectorAll('button')].map(b => b.textContent) }; })()`);
+  check("진행률: 올리는 중인 칸에 % 표시, 빼기 가능", uploadingTile !== null && /^\d+%$/.test(uploadingTile.percent) && uploadingTile.buttons.join() === "빼기", JSON.stringify(uploadingTile));
+  check("진행률: 화면 낭독기에는 '올리는 중'만 읽히고 %는 읽히지 않음(aria-hidden)", uploadingTile?.spoken === "올리는 중");
+  check("진행률: 올리는 중에도 저장 버튼을 누를 수 있음", !(await evaluate("document.querySelector('#post-form button[type=submit]').disabled")));
+  await evaluate("document.querySelector('.photo-tile__button').scrollIntoView({block: 'center'})");
   await screenshot("10-5-upload-progress.png");
-  check("진행률: %는 화면 낭독기에 읽히지 않음(aria-hidden)", await evaluate("document.querySelector('#photo-status [aria-hidden=true]')?.textContent.includes('%')"));
+
+  await fillForm("휴대폰 사진 글");
+  await evaluate("document.querySelector('#post-form button[type=submit]').click()");
+  await sleep(200);
+  check("올리는 중에 저장: 남은 업로드를 기다리는 동안 '사진 올리는 중…', 사진 추가·빼기 잠금",
+    (await submitButtonText()) === "사진 올리는 중…" && (await evaluate("document.querySelector('#post-form button[type=submit]').disabled && document.getElementById('photos').disabled && [...document.querySelectorAll('.photo-tile__button')].every(b => b.disabled)")),
+    await submitButtonText());
   const phoneSaved = await waitUntil("location.pathname === '/static/post.html' && !document.getElementById('post-detail').hidden", 60000);
   await send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   check("휴대폰: 큰 JPEG·회전·MPO 3장 저장 후 상세로 이동", phoneSaved, await evaluate("location.href"));
