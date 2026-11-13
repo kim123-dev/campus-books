@@ -46,11 +46,16 @@
           <button id="password-toggle" type="button" class="button" aria-expanded="false" aria-controls="password-form">
             비밀번호 변경
           </button>
+          <button id="recovery-toggle" type="button" class="button" aria-expanded="false" aria-controls="recovery-form">
+            복구 코드
+          </button>
           <button id="withdraw-toggle" type="button" class="button button--danger" aria-expanded="false" aria-controls="withdraw-form">
             회원 탈퇴
           </button>
         </div>
         <p class="account-card__notice">이메일은 로그인 ID라 바꿀 수 없어요.</p>
+        <!-- 복구 코드가 없으면 발급을 권한다. 코드가 없으면 비밀번호를 잊었을 때 재설정할 수 없다. -->
+        <p id="recovery-status" class="account-card__notice"></p>
         <p id="account-notice" class="account-card__notice" role="status" hidden></p>
 
         <form id="nickname-form" class="account-form" novalidate hidden>
@@ -84,6 +89,20 @@
           <p class="form-error" role="alert" hidden></p>
           <button type="submit" class="button button--primary">변경하기</button>
         </form>
+
+        <form id="recovery-form" class="account-form" novalidate hidden>
+          <p class="field-hint">
+            새로 발급하면 예전 코드는 바로 쓸 수 없게 됩니다. 코드는 발급한 직후 한 번만 볼 수 있어요.
+          </p>
+          <div class="field">
+            <label for="recovery-password">현재 비밀번호</label>
+            <input id="recovery-password" name="password" type="password" autocomplete="current-password" required />
+            <p class="field-error" data-error-for="password" hidden></p>
+          </div>
+          <p class="form-error" role="alert" hidden></p>
+          <button type="submit" class="button button--primary">새 복구 코드 받기</button>
+        </form>
+        <div id="recovery-code" class="account-form" hidden></div>
 
         <form id="withdraw-form" class="account-form" novalidate hidden>
           <p class="field-hint">

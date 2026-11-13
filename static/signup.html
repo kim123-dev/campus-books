@@ -24,6 +24,9 @@
       <section class="card auth-card">
         <h1 class="page-title">회원가입</h1>
 
+        <!-- 가입에 성공하면 폼 대신 복구 코드를 한 번 보여준다. (recovery-code.js) -->
+        <div id="signup-code" hidden></div>
+
         <form id="signup-form" class="auth-form" novalidate>
           <div class="field">
             <label for="email">이메일</label>
@@ -70,7 +73,7 @@
           <button type="submit" class="button button--primary button--block">가입하기</button>
         </form>
 
-        <p class="auth-switch">
+        <p id="signup-switch" class="auth-switch">
           이미 회원이신가요? <a id="login-link" href="/static/login.html">로그인</a>
         </p>
       </section>

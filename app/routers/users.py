@@ -7,8 +7,16 @@ from app.core.database import get_db
 from app.core.deps import ActiveUser, CurrentUser
 from app.models import User
 from app.schemas.post import PageQuery, PostListResponse, SizeQuery
-from app.schemas.user import MeResponse, NicknameUpdate, PasswordChange, TokenResponse, WithdrawRequest
-from app.services import account_service, post_service, user_service, wishlist_service
+from app.schemas.user import (
+    MeResponse,
+    NicknameUpdate,
+    PasswordChange,
+    RecoveryCodeIssueRequest,
+    RecoveryCodeResponse,
+    TokenResponse,
+    WithdrawRequest,
+)
+from app.services import account_service, post_service, recovery_service, user_service, wishlist_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -49,6 +57,7 @@ def _me_response(db: Session, user: User) -> MeResponse:
         update={
             "suspended_until": user_service.active_suspension_end(user),
             "nickname_changeable_at": account_service.nickname_changeable_at(db, user),
+            "recovery_code_issued_at": recovery_service.issued_at(db, user),
         }
     )
 
@@ -119,3 +128,20 @@ def withdraw_me(
 ) -> Response:
     account_service.withdraw(db, current_user, data)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# 기존 가입자가 처음 받거나, 잃어버렸을 때 새로 받는다. 정지 중에도 계정을 지킬 수 있게 CurrentUser를 쓴다.
+@router.post(
+    "/me/recovery-code",
+    response_model=RecoveryCodeResponse,
+    summary="복구 코드 발급·재발급 (이전 코드는 무효)",
+    responses={
+        400: {"description": "현재 비밀번호 불일치"},
+        401: {"description": "로그인 필요"},
+    },
+)
+def issue_recovery_code(
+    data: RecoveryCodeIssueRequest, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> RecoveryCodeResponse:
+    code, issued_at = recovery_service.reissue(db, current_user, data.password)
+    return RecoveryCodeResponse(recovery_code=code, issued_at=issued_at)

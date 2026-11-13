@@ -1,8 +1,9 @@
-// 내 정보 화면: 내 정보(닉네임·이메일·가입일·매너 점수), 계정 관리(닉네임·비밀번호 변경, 탈퇴), 내 글·찜 목록 탭.
+// 내 정보 화면: 내 정보(닉네임·이메일·가입일·매너 점수), 계정 관리(닉네임·비밀번호 변경, 복구 코드, 탈퇴), 내 글·찜 목록 탭.
 // 예전의 "내 글"(my-posts.html)과 "찜"(wishlist.html) 화면을 이 화면 하나로 모았다. 로그인이 필요하다.
 // 고른 탭과 페이지는 주소창(?tab=wishlist&page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 목록이 나오게 하기 위해서다.
-import { changePassword, getProfile, listMyPosts, listWishlist, updateMe, withdraw } from "../api.js";
+import { changePassword, getProfile, issueRecoveryCode, listMyPosts, listWishlist, updateMe, withdraw } from "../api.js";
 import { logout, redirectToLogin, renderHeader } from "../auth.js";
+import { LOST_CODE_WARNING, renderRecoveryCode } from "../recovery-code.js";
 import { clearToken, getToken, setToken } from "../token.js";
 import {
   clearFormErrors,
@@ -120,19 +121,23 @@ function mannerText({ good, bad, total, good_ratio: ratio }) {
   return ratio === null ? `매너 점수: ${counts}` : `매너 점수: ${ratio}% 좋아요 (${counts})`;
 }
 
-// ---------- 계정 관리: 닉네임 변경·비밀번호 변경·회원 탈퇴 ----------
+// ---------- 계정 관리: 닉네임 변경·비밀번호 변경·복구 코드·회원 탈퇴 ----------
 
 function setUpAccount(me) {
   const notice = document.getElementById("account-notice");
   const nicknameForm = document.getElementById("nickname-form");
   const passwordForm = document.getElementById("password-form");
   const withdrawForm = document.getElementById("withdraw-form");
+  const recoveryForm = document.getElementById("recovery-form");
+  const recoveryToggle = document.getElementById("recovery-toggle");
+  const recoveryCodeBox = document.getElementById("recovery-code");
   const nicknameToggle = document.getElementById("nickname-toggle");
   const passwordToggle = document.getElementById("password-toggle");
   const withdrawToggle = document.getElementById("withdraw-toggle");
   const pairs = [
     [nicknameForm, nicknameToggle],
     [passwordForm, passwordToggle],
+    [recoveryForm, recoveryToggle],
     [withdrawForm, withdrawToggle],
   ];
 
@@ -144,6 +149,7 @@ function setUpAccount(me) {
       b.setAttribute("aria-expanded", String(!f.hidden));
     }
     notice.hidden = true;
+    recoveryCodeBox.hidden = true;
     if (open) form.querySelector("input").focus();
   }
   function close(form, message) {
@@ -159,6 +165,46 @@ function setUpAccount(me) {
   else withdrawToggle.addEventListener("click", () => toggle(withdrawForm));
 
   updateNicknameHint(me);
+  updateRecoveryStatus(me.recovery_code_issued_at);
+  recoveryToggle.addEventListener("click", () => toggle(recoveryForm));
+
+  recoveryForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const errorBox = recoveryForm.querySelector(".form-error");
+    clearFormErrors(recoveryForm, errorBox);
+    const password = recoveryForm.elements.password;
+    if (password.value === "") {
+      showFormErrors(recoveryForm, errorBox, { fieldErrors: { password: "비밀번호를 입력해 주세요." } });
+      return;
+    }
+    const submit = recoveryForm.querySelector("[type=submit]");
+    submit.disabled = true;
+    try {
+      const { recovery_code: code, issued_at: issuedAt } = await issueRecoveryCode(password.value);
+      recoveryForm.reset();
+      recoveryForm.hidden = true;
+      updateRecoveryStatus(issuedAt);
+      // 코드는 지금만 볼 수 있다. 저장했다고 확인해야 닫힌다.
+      renderRecoveryCode(recoveryCodeBox, code, {
+        continueText: "확인",
+        onContinue: () => {
+          recoveryCodeBox.hidden = true;
+          recoveryCodeBox.replaceChildren();
+          recoveryToggle.setAttribute("aria-expanded", "false");
+          recoveryToggle.focus();
+        },
+      });
+      recoveryCodeBox.hidden = false;
+    } catch (error) {
+      if (error.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      showPasswordError(recoveryForm, errorBox, error, "password");
+    } finally {
+      submit.disabled = false;
+    }
+  });
 
   nicknameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -248,6 +294,13 @@ function setUpAccount(me) {
     window.alert("탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
     window.location.replace("/static/index.html");
   });
+}
+
+// 복구 코드가 있는지(발급일)와, 없으면 발급하라고 알려준다. 코드 원문은 서버도 다시 보여줄 수 없다.
+function updateRecoveryStatus(issuedAt) {
+  document.getElementById("recovery-status").textContent = issuedAt
+    ? `복구 코드: ${formatDate(issuedAt).slice(0, 10)}에 발급했어요. ${LOST_CODE_WARNING}`
+    : `아직 복구 코드가 없어요. "복구 코드"를 눌러 발급받아 두세요. 코드가 없으면 비밀번호를 잊었을 때 재설정할 수 없어요.`;
 }
 
 // 30일 안에 이미 바꿨으면 언제부터 다시 바꿀 수 있는지 미리 알려준다. (눌러 보고 400을 받기 전에)

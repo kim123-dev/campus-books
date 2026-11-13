@@ -21,6 +21,9 @@ class AdminActionType(StrEnum):
     UNHIDE_REVIEW = "UNHIDE_REVIEW"  # 후기 숨김 해제
     WITHDRAW_USER = "WITHDRAW_USER"  # 강제 탈퇴 (이메일 재가입 차단 포함)
     UNBAN_EMAIL = "UNBAN_EMAIL"  # 재가입 차단 해제
+    # 관리자 계정이 복구 코드로 비밀번호를 재설정함. 관리자 본인이 한 일이지만, 관리자 권한이 넘어갔을 수 있는
+    # 사건이라 다른 관리자가 볼 수 있게 남긴다. (admin_id와 대상 사용자가 같은 사람)
+    RESET_PASSWORD_BY_CODE = "RESET_PASSWORD_BY_CODE"
 
 
 class AdminTargetType(StrEnum):

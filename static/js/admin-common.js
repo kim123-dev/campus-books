@@ -26,6 +26,7 @@ export const ADMIN_ACTION_LABELS = {
   UNHIDE_REVIEW: "후기 숨김 해제",
   WITHDRAW_USER: "강제 탈퇴",
   UNBAN_EMAIL: "재가입 차단 해제",
+  RESET_PASSWORD_BY_CODE: "복구 코드로 비밀번호 재설정",
 };
 
 // 사유 글자 수 제한. 서버와 같은 값이다. (app/schemas/admin.py MAX_REASON_LENGTH)

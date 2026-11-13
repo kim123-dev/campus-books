@@ -11,8 +11,8 @@ from app.core.exceptions import (
 )
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
-from app.schemas.user import LoginForm, UserCreate
-from app.services import email_ban_service, user_service
+from app.schemas.user import LoginForm, SignupResponse, UserCreate, UserResponse
+from app.services import email_ban_service, recovery_service, user_service
 
 
 # 미리 중복을 확인해 어떤 값이 겹쳤는지 구분된 에러를 돌려준다.
@@ -23,8 +23,10 @@ def _ensure_unique(db: Session, email: str, nickname: str) -> None:
         raise DuplicateNicknameError()
 
 
-def signup(db: Session, data: UserCreate) -> User:
-    """회원가입. 순서: 409 이메일·닉네임 중복 → 400 재가입이 막힌 이메일(강제 탈퇴)."""
+def signup(db: Session, data: UserCreate) -> SignupResponse:
+    """회원가입. 순서: 409 이메일·닉네임 중복 → 400 재가입이 막힌 이메일(강제 탈퇴).
+    복구 코드를 함께 만들어 응답에 한 번만 담는다. 사용자와 코드는 같은 트랜잭션으로 저장한다.
+    """
     _ensure_unique(db, data.email, data.nickname)
     if email_ban_service.is_banned(db, data.email):
         raise BannedEmailError()
@@ -36,6 +38,9 @@ def signup(db: Session, data: UserCreate) -> User:
     )
     db.add(user)
     try:
+        # 코드 행이 사용자 id를 가리키므로 먼저 INSERT해 id를 받는다. 중복이면 여기서 IntegrityError가 난다.
+        db.flush()
+        code, _ = recovery_service.issue(db, user)
         db.commit()
     except IntegrityError:
         # 동시에 같은 값으로 가입하면 위 확인을 둘 다 통과할 수 있다.
@@ -45,7 +50,7 @@ def signup(db: Session, data: UserCreate) -> User:
         raise
     # created_at은 DB가 채우므로 다시 읽어와야 응답에 담을 수 있다.
     db.refresh(user)
-    return user
+    return SignupResponse(**UserResponse.model_validate(user).model_dump(), recovery_code=code)
 
 
 def login(db: Session, data: LoginForm) -> str:

@@ -237,6 +237,11 @@ class NicknameChangeTooSoonError(BadRequestError):
     message = "닉네임은 30일에 한 번만 바꿀 수 있습니다."
 
 
+class InvalidRecoveryCodeError(BadRequestError):
+    # 없는 이메일, 틀린 코드, 코드를 발급받지 않은 계정, 탈퇴한 계정 모두 이 메시지다. (가입 여부를 숨긴다)
+    message = "이메일 또는 복구 코드가 맞지 않습니다."
+
+
 class AdminCannotWithdrawError(BadRequestError):
     # 관리자가 모두 탈퇴하면 신고를 처리할 사람이 없어진다. 관리자 해제는 서버(CLI)에서 한다.
     message = "관리자 계정은 탈퇴할 수 없습니다."
@@ -310,6 +315,10 @@ class MessageRateLimitError(TooManyRequestsError):
 
 class ReportRateLimitError(TooManyRequestsError):
     message = "신고를 너무 많이 하고 있습니다. 잠시 후 다시 시도해 주세요."
+
+
+class PasswordResetRateLimitError(TooManyRequestsError):
+    message = "비밀번호 재설정을 너무 많이 시도했습니다. 잠시 후 다시 시도해 주세요."
 
 
 class ImageUploadRateLimitError(TooManyRequestsError):

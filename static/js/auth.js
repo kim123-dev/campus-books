@@ -6,6 +6,9 @@ import { el, formatMonthDayTime, icon } from "./ui.js";
 
 export const LOGIN_PAGE = "/static/login.html";
 export const SIGNUP_PAGE = "/static/signup.html";
+export const RESET_PASSWORD_PAGE = "/static/reset-password.html";
+// 로그인·가입·재설정 화면끼리는 next를 그대로 넘기고, 이 화면들로는 돌아가지 않는다.
+const AUTH_PAGES = [LOGIN_PAGE, SIGNUP_PAGE, RESET_PASSWORD_PAGE];
 const HOME_PAGE = "/static/index.html";
 const LOGO_IMAGE = "/static/img/logo.png";
 const POST_FORM_PAGE = "/static/post-form.html";
@@ -37,7 +40,7 @@ export function safeNext(raw) {
   }
   if (url.origin !== window.location.origin || !url.pathname.startsWith("/static/")) return HOME_PAGE;
   // 로그인·가입 화면으로 돌아가면 다시 로그인 화면을 보게 되므로 목록으로 보낸다.
-  if (url.pathname === LOGIN_PAGE || url.pathname === SIGNUP_PAGE) return HOME_PAGE;
+  if (AUTH_PAGES.includes(url.pathname)) return HOME_PAGE;
   return url.pathname + url.search + url.hash;
 }
 
@@ -52,10 +55,10 @@ export function authPageUrl(page, extraParams = {}) {
   return `${page}?${params}`;
 }
 
-// 로그인·가입 화면끼리 오갈 때는 그 화면이 받은 next를 그대로 넘긴다.
+// 로그인·가입·재설정 화면끼리 오갈 때는 그 화면이 받은 next를 그대로 넘긴다.
 function currentNext() {
   const { pathname, search, hash } = window.location;
-  if (pathname === LOGIN_PAGE || pathname === SIGNUP_PAGE) return getNextFromUrl();
+  if (AUTH_PAGES.includes(pathname)) return getNextFromUrl();
   return pathname + search + hash;
 }
 

@@ -319,6 +319,15 @@ def test_blocks_page_is_served(client: TestClient) -> None:
     assert "/static/js/pages/blocks.js" in response.text
 
 
+def test_login_links_to_password_reset(client: TestClient) -> None:
+    assert 'href="/static/reset-password.html">비밀번호를 잊으셨나요?</a>' in client.get("/static/login.html").text
+    page = client.get("/static/reset-password.html")
+    assert page.status_code == 200 and "/static/js/pages/reset-password.js" in page.text
+    # 코드를 잃으면 재설정할 수 없다는 안내가 재설정·내 정보·가입 직후(recovery-code.js) 모두에 있다.
+    assert "복구 코드를 잃어버렸다면 재설정할 수 없습니다." in page.text
+    assert "복구 코드를 잃어버리면 비밀번호를 재설정할 수 없어요." in (STATIC_DIR / "js" / "recovery-code.js").read_text(encoding="utf-8")
+
+
 def test_me_page_links_to_blocks(client: TestClient) -> None:
     # 차단 완료 안내가 "내 정보 화면에서 확인·해제"라고 알려주므로 그 화면에 링크가 있어야 한다.
     assert 'href="/static/blocks.html"' in client.get("/static/me.html").text
@@ -344,7 +353,7 @@ STYLE_CSS = STATIC_DIR / "css" / "style.css"
 UI_JS = STATIC_DIR / "js" / "ui.js"
 HTML_FILES = sorted(STATIC_DIR.glob("*.html"))
 # 화면 아래를 따로 쓰는 화면(상세의 연락 바, 대화 입력창, 긴 글쓰기 폼)과 로그인·회원가입은 탭 바를 끈다.
-NO_TAB_BAR_PAGES = {"post.html", "chat.html", "post-form.html", "login.html", "signup.html"}
+NO_TAB_BAR_PAGES = {"post.html", "chat.html", "post-form.html", "login.html", "signup.html", "reset-password.html"}
 
 
 def test_mobile_breakpoint_matches_between_js_and_css() -> None:

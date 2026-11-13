@@ -1,6 +1,8 @@
-// 회원가입 화면: 가입에 성공하면 로그인 화면으로 보낸다. (원래 보던 화면 next는 그대로 넘긴다)
+// 회원가입 화면: 가입에 성공하면 복구 코드를 한 번 보여주고, 저장했다고 확인하면 로그인 화면으로 보낸다.
+// (원래 보던 화면 next는 그대로 넘긴다)
 import { getMe, signup } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, getNextFromUrl, renderHeader } from "../auth.js";
+import { renderRecoveryCode } from "../recovery-code.js";
 import { getToken } from "../token.js";
 import { clearFormErrors, showFormErrors } from "../ui.js";
 
@@ -30,14 +32,32 @@ form.addEventListener("submit", async (event) => {
 
   setSubmitting(true);
   try {
-    await signup({ email: email.value.trim(), password: password.value, nickname: nickname.value });
-    window.location.assign(authPageUrl(LOGIN_PAGE, { joined: "1" }));
+    const { recovery_code: code } = await signup({ email: email.value.trim(), password: password.value, nickname: nickname.value });
+    showRecoveryCode(code);
   } catch (error) {
     // 409(이메일·닉네임 중복)는 서버 메시지를 공통 영역에, 422는 해당 칸 아래에 보여준다.
     showFormErrors(form, errorBox, error);
     setSubmitting(false);
   }
 });
+
+// 가입은 끝났다. 폼을 숨기고 코드를 보여준다. 새로고침하면 코드를 다시 볼 수 없으므로 떠나기 전에 한 번 묻는다.
+function showRecoveryCode(code) {
+  const box = document.getElementById("signup-code");
+  form.hidden = true;
+  document.getElementById("signup-switch").hidden = true;
+  document.querySelector(".page-title").textContent = "가입 완료";
+  const warnBeforeLeave = (event) => event.preventDefault();
+  window.addEventListener("beforeunload", warnBeforeLeave);
+  renderRecoveryCode(box, code, {
+    continueText: "로그인하러 가기",
+    onContinue: () => {
+      window.removeEventListener("beforeunload", warnBeforeLeave);
+      window.location.assign(authPageUrl(LOGIN_PAGE, { joined: "1" }));
+    },
+  });
+  box.hidden = false;
+}
 
 // 이미 로그인한 상태라면 가입 화면 대신 원래 화면으로 보낸다.
 async function redirectIfLoggedIn() {

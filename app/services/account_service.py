@@ -17,7 +17,7 @@ from app.core.exceptions import (
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import NicknameChange, Post, Report, User, UserBlock, UserRole, Wishlist
 from app.schemas.user import NicknameUpdate, PasswordChange, WithdrawRequest
-from app.services import alert_service, image_storage, post_service, user_service
+from app.services import alert_service, image_storage, post_service, recovery_service, user_service
 
 # 닉네임을 자주 바꾸면 거래 상대가 같은 사람인지 알아보기 어렵고, 신고를 피해 이름을 바꿀 수도 있다.
 NICKNAME_CHANGE_INTERVAL = timedelta(days=30)
@@ -84,7 +84,7 @@ def change_password(db: Session, user: User, data: PasswordChange) -> str:
 def withdraw(db: Session, user: User, data: WithdrawRequest) -> None:
     """회원 탈퇴. 순서: 400 관리자 → 400 비밀번호 틀림.
 
-    - 지운다: 내 글(사진 파일 포함), 내 찜, 내가 한·받은 차단, 찾는 교재 조건과 알림, 닉네임 변경 기록
+    - 지운다: 내 글(사진 파일 포함), 내 찜, 내가 한·받은 차단, 찾는 교재 조건과 알림, 닉네임 변경 기록, 복구 코드
     - 남긴다: 쪽지 대화방(상대 화면에는 "탈퇴한 사용자"), 신고 기록(내 id만 비운다)
 
     사용자 행은 지우지 않고 개인정보를 지운 "탈퇴 표시"로 남긴다. 대화방·쪽지가 사용자 id를
@@ -113,6 +113,8 @@ def erase_account(db: Session, user: User) -> list[str]:
     db.execute(delete(Wishlist).where(Wishlist.user_id == user.id))
     # 예전 닉네임도 개인정보라 함께 지운다.
     db.execute(delete(NicknameChange).where(NicknameChange.user_id == user.id))
+    # 복구 코드도 지운다. (이메일이 바뀌어 어차피 쓸 수 없지만 남겨 둘 이유가 없다)
+    recovery_service.delete_for_user(db, user.id)
     alert_service.delete_for_user(db, user.id)
     db.execute(
         delete(UserBlock).where(or_(UserBlock.blocker_id == user.id, UserBlock.blocked_id == user.id))

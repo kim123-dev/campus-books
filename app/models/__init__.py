@@ -7,6 +7,7 @@ from app.models.conversation import Conversation, Message
 from app.models.nickname_change import NicknameChange
 from app.models.post import BookCondition, Post, PostStatus
 from app.models.post_image import MAX_IMAGES_PER_POST, PostImage
+from app.models.recovery import PasswordResetAttempt, RecoveryCode
 from app.models.report import Report, ReportAction, ReportReason, ReportStatus, ReportTargetType
 from app.models.review import Review, ReviewRating
 from app.models.trade import Trade
@@ -26,9 +27,11 @@ __all__ = [
     "Conversation",
     "Message",
     "NicknameChange",
+    "PasswordResetAttempt",
     "Post",
     "PostImage",
     "PostStatus",
+    "RecoveryCode",
     "Report",
     "ReportAction",
     "ReportReason",

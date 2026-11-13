@@ -1,6 +1,6 @@
 // 로그인 화면: 로그인에 성공하면 토큰을 저장하고 원래 보던 화면(next)으로 돌아간다.
 import { getMe, login } from "../api.js";
-import { SIGNUP_PAGE, authPageUrl, getNextFromUrl, renderHeader } from "../auth.js";
+import { RESET_PASSWORD_PAGE, SIGNUP_PAGE, authPageUrl, getNextFromUrl, renderHeader } from "../auth.js";
 import { getToken, setToken } from "../token.js";
 import { clearFormErrors, showFormErrors } from "../ui.js";
 
@@ -10,12 +10,16 @@ const notice = document.getElementById("login-notice");
 const submitButton = form.querySelector('button[type="submit"]');
 const next = getNextFromUrl();
 
-// 가입 화면으로 갔다가 돌아와도 next가 유지되게 한다.
+// 가입·재설정 화면으로 갔다가 돌아와도 next가 유지되게 한다.
 document.getElementById("signup-link").href = authPageUrl(SIGNUP_PAGE);
+document.getElementById("reset-link").href = authPageUrl(RESET_PASSWORD_PAGE);
 
 // 가입 직후에는 안내를 보여준다. 이메일은 주소에 개인정보가 남지 않도록 넘겨받지 않는다.
 if (new URLSearchParams(window.location.search).get("joined") === "1") {
   notice.textContent = "가입이 완료되었습니다. 로그인해 주세요.";
+  notice.hidden = false;
+} else if (new URLSearchParams(window.location.search).get("reset") === "1") {
+  notice.textContent = "비밀번호를 바꿨습니다. 새 비밀번호로 로그인해 주세요.";
   notice.hidden = false;
 }
 

@@ -77,6 +77,12 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
+class SignupResponse(UserResponse):
+    """가입 응답. 복구 코드 원문은 이 응답에 한 번만 담기고 서버에는 해시만 남는다."""
+
+    recovery_code: str
+
+
 class MeResponse(UserResponse):
     """내 정보(/users/me)에만 쓰는 응답. 권한과 정지 상태는 본인에게만 보여준다."""
 
@@ -85,6 +91,8 @@ class MeResponse(UserResponse):
     suspended_until: datetime | None = None
     # 닉네임을 다시 바꿀 수 있는 시각(UTC). 지금 바꿀 수 있으면 null. 화면이 변경 버튼 옆에 안내한다.
     nickname_changeable_at: datetime | None = None
+    # 복구 코드를 발급받은 시각. 없으면 null이고, 화면이 발급을 권한다. 코드 원문은 다시 보여주지 않는다.
+    recovery_code_issued_at: datetime | None = None
 
 
 class LoginForm(BaseModel):
@@ -124,3 +132,41 @@ class WithdrawRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     password: str = Field(min_length=1)
+
+
+class RecoveryCodeIssueRequest(BaseModel):
+    """복구 코드 발급·재발급 요청. 토큰만 훔친 사람이 코드를 만들지 못하게 현재 비밀번호를 받는다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1)
+
+
+class RecoveryCodeResponse(BaseModel):
+    """새 복구 코드. 이 응답에서만 원문을 볼 수 있다."""
+
+    recovery_code: str
+    issued_at: datetime
+
+
+class PasswordResetRequest(BaseModel):
+    """비밀번호 재설정 요청 (로그인하지 않은 상태). 새 비밀번호는 가입 때와 같은 규칙으로 검사한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    # 모양은 서비스가 맞춰 보고(하이픈·공백·소문자 허용), 틀리면 다른 실패와 같은 400으로 돌려준다.
+    recovery_code: str = Field(min_length=1, max_length=64)
+    new_password: NewPassword
+
+    # 가입·로그인과 같은 규칙으로 소문자로 맞춘다.
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.lower()
+
+
+class PasswordResetResponse(BaseModel):
+    """재설정 성공. 쓴 코드는 소모되었으므로 다음에 쓸 새 코드를 한 번 보여준다."""
+
+    recovery_code: str

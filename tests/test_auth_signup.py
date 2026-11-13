@@ -30,6 +30,8 @@ def test_signup_success(client: TestClient) -> None:
     assert body["email"] == "student@campus.ac.kr"
     assert body["nickname"] == "책벌레"
     assert "created_at" in body
+    # 복구 코드는 가입 응답에서만 한 번 볼 수 있다. (tests/test_password_reset.py)
+    assert len(body["recovery_code"]) == 19
     # 비밀번호 관련 값은 응답에 절대 포함되면 안 된다.
     assert "password" not in body
     assert "password_hash" not in body

@@ -371,6 +371,16 @@ export function withdraw(password) {
   return request("/users/me/withdraw", { method: "POST", json: { password } });
 }
 
+/** 복구 코드 발급·재발급. 이전 코드는 바로 무효가 된다. 응답: { recovery_code, issued_at } */
+export function issueRecoveryCode(password) {
+  return request("/users/me/recovery-code", { method: "POST", json: { password } });
+}
+
+/** 복구 코드로 비밀번호 재설정(로그인 없이). 응답: { recovery_code } 다음에 쓸 새 코드 */
+export function resetPassword(data) {
+  return request("/auth/password-reset", { method: "POST", json: data });
+}
+
 // ---------- 찾는 교재 알림 ----------
 
 export function listAlerts() {

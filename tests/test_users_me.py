@@ -58,7 +58,7 @@ def test_me_returns_current_user(client: TestClient, user_id: int, token: str) -
     assert body["email"] == EMAIL
     assert body["nickname"] == "책벌레"
     # role·정지 상태는 내 정보에만 있다. (다른 사용자 응답에는 없음: test_admin_auth.py)
-    assert set(body) == {"id", "email", "nickname", "created_at", "role", "suspended_until", "nickname_changeable_at"}
+    assert set(body) == {"id", "email", "nickname", "created_at", "role", "suspended_until", "nickname_changeable_at", "recovery_code_issued_at"}
     assert (body["role"], body["suspended_until"]) == ("USER", None)
 
 
