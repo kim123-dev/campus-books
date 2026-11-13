@@ -516,7 +516,7 @@ function renderOwnerActions(post) {
     post.status === "SOLD"
       ? el("p", {
           className: "owner-panel__notice",
-          text: "판매 완료된 글은 수정할 수 없어요. 후기가 남기 전이면 판매 중으로 되돌릴 수 있어요.",
+          text: "판매 완료된 글은 수정할 수 없어요. 후기를 남기기 전이면 판매 중으로 되돌릴 수 있어요.",
         })
       : null;
 
@@ -581,7 +581,7 @@ function onSell(post) {
     const info = await getPostBuyer(post.id);
     const updated = await openBuyerDialog({
       heading: "판매 완료로 변경",
-      intro: "후기가 남은 뒤에는 판매 중으로 되돌릴 수 없어요. 거래한 사람은 후기가 남기 전까지 바꿀 수 있어요.",
+      intro: "후기가 남은 뒤에는 판매 중으로 되돌릴 수 없어요. 거래한 사람은 후기를 남기기 전까지 바꿀 수 있어요.",
       candidates: info.candidates,
       currentBuyer: null,
       preselect: false,
@@ -602,7 +602,7 @@ function onChangeBuyer(post, info) {
   runAction(async () => {
     const changed = await openBuyerDialog({
       heading: "구매자 변경",
-      intro: "후기가 남기 전까지만 바꿀 수 있어요. 후기를 쓸 수 있는 기간은 처음 판매 완료한 날부터 계산돼요.",
+      intro: "후기를 남기기 전까지만 바꿀 수 있어요. 후기를 쓸 수 있는 기간은 처음 판매 완료한 날부터 계산돼요.",
       candidates: info.candidates,
       currentBuyer: info.buyer,
       preselect: true,
