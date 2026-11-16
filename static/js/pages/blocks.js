@@ -2,9 +2,10 @@
 // 페이지 번호는 주소창(?page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 페이지가 나오게 하기 위해서다.
 import { listBlocks, unblockUser } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
 import { confirmUnblock } from "../safety.js";
 import { getToken } from "../token.js";
-import { el, formatDateOnly, renderPagination } from "../ui.js";
+import { el, formatDateOnly, renderPagination, setErrorText } from "../ui.js";
 
 const PAGE_SIZE = 20;
 
@@ -31,7 +32,7 @@ async function init() {
     if (!getToken()) {
       redirectToLogin();
     } else {
-      showError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      showError(t("err.network"));
     }
     return;
   }
@@ -49,7 +50,7 @@ function readPage() {
 
 async function load() {
   const requestId = ++latestRequestId;
-  summary.textContent = "불러오는 중…";
+  summary.textContent = t("common.loading");
   listError.hidden = true;
   list.replaceChildren();
   pagination.replaceChildren();
@@ -63,7 +64,7 @@ async function load() {
       redirectToLogin();
       return;
     }
-    showError(error.fieldErrors?.page ?? error.message);
+    showError(error.fieldErrors?.page ?? error.message, error.fieldErrors?.page ? error.fieldOriginals?.page : error.original);
     return;
   }
   if (requestId !== latestRequestId) return;
@@ -73,13 +74,13 @@ async function load() {
 function render({ items, total, page, size }) {
   const totalPages = Math.max(1, Math.ceil(total / size));
   if (total === 0) {
-    summary.textContent = "차단한 사용자가 없습니다.";
+    summary.textContent = t("blocks.empty");
     return;
   }
   summary.textContent =
     items.length === 0
-      ? `이 페이지에는 차단한 사용자가 없습니다. (전체 ${total}명, ${totalPages}페이지까지)`
-      : `총 ${total}명`;
+      ? t("blocks.page_empty", { total, pages: totalPages })
+      : t("blocks.total", { count: total });
   list.replaceChildren(...items.map(renderBlockItem));
   renderPagination(pagination, page, totalPages, goToPage);
 }
@@ -89,8 +90,8 @@ function renderBlockItem({ user, created_at: createdAt }) {
   const button = el("button", {
     type: "button",
     className: "button",
-    text: "차단 해제",
-    attrs: { "aria-label": `${user.nickname}님 차단 해제` },
+    text: t("term.unblock"),
+    attrs: { "aria-label": t("blocks.unblock_aria", { nickname: user.nickname }) },
   });
   button.addEventListener("click", async () => {
     if (!confirmUnblock(user.nickname)) return;
@@ -99,13 +100,13 @@ function renderBlockItem({ user, created_at: createdAt }) {
     try {
       await unblockUser(user.id);
       // 줄을 바로 지우지 않고 "해제됨"으로 남겨, 목록이 갑자기 밀리지 않게 한다.
-      button.replaceWith(el("span", { className: "block-item__done", text: "해제됨" }));
+      button.replaceWith(el("span", { className: "block-item__done", text: t("blocks.unblocked") }));
     } catch (error) {
       if (error.status === 401) {
         redirectToLogin();
         return;
       }
-      status.textContent = error.message;
+      setErrorText(status, error.message, error.original);
       status.hidden = false;
       button.disabled = false;
     }
@@ -118,7 +119,7 @@ function renderBlockItem({ user, created_at: createdAt }) {
       "div",
       { className: "block-item__info" },
       el("p", { className: "block-item__name", text: user.nickname }),
-      el("p", { className: "block-item__meta", text: `${formatDateOnly(createdAt)} 차단` }),
+      el("p", { className: "block-item__meta", text: t("blocks.blocked_on", { date: formatDateOnly(createdAt) }) }),
     ),
     button,
     status,
@@ -131,8 +132,8 @@ function goToPage(page) {
   window.scrollTo({ top: 0 });
 }
 
-function showError(message) {
+function showError(message, original = null) {
   summary.textContent = "";
-  listError.textContent = message;
+  setErrorText(listError, message, original);
   listError.hidden = false;
 }

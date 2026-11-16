@@ -20,6 +20,7 @@ import {
   unblockUser,
 } from "../api.js";
 import { redirectToLogin, refreshUnreadBadge, renderHeader, suspensionText } from "../auth.js";
+import { t } from "../i18n.js";
 import { preparePhoto } from "../photo-resize.js";
 import {
   REPORT_DONE_TEXT,
@@ -39,6 +40,7 @@ import {
   formatMonthDayTime,
   formatShortDate,
   readPostIdFromUrl,
+  setErrorText,
   showBlobImage,
   showFormErrors,
   statusBadge,
@@ -128,12 +130,12 @@ async function init() {
   if (me === null) {
     // renderHeader는 401이면 토큰을 지우고 null을, 서버 연결 실패면 토큰을 남긴 채 null을 돌려준다.
     if (!getToken()) redirectToLogin();
-    else showPageError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    else showPageError(t("err.network"));
     return;
   }
   suspendedText = suspensionText(me);
   if (conversationId === null) {
-    showPageError("대화방 주소가 올바르지 않습니다.");
+    showPageError(t("chat.bad_url"));
     return;
   }
 
@@ -150,8 +152,8 @@ async function init() {
       redirectToLogin();
       return;
     }
-    // 404(없는 방), 403(남의 방)은 서버 메시지를 그대로 보여준다.
-    showPageError(error.message);
+    // 404(없는 방), 403(남의 방)은 서버 메시지를 그대로 보여준다. (다른 언어는 상태 코드별 문장 + 원문)
+    showPageError(error.message, error.original);
     return;
   }
   if (!checkSameAccount()) return;
@@ -168,7 +170,7 @@ async function init() {
   scrollToBottom();
   // 처음 그린 메시지를 모두 읽어 주지 않도록, 그린 뒤에 새 메시지 알림 영역으로 지정한다.
   list.setAttribute("role", "log");
-  list.setAttribute("aria-label", "메시지");
+  list.setAttribute("aria-label", t("chat.log_aria"));
 
   refreshUnreadBadge(); // 방금 읽음 처리된 만큼 헤더 숫자가 줄어든다.
   bindEvents();
@@ -256,10 +258,10 @@ function bindMobileKeyboard() {
 
 function renderChatHeader(conversation) {
   const { partner, post, my_role: role } = conversation;
-  document.title = `${partner.nickname}님과의 쪽지 | Campus Books`; // document.title은 글자로만 처리되어 안전하다.
+  document.title = t("title.chat_with", { nickname: partner.nickname }); // document.title은 글자로만 처리되어 안전하다.
   document.getElementById("chat-partner").textContent = partner.nickname;
 
-  const roleText = role === "BUYER" ? "내가 문의한 글" : "내 글에 온 문의";
+  const roleText = role === "BUYER" ? t("chat.role_buyer") : t("chat.role_seller");
   const postLine = document.getElementById("chat-post");
   if (post) {
     postLine.replaceChildren(
@@ -271,7 +273,7 @@ function renderChatHeader(conversation) {
     // 글이 삭제되어도 대화는 이어 갈 수 있다. (서버가 대화방을 남긴다)
     postLine.replaceChildren(
       el("span", { className: "chat__role", text: roleText }),
-      el("span", { className: "chat__post-deleted", text: "삭제된 글" }),
+      el("span", { className: "chat__post-deleted", text: t("common.post_deleted") }),
     );
   }
 }
@@ -289,16 +291,16 @@ function renderReviewState(conversation) {
     reviewBox.hidden = true;
     return;
   }
-  const profileLink = el("a", { href: `/static/user.html?id=${encodeURIComponent(partner.id)}`, text: "상대 프로필" });
+  const profileLink = el("a", { href: `/static/user.html?id=${encodeURIComponent(partner.id)}`, text: t("chat.partner_profile") });
   if (trade.can_write) {
-    const button = el("button", { type: "button", className: "button button--primary", text: "후기 남기기" });
+    const button = el("button", { type: "button", className: "button button--primary", text: t("review.submit") });
     button.addEventListener("click", () => onWriteReview(conversation));
     reviewBox.replaceChildren(
-      el("span", { className: "chat__review-text", text: `거래 후기를 남겨 주세요 (${formatMonthDayTime(trade.deadline)}까지)` }),
+      el("span", { className: "chat__review-text", text: t("chat.review_prompt", { date: formatMonthDayTime(trade.deadline) }) }),
       button,
     );
   } else {
-    const text = trade.written ? "거래 후기를 남겼어요." : "후기를 남길 수 있는 기간이 지났어요.";
+    const text = trade.written ? t("chat.review_written") : t("chat.review_expired");
     reviewBox.replaceChildren(el("span", { className: "chat__review-text", text }), profileLink);
   }
   reviewBox.hidden = false;
@@ -333,12 +335,12 @@ function applyBlockState(conversation) {
     blockedNotice.textContent = suspendedText;
     blockedNotice.hidden = false;
   } else if (partner.withdrawn) {
-    blockedNotice.textContent = "탈퇴한 사용자에게는 쪽지를 보낼 수 없습니다.";
+    blockedNotice.textContent = t("chat.withdrawn_partner");
     blockedNotice.hidden = false;
   } else {
     blockedNotice.textContent = conversation.blocked_by_me
-      ? "차단한 사용자입니다. 차단을 해제하면 다시 쪽지를 보낼 수 있어요."
-      : "이 사용자에게는 쪽지를 보낼 수 없습니다.";
+      ? t("chat.blocked_by_me")
+      : t("chat.cannot_send");
     blockedNotice.hidden = false;
   }
   textarea.disabled = !canSend;
@@ -350,18 +352,18 @@ function applyBlockState(conversation) {
     return;
   }
 
-  const reportButton = el("button", { type: "button", className: "link-button", text: "신고" });
+  const reportButton = el("button", { type: "button", className: "link-button", text: t("term.report") });
   reportButton.addEventListener("click", async () => {
     const reported = await openReportDialog({
-      heading: "사용자 신고",
-      targetText: `${partner.nickname}님`,
+      heading: t("safety.report_user"),
+      targetText: t("chat.report_target", { nickname: partner.nickname }),
       send: (data) => reportUser(partner.id, data),
     });
     if (reported) showSafetyNotice(REPORT_DONE_TEXT);
   });
   const blockButton = conversation.blocked_by_me
-    ? el("button", { type: "button", className: "link-button", text: "차단 해제" })
-    : el("button", { type: "button", className: "link-button link-button--danger", text: "차단" });
+    ? el("button", { type: "button", className: "link-button", text: t("term.unblock") })
+    : el("button", { type: "button", className: "link-button link-button--danger", text: t("term.block") });
   blockButton.addEventListener("click", () => onToggleBlock(conversation));
   chatActions.replaceChildren(reportButton, blockButton);
 }
@@ -378,7 +380,8 @@ async function onToggleBlock(conversation) {
     else showSafetyNotice(...blockDoneContent());
   } catch (error) {
     if (handleFatalError(error)) return;
-    showSafetyNotice(error.message);
+    setErrorText(safetyNotice, error.message, error.original);
+    safetyNotice.hidden = false;
   }
 }
 
@@ -406,15 +409,15 @@ function checkSameAccount() {
 
   accountChanged = true;
   if (cooldownTimer !== null) window.clearInterval(cooldownTimer);
-  showPageError("다른 탭에서 로그인 상태가 바뀌어 이 대화를 멈췄습니다. 새로고침하면 지금 로그인한 계정으로 다시 열립니다.");
+  showPageError(t("chat.account_changed"));
   return false;
 }
 
-function showPageError(message) {
+function showPageError(message, original = null) {
   stopPolling();
   pageStatus.hidden = true;
   chat.hidden = true;
-  pageErrorText.textContent = message;
+  setErrorText(pageErrorText, message, original);
   pageError.hidden = false;
 }
 
@@ -449,7 +452,7 @@ function renderMessage(message) {
     "li",
     { className: `message ${message.is_mine ? "message--mine" : "message--theirs"}` },
     // 말풍선 위치만으로는 누가 보냈는지 알 수 없는 화면 낭독기 사용자를 위해 글자로 붙인다.
-    el("span", { className: "visually-hidden", text: message.is_mine ? "나: " : "상대: " }),
+    el("span", { className: "visually-hidden", text: message.is_mine ? t("common.me_prefix") : t("chat.them_prefix") }),
     // 상대 메시지에만 "⋯"(이 메시지 신고)를 둔다. 내 메시지는 서버도 신고를 400으로 막는다.
     message.is_mine ? body : el("div", { className: "message__row" }, body, messageMenuButton(message)),
     el("time", {
@@ -466,11 +469,11 @@ function renderMessage(message) {
 
 /** 사진 썸네일 자리. 누르면 큰 사진을 연다. 그림은 화면에 보일 때 photoObserver가 받아 넣는다. */
 function renderPhoto(message) {
-  const img = el("img", { className: "message__photo-img", attrs: { alt: "사진", width: "200", height: "200" } });
+  const img = el("img", { className: "message__photo-img", attrs: { alt: t("term.photo"), width: "200", height: "200" } });
   const button = el("button", {
     type: "button",
     className: "message__photo",
-    attrs: { "aria-label": `${message.is_mine ? "내가" : "상대가"} 보낸 사진 크게 보기` },
+    attrs: { "aria-label": message.is_mine ? t("chat.photo_open_mine") : t("chat.photo_open_theirs") },
   }, img);
   button.dataset.messageId = String(message.id);
   button.addEventListener("click", () => openPhotoViewer(message.id, button));
@@ -489,16 +492,16 @@ async function loadThumbnail(button) {
   const shown = await showBlobImage(img, () => fetchMessageImage(button.dataset.messageId, "thumb"));
   if (!shown) {
     button.classList.add("is-failed");
-    img.alt = "사진을 불러오지 못했어요";
+    img.alt = t("chat.photo_failed_alt");
   }
 }
 
 /** 큰 사진 보기. 신고 창과 같은 <dialog>라 Esc·닫기 버튼으로 닫히고, 닫으면 누른 사진으로 초점이 돌아간다. */
 function openPhotoViewer(messageId, opener) {
-  const img = el("img", { className: "photo-viewer__img", attrs: { alt: "사진" } });
-  const status = el("p", { className: "photo-viewer__status", text: "불러오는 중…", attrs: { role: "status" } });
-  const close = el("button", { type: "button", className: "button photo-viewer__close", text: "닫기" });
-  const dialog = el("dialog", { className: "photo-viewer", attrs: { "aria-label": "사진 크게 보기" } }, img, status, close);
+  const img = el("img", { className: "photo-viewer__img", attrs: { alt: t("term.photo") } });
+  const status = el("p", { className: "photo-viewer__status", text: t("common.loading"), attrs: { role: "status" } });
+  const close = el("button", { type: "button", className: "button photo-viewer__close", text: t("common.close") });
+  const dialog = el("dialog", { className: "photo-viewer", attrs: { "aria-label": t("chat.viewer_aria") } }, img, status, close);
   close.addEventListener("click", () => dialog.close());
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
@@ -514,7 +517,7 @@ function openPhotoViewer(messageId, opener) {
   dialog.showModal();
   close.focus();
   showBlobImage(img, () => fetchMessageImage(messageId, "full")).then((shown) => {
-    if (!shown) status.textContent = "사진을 불러오지 못했어요.";
+    if (!shown) status.textContent = t("chat.photo_failed");
   });
 }
 
@@ -523,16 +526,19 @@ function messageMenuButton(message) {
     type: "button",
     className: "message__menu",
     text: "⋯",
-    attrs: { "aria-label": "이 메시지 메뉴", "aria-haspopup": "dialog" },
+    attrs: { "aria-label": t("chat.menu_aria"), "aria-haspopup": "dialog" },
   });
   button.addEventListener("click", async () => {
-    const choice = await openActionMenu({ heading: "상대가 보낸 메시지", items: [{ key: "report", label: "이 메시지 신고", danger: true }] });
+    const choice = await openActionMenu({
+      heading: t("chat.menu_heading"),
+      items: [{ key: "report", label: t("chat.report_message"), danger: true }],
+    });
     if (choice === "report") {
       // 신고 창에 어떤 메시지인지 앞부분을 보여준다. 길면 줄여서 창이 커지지 않게 한다.
       const preview = message.content.length > 40 ? `${message.content.slice(0, 40)}…` : message.content;
-      const photo = message.has_image ? "사진 메시지" : "";
+      const photo = message.has_image ? t("chat.photo_message") : "";
       const reported = await openReportDialog({
-        heading: "메시지 신고",
+        heading: t("chat.report_message_heading"),
         targetText: [photo, preview ? `“${preview}”` : ""].filter(Boolean).join(" · "),
         send: (data) => reportMessage(message.id, data),
       });
@@ -584,7 +590,7 @@ async function loadOlder() {
     hasOlder = data.has_more;
     scrollBox.scrollTop = previousTop + (scrollBox.scrollHeight - previousHeight);
   } catch (error) {
-    if (!handleFatalError(error)) showConnection("이전 메시지를 불러오지 못했습니다. 다시 시도해 주세요.");
+    if (!handleFatalError(error)) showConnection(t("chat.older_failed"));
   } finally {
     loadingOlder = false;
     updateOlderButton();
@@ -594,7 +600,7 @@ async function loadOlder() {
 function updateOlderButton() {
   olderButton.hidden = !hasOlder;
   olderButton.disabled = loadingOlder;
-  olderButton.textContent = loadingOlder ? "불러오는 중…" : "이전 메시지 보기";
+  olderButton.textContent = loadingOlder ? t("common.loading") : t("chat.older");
 }
 
 // ---------- 새 메시지 확인 (폴링) ----------
@@ -635,7 +641,7 @@ async function poll() {
     if (data.has_more && afterId !== null) nextDelay = 0;
   } catch (error) {
     if (handleFatalError(error)) return;
-    showConnection("연결이 불안정합니다. 잠시 후 다시 확인합니다.");
+    showConnection(t("chat.unstable"));
     nextDelay = POLL_RETRY_INTERVAL_MS;
   } finally {
     pollInFlight = false;
@@ -660,7 +666,7 @@ function handleFatalError(error) {
     return true;
   }
   if (error.status === 403 || error.status === 404) {
-    showPageError(error.message);
+    showPageError(error.message, error.original);
     return true;
   }
   return false;
@@ -715,12 +721,12 @@ async function onPhotoChosen() {
   if (!checkSameAccount()) return;
 
   clearFormErrors(form, sendError);
-  setSending(true, "사진 준비 중…");
+  setSending(true, t("chat.photo_preparing"));
   try {
     // 휴대폰 원본은 브라우저에서 먼저 줄인다. (판매글 사진과 같은 방법)
     const prepared = await preparePhoto(file);
     if (prepared.file.size > MAX_PHOTO_BYTES) {
-      sendError.textContent = "사진은 한 장에 25MB까지 보낼 수 있습니다.";
+      sendError.textContent = t("chat.photo_too_big");
       sendError.hidden = false;
       return;
     }
@@ -748,7 +754,7 @@ function handleSendError(error) {
   if (handleFatalError(error)) return;
   if (error.status === 429) {
     // 입력한 내용은 그대로 두고, 다시 보낼 수 있을 때까지 버튼을 잠근다.
-    startCooldown(error.retryAfter ?? DEFAULT_RETRY_SECONDS, error.message);
+    startCooldown(error.retryAfter ?? DEFAULT_RETRY_SECONDS, error);
   } else {
     // 422(빈 내용, 1000자 초과, 사진 형식)는 입력칸 아래나 폼 아래에, 그 밖에는 폼 아래에 보여준다.
     showFormErrors(form, sendError, error);
@@ -761,8 +767,8 @@ function handleSendError(error) {
 function setSending(isSending, photoText = null) {
   sending = isSending;
   updateSendButtons();
-  submitButton.textContent = isSending && photoText === null ? "보내는 중…" : "보내기";
-  photoButton.textContent = isSending && photoText !== null ? photoText : "사진";
+  submitButton.textContent = isSending && photoText === null ? t("chat.sending") : t("chat.send");
+  photoButton.textContent = isSending && photoText !== null ? photoText : t("term.photo");
 }
 
 function updateSendButtons() {
@@ -771,11 +777,11 @@ function updateSendButtons() {
   photoButton.disabled = locked;
 }
 
-/** 429: 서버 메시지와 남은 시간을 보여주고, 시간이 지나면 다시 보낼 수 있게 한다. */
-function startCooldown(seconds, message) {
+/** 429: 서버 메시지와 남은 시간을 보여주고, 시간이 지나면 다시 보낼 수 있게 한다. (다른 언어는 원문을 아래에 붙인다) */
+function startCooldown(seconds, error) {
   let remaining = Math.max(1, Math.ceil(seconds));
   const render = () => {
-    sendError.textContent = `${message} (${remaining}초 후 다시 보낼 수 있어요)`;
+    setErrorText(sendError, t("chat.cooldown", { message: error.message, count: remaining }), error.original);
     sendError.hidden = false;
   };
   render();

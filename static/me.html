@@ -6,6 +6,7 @@
     <!-- 화면 언어를 그리기 전에 정한다(<html lang>, 깜빡임 방지). 모듈보다 먼저 실행되는 일반 스크립트 -->
     <script src="/static/js/lang-boot.js"></script>
     <title>내 정보 | Campus Books</title>
+    <meta name="i18n-title" content="title.me" />
     <link rel="stylesheet" href="/static/css/style.css" />
     <!-- 홈 화면 앱(PWA): 앱 정보·아이콘, 아이폰 홈 화면 아이콘과 이름, 서비스 워커 등록 -->
     <meta name="theme-color" content="#5b3fd6" />
@@ -23,99 +24,98 @@
     <header id="site-header" class="site-header"></header>
 
     <main class="container">
-      <h1 class="page-title">내 정보</h1>
+      <h1 class="page-title" data-i18n="term.me">내 정보</h1>
 
       <!-- 내 정보는 헤더가 받아 온 /users/me 결과로 채운다. 매너 학점는 공개 프로필 API에서 받는다. -->
-      <section id="profile" class="card profile-card" aria-label="내 정보" hidden>
+      <section id="profile" class="card profile-card" aria-label="내 정보" data-i18n-attr="aria-label:term.me" hidden>
         <div class="profile-card__info">
           <p id="profile-nickname" class="profile-card__nickname"></p>
           <p id="profile-meta" class="profile-card__meta"></p>
           <p id="profile-manner" class="profile-card__meta"></p>
-          <p class="profile-card__link"><a id="profile-public-link" href="/static/user.html">내 공개 프로필 보기</a></p>
+          <p class="profile-card__link"><a id="profile-public-link" data-i18n="me.public_profile" href="/static/user.html">내 공개 프로필 보기</a></p>
         </div>
         <div class="profile-card__actions">
-          <a class="button" href="/static/alerts.html">찾는 교재 알림</a>
-          <a class="button" href="/static/blocks.html">차단 목록</a>
+          <a class="button" data-i18n="term.book_alerts" href="/static/alerts.html">찾는 교재 알림</a>
+          <a class="button" data-i18n="term.block_list" href="/static/blocks.html">차단 목록</a>
         </div>
       </section>
 
       <!-- 계정 관리. 버튼을 누르면 해당 폼이 펼쳐진다. 한 번에 하나만 열린다. -->
-      <section id="account" class="card account-card" aria-label="계정 관리" hidden>
+      <section id="account" class="card account-card" aria-label="계정 관리" data-i18n-attr="aria-label:me.account_aria" hidden>
         <div class="account-card__buttons">
-          <button id="nickname-toggle" type="button" class="button" aria-expanded="false" aria-controls="nickname-form">
+          <button id="nickname-toggle" type="button" class="button" aria-expanded="false" aria-controls="nickname-form" data-i18n="me.change_nickname">
             닉네임 변경
           </button>
-          <button id="password-toggle" type="button" class="button" aria-expanded="false" aria-controls="password-form">
+          <button id="password-toggle" type="button" class="button" aria-expanded="false" aria-controls="password-form" data-i18n="me.change_password">
             비밀번호 변경
           </button>
-          <button id="question-toggle" type="button" class="button" aria-expanded="false" aria-controls="question-form">
+          <button id="question-toggle" type="button" class="button" aria-expanded="false" aria-controls="question-form" data-i18n="term.security_question">
             본인 확인 질문
           </button>
-          <button id="withdraw-toggle" type="button" class="button button--danger" aria-expanded="false" aria-controls="withdraw-form">
+          <button id="withdraw-toggle" type="button" class="button button--danger" aria-expanded="false" aria-controls="withdraw-form" data-i18n="term.withdraw">
             회원 탈퇴
           </button>
         </div>
-        <p class="account-card__notice">이메일은 로그인 ID라 바꿀 수 없어요.</p>
+        <p class="account-card__notice" data-i18n="me.email_fixed">이메일은 로그인 ID라 바꿀 수 없어요.</p>
         <!-- 본인 확인 질문이 없으면 등록을 권한다. 질문이 없으면 비밀번호를 잊었을 때 재설정할 수 없다. -->
         <p id="question-status" class="account-card__notice"></p>
         <p id="account-notice" class="account-card__notice" role="status" hidden></p>
 
         <form id="nickname-form" class="account-form" novalidate hidden>
           <div class="field">
-            <label for="nickname">새 닉네임</label>
+            <label for="nickname" data-i18n="me.new_nickname">새 닉네임</label>
             <input id="nickname" name="nickname" type="text" autocomplete="nickname" minlength="2" maxlength="30" aria-describedby="nickname-hint" required />
-            <p id="nickname-hint" class="field-hint">2~30자 · 30일에 한 번 바꿀 수 있어요.</p>
+            <p id="nickname-hint" class="field-hint" data-i18n="me.nickname_hint">2~30자 · 30일에 한 번 바꿀 수 있어요.</p>
             <p class="field-error" data-error-for="nickname" hidden></p>
           </div>
           <p class="form-error" role="alert" hidden></p>
-          <button type="submit" class="button button--primary">변경하기</button>
+          <button type="submit" class="button button--primary" data-i18n="me.change_submit">변경하기</button>
         </form>
 
         <form id="password-form" class="account-form" novalidate hidden>
           <div class="field">
-            <label for="current-password">현재 비밀번호</label>
+            <label for="current-password" data-i18n="me.current_password">현재 비밀번호</label>
             <input id="current-password" name="current_password" type="password" autocomplete="current-password" required />
             <p class="field-error" data-error-for="current_password" hidden></p>
           </div>
           <div class="field">
-            <label for="new-password">새 비밀번호</label>
+            <label for="new-password" data-i18n="field.new_password">새 비밀번호</label>
             <input id="new-password" name="new_password" type="password" autocomplete="new-password" aria-describedby="new-password-hint" required />
-            <p id="new-password-hint" class="field-hint">8~64자</p>
+            <p id="new-password-hint" class="field-hint" data-i18n="field.password_hint">8~64자</p>
             <p class="field-error" data-error-for="new_password" hidden></p>
           </div>
           <div class="field">
-            <label for="new-password-confirm">새 비밀번호 확인</label>
+            <label for="new-password-confirm" data-i18n="field.new_password_confirm">새 비밀번호 확인</label>
             <input id="new-password-confirm" name="new_password_confirm" type="password" autocomplete="new-password" required />
             <p class="field-error" data-error-for="new_password_confirm" hidden></p>
           </div>
           <p class="form-error" role="alert" hidden></p>
-          <button type="submit" class="button button--primary">변경하기</button>
+          <button type="submit" class="button button--primary" data-i18n="me.change_submit">변경하기</button>
         </form>
 
         <form id="question-form" class="account-form" novalidate hidden>
-          <p class="field-hint">비밀번호를 잊었을 때 이 질문의 답으로 재설정해요. 새로 정하면 예전 질문과 답은 바로 쓸 수 없게 됩니다.</p>
+          <p class="field-hint" data-i18n="me.question_intro">비밀번호를 잊었을 때 이 질문의 답으로 재설정해요. 새로 정하면 예전 질문과 답은 바로 쓸 수 없게 됩니다.</p>
           <div class="field">
-            <label for="question-password">현재 비밀번호</label>
+            <label for="question-password" data-i18n="me.current_password">현재 비밀번호</label>
             <input id="question-password" name="password" type="password" autocomplete="current-password" required />
             <p class="field-error" data-error-for="password" hidden></p>
           </div>
           <div id="question-fields"></div>
           <p class="form-error" role="alert" hidden></p>
-          <button type="submit" class="button button--primary">저장하기</button>
+          <button type="submit" class="button button--primary" data-i18n="form.save">저장하기</button>
         </form>
 
         <form id="withdraw-form" class="account-form" novalidate hidden>
-          <p class="field-hint">
-            탈퇴하면 내 글과 사진, 찜, 차단 목록이 모두 삭제되고 되돌릴 수 없습니다.
-            주고받은 쪽지는 상대방에게 "탈퇴한 사용자"로 남습니다.
+          <p class="field-hint" data-i18n="me.withdraw_intro">
+            탈퇴하면 내 글과 사진, 찜, 차단 목록이 모두 삭제되고 되돌릴 수 없습니다. 주고받은 쪽지는 상대방에게 "탈퇴한 사용자"로 남습니다.
           </p>
           <div class="field">
-            <label for="withdraw-password">비밀번호 확인</label>
+            <label for="withdraw-password" data-i18n="field.password_confirm">비밀번호 확인</label>
             <input id="withdraw-password" name="password" type="password" autocomplete="current-password" required />
             <p class="field-error" data-error-for="password" hidden></p>
           </div>
           <p class="form-error" role="alert" hidden></p>
-          <button type="submit" class="button button--danger">탈퇴하기</button>
+          <button type="submit" class="button button--danger" data-i18n="me.withdraw_submit">탈퇴하기</button>
         </form>
       </section>
 
@@ -126,18 +126,18 @@
       </section>
 
       <!-- 내 글과 찜 목록. 고른 탭과 페이지는 주소(?tab=wishlist&page=2)에 남겨 새로고침·뒤로 가기에도 그대로 나온다. -->
-      <nav id="me-tabs" class="tabs me-tabs" aria-label="내 목록" hidden>
-        <a class="tabs__item" data-tab="posts" href="?tab=posts">내 글</a>
-        <a class="tabs__item" data-tab="wishlist" href="?tab=wishlist">찜 목록</a>
+      <nav id="me-tabs" class="tabs me-tabs" aria-label="내 목록" data-i18n-attr="aria-label:me.tabs_aria" hidden>
+        <a class="tabs__item" data-tab="posts" data-i18n="me.tab_posts" href="?tab=posts">내 글</a>
+        <a class="tabs__item" data-tab="wishlist" data-i18n="me.tab_wishlist" href="?tab=wishlist">찜 목록</a>
       </nav>
 
-      <p id="result-summary" class="result-summary" aria-live="polite">불러오는 중…</p>
+      <p id="result-summary" class="result-summary" aria-live="polite" data-i18n="common.loading">불러오는 중…</p>
       <p id="list-error" class="form-error" role="alert" hidden></p>
 
       <p id="empty-actions" class="empty-actions" hidden></p>
 
       <ul id="post-list" class="post-list"></ul>
-      <nav id="pagination" class="pagination" aria-label="페이지 이동"></nav>
+      <nav id="pagination" class="pagination" aria-label="페이지 이동" data-i18n-attr="aria-label:common.pagination_aria"></nav>
     </main>
   </body>
 </html>

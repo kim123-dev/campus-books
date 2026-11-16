@@ -18,7 +18,9 @@ import {
   renderEmptyState,
   renderPagination,
   renderPostCard,
+  setErrorText,
   showFormErrors,
+  withContextMessage,
 } from "../ui.js";
 import { createWishlistButton } from "../wishlist-button.js";
 
@@ -28,17 +30,17 @@ const PAGE_SIZE = 10; // 목록 화면과 같게 맞춘다. (서버 기본값은
 const TAB_CONFIG = {
   posts: {
     load: listMyPosts,
-    emptyText: "아직 작성한 글이 없습니다.",
+    emptyText: t("me.empty_posts"),
     emptyImage: EMPTY_POSTS_IMAGE,
-    emptyAction: { href: "/static/post-form.html", text: "첫 글 쓰기" },
+    emptyAction: { href: "/static/post-form.html", text: t("me.first_post") },
     // 모두 내 글이라 찜 하트를 두지 않는다. (서버도 내 글 찜을 400으로 막는다)
     action: () => null,
   },
   wishlist: {
     load: listWishlist,
-    emptyText: "아직 찜한 글이 없습니다. 마음에 드는 교재에서 하트를 눌러 보세요.",
+    emptyText: t("me.empty_wishlist"),
     emptyImage: EMPTY_WISHLIST_IMAGE,
-    emptyAction: { href: "/static/index.html", text: "교재 둘러보기" },
+    emptyAction: { href: "/static/index.html", text: t("common.browse_books") },
     // 해제한 카드를 바로 지우지 않는다. 실수로 눌렀을 때 다시 찜할 수 있고, 목록이 갑자기 밀리지 않는다.
     action: (post) => createWishlistButton(post, { className: "wish-button--card" }),
   },
@@ -72,7 +74,7 @@ async function init() {
     if (!getToken()) {
       redirectToLogin();
     } else {
-      showError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      showError(t("err.network"));
     }
     return;
   }
@@ -90,17 +92,17 @@ async function init() {
 // ---------- 내 정보 ----------
 
 function renderProfile(me) {
-  document.getElementById("profile-nickname").textContent = `${me.nickname}님`;
+  document.getElementById("profile-nickname").textContent = t("me.nickname", { nickname: me.nickname });
   // 가입일은 날짜만 보여준다.
-  document.getElementById("profile-meta").textContent = `${me.email} · ${formatDateOnly(me.created_at)} 가입`;
+  document.getElementById("profile-meta").textContent = t("me.meta", { email: me.email, date: formatDateOnly(me.created_at) });
   document.getElementById("profile-public-link").href = `/static/user.html?id=${encodeURIComponent(me.id)}`;
   // 모바일에서는 헤더 메뉴 대신 하단 탭 바를 쓰므로, 헤더에 있던 "관리"·"로그아웃"을 이 화면에 둔다.
   // PC에서는 헤더에 그대로 있으므로 CSS(mobile-only)가 숨긴다.
   const actions = profile.querySelector(".profile-card__actions");
   if (me.role === "ADMIN") {
-    actions.append(el("a", { className: "button mobile-only", href: "/static/admin-dashboard.html", text: "관리" }));
+    actions.append(el("a", { className: "button mobile-only", href: "/static/admin-dashboard.html", text: t("term.admin") }));
   }
-  const logoutButton = el("button", { type: "button", className: "button mobile-only", text: "로그아웃" });
+  const logoutButton = el("button", { type: "button", className: "button mobile-only", text: t("term.logout") });
   logoutButton.addEventListener("click", logout);
   actions.append(logoutButton);
   profile.hidden = false;
@@ -119,9 +121,9 @@ async function loadManner(userId) {
 }
 
 function mannerText({ good, bad, total, gpa, grade }) {
-  const score = `매너 학점: ${gpa.toFixed(1)} / 4.5 (${grade})`;
+  const manner = t("me.manner", { score: `${gpa.toFixed(1)} / 4.5 (${grade})` });
   // 후기가 없으면 기본 학점(3.5, B+)이다.
-  return total === 0 ? `${score} · 아직 받은 거래 후기가 없어요.` : `${score} · 좋아요 ${good} · 아쉬워요 ${bad}`;
+  return total === 0 ? t("me.manner_none", { manner }) : t("me.manner_counts", { manner, good, bad });
 }
 
 // ---------- 계정 관리: 닉네임 변경·비밀번호 변경·본인 확인 질문·회원 탈퇴 ----------
@@ -174,7 +176,7 @@ function setUpAccount(me) {
     clearFormErrors(nicknameForm, errorBox);
     const nickname = nicknameForm.elements.nickname.value.trim();
     if (nickname.length < 2) {
-      showFormErrors(nicknameForm, errorBox, { fieldErrors: { nickname: "닉네임은 2자 이상이어야 합니다." } });
+      showFormErrors(nicknameForm, errorBox, { fieldErrors: { nickname: t("me.nickname_too_short") } });
       return;
     }
     const submit = nicknameForm.querySelector("[type=submit]");
@@ -182,18 +184,24 @@ function setUpAccount(me) {
     try {
       const updated = await updateMe({ nickname });
       // 헤더(PC의 "○○님")는 다음 화면부터 새 이름이 나온다. 이 화면의 카드는 바로 바꾼다.
-      document.getElementById("profile-nickname").textContent = `${updated.nickname}님`;
+      document.getElementById("profile-nickname").textContent = t("me.nickname", { nickname: updated.nickname });
       updateNicknameHint(updated);
-      close(nicknameForm, `닉네임을 "${updated.nickname}"(으)로 바꿨습니다.`);
+      close(nicknameForm, t("me.nickname_changed", { nickname: updated.nickname }));
     } catch (error) {
       if (error.status === 401) {
         redirectToLogin();
         return;
       }
-      // 중복(409)·30일 제한(400)·형식(422)은 모두 닉네임 칸 아래에 보여준다.
-      const message = error.fieldErrors?.nickname ?? (error.status === 400 || error.status === 409 ? error.message : null);
-      if (message) showFormErrors(nicknameForm, errorBox, { fieldErrors: { nickname: message } });
-      else showFormErrors(nicknameForm, errorBox, error);
+      // 중복(409)·30일 제한(400)·형식(422)은 모두 닉네임 칸 아래에 보여준다. (다른 언어는 원문을 아래에 붙인다)
+      // 400은 30일 제한과 "지금 닉네임과 같음" 두 가지라 상태 코드별 문장을, 409는 중복뿐이라 맞춤 문장을 쓴다.
+      if (error.fieldErrors?.nickname) {
+        showFormErrors(nicknameForm, errorBox, error);
+      } else if (error.status === 400 || error.status === 409) {
+        const { message, original } = error.status === 409 ? withContextMessage(error, "me.nickname_taken") : error;
+        showFormErrors(nicknameForm, errorBox, { fieldErrors: { nickname: message }, fieldOriginals: { nickname: original } });
+      } else {
+        showFormErrors(nicknameForm, errorBox, error);
+      }
     } finally {
       submit.disabled = false;
     }
@@ -205,7 +213,7 @@ function setUpAccount(me) {
     clearFormErrors(passwordForm, errorBox);
     const { current_password: current, new_password: next, new_password_confirm: confirm } = passwordForm.elements;
     if (next.value !== confirm.value) {
-      showFormErrors(passwordForm, errorBox, { fieldErrors: { new_password_confirm: "새 비밀번호가 일치하지 않습니다." } });
+      showFormErrors(passwordForm, errorBox, { fieldErrors: { new_password_confirm: t("reset.password_mismatch") } });
       return;
     }
     const submit = passwordForm.querySelector("[type=submit]");
@@ -214,7 +222,7 @@ function setUpAccount(me) {
       const { access_token: token } = await changePassword(current.value, next.value);
       // 서버가 변경 전 토큰을 모두 무효로 만들었으므로, 받은 새 토큰으로 바로 바꿔 이 기기의 로그인을 유지한다.
       setToken(token);
-      close(passwordForm, "비밀번호를 변경했습니다. 다른 기기에서는 다시 로그인해야 합니다.");
+      close(passwordForm, t("me.password_changed"));
     } catch (error) {
       if (error.status === 401) {
         redirectToLogin();
@@ -232,12 +240,12 @@ function setUpAccount(me) {
     clearFormErrors(withdrawForm, errorBox);
     const password = withdrawForm.elements.password;
     if (password.value === "") {
-      showFormErrors(withdrawForm, errorBox, { fieldErrors: { password: "비밀번호를 입력해 주세요." } });
+      showFormErrors(withdrawForm, errorBox, { fieldErrors: { password: t("me.password_required") } });
       return;
     }
     // 되돌릴 수 없는 작업이라 실수로 누르지 않게 두 번 묻는다.
-    if (!window.confirm("정말 탈퇴할까요? 내 글과 사진, 찜, 차단 목록이 모두 삭제됩니다.")) return;
-    if (!window.confirm("탈퇴하면 되돌릴 수 없습니다. 마지막으로 확인할게요. 탈퇴할까요?")) return;
+    if (!window.confirm(t("me.confirm_withdraw"))) return;
+    if (!window.confirm(t("me.confirm_withdraw_final"))) return;
 
     const submit = withdrawForm.querySelector("[type=submit]");
     submit.disabled = true;
@@ -253,7 +261,7 @@ function setUpAccount(me) {
       return;
     }
     clearToken();
-    window.alert("탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
+    window.alert(t("me.withdrawn"));
     window.location.replace("/static/index.html");
   });
 }
@@ -278,7 +286,7 @@ function setUpSecurityQuestion(me, { form, toggle, open, close }) {
     clearFormErrors(form, errorBox);
     const password = form.elements.password;
     if (password.value === "") {
-      showFormErrors(form, errorBox, { fieldErrors: { password: "비밀번호를 입력해 주세요." } });
+      showFormErrors(form, errorBox, { fieldErrors: { password: t("me.password_required") } });
       return;
     }
     const questionErrors = fields.check();
@@ -293,7 +301,7 @@ function setUpSecurityQuestion(me, { form, toggle, open, close }) {
       fields.reset();
       current = updated;
       updateQuestionStatus(updated);
-      close(form, "본인 확인 질문을 저장했어요.");
+      close(form, t("me.question_saved"));
     } catch (error) {
       if (error.status === 401) {
         redirectToLogin();
@@ -323,28 +331,30 @@ function questionChangeLocked(me) {
 function updateQuestionStatus(me) {
   const status = document.getElementById("question-status");
   if (!me.security_question) {
-    status.textContent = '아직 본인 확인 질문이 없어요. "본인 확인 질문"을 눌러 등록해 두세요. 질문이 없으면 비밀번호를 잊었을 때 재설정할 수 없어요.';
+    status.textContent = t("me.question_missing");
     status.classList.add("account-card__notice--warning");
     return;
   }
   status.classList.remove("account-card__notice--warning");
+  // 질문 문장은 서버가 저장한 한국어 원문 그대로다. (고른 질문도 문장으로 저장된다)
   const lock = me.security_question_changeable_at
-    ? ` 질문으로 비밀번호가 재설정돼서 ${formatMonthDayTime(me.security_question_changeable_at)}부터 바꿀 수 있어요.`
+    ? ` ${t("me.question_locked", { date: formatMonthDayTime(me.security_question_changeable_at) })}`
     : "";
-  status.textContent = `본인 확인 질문: ${me.security_question}${lock}`;
+  status.textContent = `${t("me.question_current", { question: me.security_question })}${lock}`;
 }
 
 // 30일 안에 이미 바꿨으면 언제부터 다시 바꿀 수 있는지 미리 알려준다. (눌러 보고 400을 받기 전에)
 function updateNicknameHint(me) {
   document.getElementById("nickname-hint").textContent = me.nickname_changeable_at
-    ? `2~30자 · ${formatMonthDayTime(me.nickname_changeable_at)}부터 다시 바꿀 수 있어요.`
-    : "2~30자 · 30일에 한 번 바꿀 수 있어요.";
+    ? t("me.nickname_hint_until", { date: formatMonthDayTime(me.nickname_changeable_at) })
+    : t("me.nickname_hint");
 }
 
 // 비밀번호가 틀리면(400) 공통 영역 대신 비밀번호 칸 아래에 보여준다.
+// 비밀번호 변경·탈퇴의 400은 비밀번호 틀림뿐이라(관리자 탈퇴는 버튼이 없다) 그 문장으로 바꾼다. (한국어는 서버 문장과 같다)
 function showPasswordError(form, errorBox, error, field) {
   if (error.status === 400) {
-    showFormErrors(form, errorBox, { fieldErrors: { [field]: error.message } });
+    showFormErrors(form, errorBox, { fieldErrors: { [field]: t("err.wrong_password") } });
   } else {
     showFormErrors(form, errorBox, error);
   }
@@ -397,7 +407,7 @@ async function load() {
   const requestId = ++latestRequestId;
   const { tab, page } = readState();
   markCurrentTab(tab);
-  summary.textContent = "불러오는 중…";
+  summary.textContent = t("common.loading");
   listError.hidden = true;
   emptyActions.hidden = true;
   list.replaceChildren();
@@ -413,8 +423,8 @@ async function load() {
       redirectToLogin();
       return;
     }
-    // 422(잘못된 page)는 필드 메시지를, 그 밖에는 서버 메시지를 보여준다.
-    showError(error.fieldErrors?.page ?? error.message);
+    // 422(잘못된 page)는 필드 메시지를, 그 밖에는 서버 메시지를 보여준다. (다른 언어는 원문을 아래에 붙인다)
+    showError(error.fieldErrors?.page ?? error.message, error.fieldErrors?.page ? error.fieldOriginals?.page : error.original);
     return;
   }
   if (requestId !== latestRequestId) return;
@@ -434,8 +444,8 @@ function render(tab, { items, total, page, size }) {
 
   summary.textContent =
     items.length === 0
-      ? `이 페이지에는 글이 없습니다. (전체 ${total}개, ${totalPages}페이지까지)`
-      : `총 ${total}개`;
+      ? t("home.page_empty", { total, pages: totalPages })
+      : t("home.total", { count: total });
   list.replaceChildren(...items.map((post) => renderPostCard(post, { action: config.action(post) })));
   renderPagination(pagination, page, totalPages, (next) => goToPage(tab, next));
 }
@@ -447,8 +457,8 @@ function goToPage(tab, page) {
   tabs.scrollIntoView({ block: "start" });
 }
 
-function showError(message) {
+function showError(message, original = null) {
   summary.textContent = "";
-  listError.textContent = message;
+  setErrorText(listError, message, original);
   listError.hidden = false;
 }

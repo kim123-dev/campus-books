@@ -8,6 +8,7 @@ import {
   markAllNotificationsRead,
 } from "../api.js";
 import { redirectToLogin, refreshAlertBadge, renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
 import { getToken } from "../token.js";
 import {
   clearFormErrors,
@@ -18,8 +19,10 @@ import {
   renderEmptyState,
   renderPagination,
   safeImageUrl,
+  setErrorText,
   showFormErrors,
   statusBadge,
+  withContextMessage,
 } from "../ui.js";
 
 const PAGE_SIZE = 20;
@@ -43,7 +46,7 @@ async function init() {
   const me = await renderHeader(document.getElementById("site-header"));
   if (me === null) {
     if (!getToken()) redirectToLogin();
-    else showListError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    else showListError(t("err.network"));
     return;
   }
   alertForm.addEventListener("submit", onSubmitAlert);
@@ -79,12 +82,12 @@ function renderAlerts({ items, max_count: maxCount }) {
 }
 
 function renderAlertItem(alert) {
-  const priceText = alert.max_price === null ? "가격 상관없음" : `${formatPrice(alert.max_price)} 이하`;
+  const priceText = alert.max_price === null ? t("alerts.price_any") : t("alerts.price_max", { price: formatPrice(alert.max_price) });
   // 등록하기 전에 이미 올라온 글은 알림이 오지 않으므로, 같은 조건의 검색 결과로 바로 볼 수 있게 한다.
   const query = new URLSearchParams({ q: alert.keyword });
   if (alert.max_price !== null) query.set("max_price", String(alert.max_price));
 
-  const removeButton = el("button", { type: "button", className: "link-button link-button--danger", text: "삭제" });
+  const removeButton = el("button", { type: "button", className: "link-button link-button--danger", text: t("common.delete") });
   removeButton.addEventListener("click", () => onDeleteAlert(alert, removeButton));
   return el(
     "li",
@@ -99,7 +102,7 @@ function renderAlertItem(alert) {
     el(
       "div",
       { className: "alert-list__actions" },
-      el("a", { className: "link-button", href: `/static/index.html?${query}`, text: "지금 있는 글 검색" }),
+      el("a", { className: "link-button", href: `/static/index.html?${query}`, text: t("alerts.search_now") }),
       removeButton,
     ),
   );
@@ -113,7 +116,7 @@ async function onSubmitAlert(event) {
   if (maxPrice.value !== "") {
     const price = Number(maxPrice.value);
     if (!Number.isInteger(price) || price < 0) {
-      showFormErrors(alertForm, alertFormError, { fieldErrors: { max_price: "0 이상의 정수로 입력해 주세요." } });
+      showFormErrors(alertForm, alertFormError, { fieldErrors: { max_price: t("alerts.price_integer") } });
       return;
     }
     data.max_price = price;
@@ -128,7 +131,10 @@ async function onSubmitAlert(event) {
   } catch (error) {
     if (handleAuthError(error)) return;
     // 409(같은 키워드)는 키워드 칸 아래에, 400(개수 초과)·403(정지)은 공통 영역에 보여준다.
-    if (error.status === 409) showFormErrors(alertForm, alertFormError, { fieldErrors: { keyword: error.message } });
+    if (error.status === 409) {
+      const { message, original } = withContextMessage(error, "alerts.duplicate");
+      showFormErrors(alertForm, alertFormError, { fieldErrors: { keyword: message }, fieldOriginals: { keyword: original } });
+    }
     else showFormErrors(alertForm, alertFormError, error);
     return;
   } finally {
@@ -160,7 +166,7 @@ function readPage() {
 }
 
 async function loadNotifications() {
-  summary.textContent = "불러오는 중…";
+  summary.textContent = t("common.loading");
   listError.hidden = true;
   notificationList.replaceChildren();
   pagination.replaceChildren();
@@ -170,7 +176,7 @@ async function loadNotifications() {
     data = await listNotifications({ page: readPage(), size: PAGE_SIZE });
   } catch (error) {
     if (handleAuthError(error)) return;
-    showListError(error.fieldErrors?.page ?? error.message);
+    showListError(error.fieldErrors?.page ?? error.message, error.fieldErrors?.page ? error.fieldOriginals?.page : error.original);
     return;
   }
   renderNotifications(data);
@@ -189,13 +195,13 @@ async function loadNotifications() {
 function renderNotifications({ items, total, page, size }) {
   const totalPages = Math.max(1, Math.ceil(total / size));
   if (total === 0) {
-    renderEmptyState(summary, "아직 받은 알림이 없습니다. 찾는 교재를 등록해 두면 새 글이 올라올 때 알려 드려요.", {
+    renderEmptyState(summary, t("alerts.empty"), {
       image: EMPTY_ALERTS_IMAGE,
     });
     return;
   }
   const unreadCount = items.filter((item) => item.read_at === null).length;
-  summary.textContent = unreadCount > 0 ? `총 ${total}개 · 새 알림 ${unreadCount}개` : `총 ${total}개`;
+  summary.textContent = unreadCount > 0 ? t("alerts.total_new", { total, count: unreadCount }) : t("alerts.total", { count: total });
   notificationList.replaceChildren(...items.map(renderNotification));
   renderPagination(pagination, page, totalPages, goToPage);
 }
@@ -217,7 +223,7 @@ function renderNotification(notification) {
       el(
         "div",
         { className: "notification-card__body" },
-        el("p", { className: "notification-card__keyword", text: `"${notification.keyword}" ${unread ? "새 알림" : "알림"}` }),
+        el("p", { className: "notification-card__keyword", text: t(unread ? "alerts.card_new" : "alerts.card", { keyword: notification.keyword }) }),
         el("p", { className: "notification-card__title", text: post.title }),
         el("p", { className: "notification-card__meta", text: `${post.book_title}${courseText}` }),
         el(
@@ -237,8 +243,8 @@ function goToPage(page) {
   window.scrollTo({ top: 0 });
 }
 
-function showListError(message) {
+function showListError(message, original = null) {
   summary.textContent = "";
-  listError.textContent = message;
+  setErrorText(listError, message, original);
   listError.hidden = false;
 }

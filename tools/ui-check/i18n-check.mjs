@@ -266,7 +266,7 @@ try {
   };
   await goto("/static/me.html", meReady);
   const meta = await evaluate("document.getElementById('profile-meta').textContent");
-  check("en 내 정보: 가입일이 영어 날짜 형식", /· [A-Z][a-z]{2} \d{1,2}, \d{4} /.test(meta), meta);
+  check("en 내 정보: 가입일이 영어 날짜 형식", /· Joined [A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(meta), meta);
   check("en 내 정보: 언어 칸 숨김(플래그 꺼짐)", await evaluate("document.getElementById('language').hidden"));
   let pw = await wrongPassword();
   check("en 질문 저장 + 틀린 비밀번호: 비밀번호 칸 아래에 번역 문구", pw.text === "Your current password is incorrect." && !pw.original, JSON.stringify(pw));
@@ -366,6 +366,127 @@ try {
   const koDts = await texts(".post-detail__info dt");
   check("ko 상세: 정보 칸 예전 문구", koDts[0] === "교재명" && koDts.includes("판매자"), koDts.join("|"));
 
+  // ---------- 4단계: 쪽지·알림·내 정보 (판매자로 로그인한 상태) ----------
+  // 사용자가 쓴 값(닉네임·쪽지·글 제목·키워드·이메일)과 서버가 준 문장(본인 확인 질문)은 원문 그대로라 빼고 본다.
+  const USER_TEXT_4 = `${USER_TEXT}, .message__bubble, #chat-partner, .chat__post a, .conversation-card__partner, .conversation-card__post, .conversation-card__preview, .action-menu__title, .alert-list__keyword, .block-item__name, #profile-nickname, #question-status`;
+  const leftover4 = () =>
+    evaluate(`(() => {
+      const out = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const p = n.parentElement;
+        if (!/[가-힣]/.test(n.textContent.replace(/원/g, '')) || !p || p.closest(${JSON.stringify(USER_TEXT_4)}) || p.closest('[hidden]') || p.closest('script')) continue;
+        out.push(n.textContent.trim().slice(0, 30));
+      }
+      return out;
+    })()`);
+  for (const lang of ["en", "zh-CN"]) {
+    const en = lang === "en";
+    // 쪽지함: 개수(복수형), 역할, 안 읽은 수 낭독 문장, 카드 메뉴
+    await goto(`/static/conversations.html?lang=${lang}`, `${settled} && document.querySelectorAll('.conversation-card').length > 0`);
+    let left = await leftover4();
+    let o = await overflow();
+    const inbox = await evaluate(`({
+      title: document.title,
+      summary: document.getElementById('result-summary').textContent,
+      unread: document.querySelector('.count-badge .visually-hidden')?.textContent ?? '',
+    })`);
+    check(
+      `${lang} 쪽지함: 제목·개수·안 읽은 수 번역, 한국어 안 남음, 화면 안 넘침`,
+      inbox.title === (en ? "Inbox | Campus Books" : "私信箱 | Campus Books") && inbox.summary === (en ? "3 conversations" : "3 个对话") && left.length === 0 && o.ok,
+      `${JSON.stringify(inbox)} ${left.join(" / ")} ${o.bad}`,
+    );
+    await screenshot(`i18n-${W}-${lang}-conversations.png`);
+    await evaluate("document.querySelector('.conversation-menu-button').click()");
+    await waitUntil("!!document.querySelector('.action-menu[open]')");
+    const menu = await texts(".action-menu[open] .action-menu__item");
+    left = await leftover4();
+    check(`${lang} 쪽지함 메뉴: 신고·차단·나가기 번역`, menu.includes(en ? "Leave conversation" : "退出对话") && left.length === 0, `${menu.join("|")} ${left.join(" / ")}`);
+    await evaluate("document.querySelector('.action-menu[open]').close()");
+
+    // 대화: 역할·안내·입력창·보내기, 문서 제목에 상대 닉네임
+    await goto(`/static/chat.html?id=${seed.c1}&lang=${lang}`, `${settled} && !document.getElementById('chat').hidden`);
+    left = await leftover4();
+    o = await overflow();
+    const chatInfo = await evaluate(`({
+      title: document.title,
+      role: document.querySelector('.chat__role')?.textContent,
+      placeholder: document.getElementById('content').placeholder,
+      send: document.querySelector('#message-form [type=submit]').textContent,
+    })`);
+    check(
+      `${lang} 대화: 역할·입력창·버튼 번역, 한국어 안 남음, 화면 안 넘침`,
+      chatInfo.title.includes("구매자지은") && chatInfo.role === (en ? "Inquiry about your listing" : "对我帖子的咨询") && chatInfo.send === (en ? "Send" : "发送") && left.length === 0 && o.ok,
+      `${JSON.stringify(chatInfo)} ${left.join(" / ")} ${o.bad}`,
+    );
+    await screenshot(`i18n-${W}-${lang}-chat.png`);
+
+    // 없는 대화방: 번역 문장 + 한국어 원문
+    await goto(`/static/chat.html?id=999999&lang=${lang}`, `${settled} && !document.getElementById('page-error').hidden`);
+    const noRoom = await evaluate("(() => { const n = document.getElementById('page-error-text'); return { text: n.firstChild?.textContent, original: n.querySelector('.error-original')?.textContent }; })()");
+    check(`${lang} 없는 대화방: 번역 문장 + 한국어 원문`, !!noRoom.original && !/[가-힣]/.test(noRoom.text ?? "가"), JSON.stringify(noRoom));
+
+    // 찾는 교재 알림: 조건 등록 → 목록 문구, 같은 키워드 다시 등록 → 칸 아래 맞춤 문장 + 원문
+    await goto(`/static/alerts.html?lang=${lang}`, `${settled} && document.getElementById('alert-count').textContent !== '' && document.getElementById('result-summary').textContent !== ${JSON.stringify(en ? "Loading…" : "加载中…")}`);
+    const keyword = `알림확인${lang}`;
+    const addAlert = async () => {
+      await evaluate(`(() => { const f = document.getElementById('alert-form'); f.elements.keyword.value = ${JSON.stringify(keyword)}; f.requestSubmit(); })()`);
+    };
+    await addAlert();
+    await waitUntil(`[...document.querySelectorAll('.alert-list__keyword')].some((n) => n.textContent === ${JSON.stringify(keyword)})`);
+    await addAlert();
+    await waitUntil("!document.querySelector('#alert-form [data-error-for=keyword]').hidden");
+    const dup = await evaluate("(() => { const n = document.querySelector('#alert-form [data-error-for=keyword]'); return { text: n.firstChild?.textContent, original: n.querySelector('.error-original')?.textContent }; })()");
+    left = await leftover4();
+    o = await overflow();
+    const alertTexts = await texts(".alert-list__price, .alert-list__actions a");
+    check(
+      `${lang} 찾는 교재 알림: 조건 줄·빈 알림 번역, 중복은 맞춤 문장 + 원문, 한국어 안 남음`,
+      dup.text === (en ? "You've already added this keyword." : "该关键词已添加。") && !!dup.original && alertTexts.includes(en ? "Any price" : "价格不限") && left.length === 0 && o.ok,
+      `${JSON.stringify(dup)} ${alertTexts.join("|")} ${left.join(" / ")} ${o.bad}`,
+    );
+    await screenshot(`i18n-${W}-${lang}-alerts.png`);
+    await evaluate(`[...document.querySelectorAll('.alert-list__item')].find((n) => n.textContent.includes(${JSON.stringify(keyword)})).querySelector('.link-button--danger').click()`);
+    await waitUntil(`![...document.querySelectorAll('.alert-list__keyword')].some((n) => n.textContent === ${JSON.stringify(keyword)})`);
+
+    // 차단 목록 (비어 있음)
+    await goto(`/static/blocks.html?lang=${lang}`, `${settled} && document.getElementById('result-summary').textContent !== ${JSON.stringify(en ? "Loading…" : "加载中…")}`);
+    left = await leftover4();
+    o = await overflow();
+    const blocks = await evaluate("({ h1: document.querySelector('h1').textContent, summary: document.getElementById('result-summary').textContent })");
+    check(
+      `${lang} 차단 목록: 제목·빈 목록 번역, 한국어 안 남음, 화면 안 넘침`,
+      blocks.h1 === (en ? "Blocked users" : "屏蔽列表") && blocks.summary === (en ? "You haven't blocked anyone." : "没有屏蔽的用户。") && left.length === 0 && o.ok,
+      `${JSON.stringify(blocks)} ${left.join(" / ")} ${o.bad}`,
+    );
+
+    // 내 정보: 계정 버튼·탭·내 글 개수, 펼친 폼(닉네임·비밀번호·탈퇴) 문구
+    await goto(`/static/me.html?lang=${lang}`, `${meReady} && document.getElementById('result-summary').textContent !== ${JSON.stringify(en ? "Loading…" : "加载中…")}`);
+    left = await leftover4();
+    o = await overflow();
+    const me4 = await evaluate(`({
+      buttons: [...document.querySelectorAll('.account-card__buttons button')].map((n) => n.textContent.trim()).join('|'),
+      tabs: [...document.querySelectorAll('#me-tabs a')].map((n) => n.textContent).join('|'),
+      summary: document.getElementById('result-summary').textContent,
+      manner: document.getElementById('profile-manner').textContent,
+    })`);
+    check(
+      `${lang} 내 정보: 계정 버튼·탭·개수·매너 학점 번역, 한국어 안 남음, 화면 안 넘침`,
+      me4.summary === (en ? "2 posts" : "共 2 条") && me4.manner.startsWith(en ? "Manner GPA: " : "礼仪绩点：") && left.length === 0 && o.ok,
+      `${JSON.stringify(me4)} ${left.join(" / ")} ${o.bad}`,
+    );
+    await screenshot(`i18n-${W}-${lang}-me.png`);
+    for (const id of ["nickname-toggle", "password-toggle", "withdraw-toggle"]) {
+      await evaluate(`document.getElementById('${id}').click()`);
+      left = await leftover4();
+      o = await overflow();
+      check(`${lang} 내 정보 ${id.replace("-toggle", "")} 폼: 한국어 안 남음, 화면 안 넘침`, left.length === 0 && o.ok, `${left.join(" / ")} ${o.bad}`);
+    }
+  }
+  await goto("/static/conversations.html?lang=ko", `${settled} && document.querySelectorAll('.conversation-card').length > 0`);
+  const koInbox = await evaluate("({ summary: document.getElementById('result-summary').textContent, unread: document.querySelector('.count-badge')?.textContent ?? '' })");
+  check("ko 쪽지함: 예전 문구", koInbox.summary === "대화방 3개" && (koInbox.unread === "" || /^안 읽은 메시지 \d+개\d+$/.test(koInbox.unread)), JSON.stringify(koInbox));
+
   // ---------- 기능 플래그를 켰을 때 (lang-boot.js를 바꿔 받아 확인. 저장소의 파일은 그대로) ----------
   await send("Network.enable");
   await send("Network.setBypassServiceWorker", { bypass: true });
@@ -450,8 +571,8 @@ try {
   await waitUntil(`document.documentElement.lang === 'en' && ${meReady}`);
   check("내 정보에서 English 고르면 영어", (await evaluate("document.documentElement.lang")) === "en" && (await evaluate("document.getElementById('language-title').textContent")) === "Language");
 
-  // 일부러 낸 401·400·404(없는 글) 응답은 콘솔에 "Failed to load resource"로 남으므로 빼고 본다.
-  const errors = exceptions.filter((text) => !/^Failed to load resource: the server responded with a status of 40[014]/.test(text ?? ""));
+  // 일부러 낸 401·400·404(없는 글·대화방)·409(같은 키워드) 응답은 콘솔에 "Failed to load resource"로 남으므로 빼고 본다.
+  const errors = exceptions.filter((text) => !/^Failed to load resource: the server responded with a status of 40[0149]/.test(text ?? ""));
   check("자바스크립트 오류 없음", errors.length === 0, errors.join(" / "));
 } catch (error) {
   results.push(`ERROR ${error.stack}`);

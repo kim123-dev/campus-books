@@ -3,6 +3,7 @@
 // 페이지 번호는 주소창(?page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 페이지가 나오게 하기 위해서다.
 import { blockUser, leaveConversation, listConversations, reportUser } from "../api.js";
 import { redirectToLogin, refreshUnreadBadge, renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
 import {
   REPORT_DONE_TEXT,
   blockDoneContent,
@@ -12,7 +13,7 @@ import {
   openReportDialog,
 } from "../safety.js";
 import { getToken } from "../token.js";
-import { el, EMPTY_MESSAGES_IMAGE, formatShortDate, renderEmptyState, renderPagination, statusBadge } from "../ui.js";
+import { el, EMPTY_MESSAGES_IMAGE, formatShortDate, renderEmptyState, renderPagination, setErrorText, statusBadge } from "../ui.js";
 
 const PAGE_SIZE = 20;
 const MAX_BADGE_COUNT = 99;
@@ -54,7 +55,7 @@ function readPage() {
 
 async function load() {
   const requestId = ++latestRequestId;
-  summary.textContent = "불러오는 중…";
+  summary.textContent = t("common.loading");
   listError.hidden = true;
   emptyActions.hidden = true;
   list.replaceChildren();
@@ -69,7 +70,7 @@ async function load() {
       redirectToLogin();
       return;
     }
-    showError(error.fieldErrors?.page ?? error.message);
+    showError(error.fieldErrors?.page ?? error.message, error.fieldErrors?.page ? error.fieldOriginals?.page : error.original);
     return;
   }
   if (requestId !== latestRequestId) return;
@@ -80,7 +81,7 @@ function render({ items, total, page, size }) {
   const totalPages = Math.max(1, Math.ceil(total / size));
 
   if (total === 0) {
-    renderEmptyState(summary, "아직 주고받은 쪽지가 없습니다. 판매글 상세 화면에서 문의를 시작해 보세요.", {
+    renderEmptyState(summary, t("inbox.empty"), {
       image: EMPTY_MESSAGES_IMAGE,
     });
     emptyActions.hidden = false;
@@ -89,8 +90,8 @@ function render({ items, total, page, size }) {
 
   summary.textContent =
     items.length === 0
-      ? `이 페이지에는 대화방이 없습니다. (전체 ${total}개, ${totalPages}페이지까지)`
-      : `대화방 ${total}개`;
+      ? t("inbox.page_empty", { total, pages: totalPages })
+      : t("inbox.total", { count: total });
   list.replaceChildren(...items.map(renderConversationCard));
   renderPagination(pagination, page, totalPages, goToPage);
 }
@@ -103,20 +104,21 @@ function renderConversationCard(conversation) {
   // 글이 삭제되면 서버가 post를 null로 준다. 대화 기록은 남아 있으므로 카드는 그대로 보여준다.
   const postLine = post
     ? el("p", { className: "conversation-card__post" }, statusBadge(post.status), el("span", { text: post.title }))
-    : el("p", { className: "conversation-card__post conversation-card__post--deleted", text: "삭제된 글" });
+    : el("p", { className: "conversation-card__post conversation-card__post--deleted", text: t("common.post_deleted") });
 
   // 사진만 보낸 메시지는 내용이 비어 있으므로 "사진"이라고 보여준다.
-  const lastText = last?.has_image ? (last.content ? `사진 · ${last.content}` : "사진") : last?.content;
+  const photo = t("term.photo");
+  const lastText = last?.has_image ? (last.content ? `${photo} · ${last.content}` : photo) : last?.content;
   const preview = last
-    ? el("p", { className: "conversation-card__preview", text: `${last.is_mine ? "나: " : ""}${lastText}` })
-    : el("p", { className: "conversation-card__preview conversation-card__preview--empty", text: "아직 메시지가 없습니다" });
+    ? el("p", { className: "conversation-card__preview", text: `${last.is_mine ? t("common.me_prefix") : ""}${lastText}` })
+    : el("p", { className: "conversation-card__preview conversation-card__preview--empty", text: t("inbox.no_messages") });
 
   // 카드 전체가 링크라 그 안에 버튼을 넣을 수 없다(링크 안 버튼은 HTML 규칙 위반). 메뉴 버튼은 카드 옆에 둔다.
   const menuButton = el("button", {
     type: "button",
     className: "conversation-menu-button",
     text: "⋯",
-    attrs: { "aria-label": `${partner.nickname}님과의 대화 메뉴`, "aria-haspopup": "dialog" },
+    attrs: { "aria-label": t("inbox.menu_aria", { nickname: partner.nickname }), "aria-haspopup": "dialog" },
   });
   menuButton.addEventListener("click", () => openCardMenu(conversation, menuButton));
 
@@ -133,7 +135,7 @@ function renderConversationCard(conversation) {
         "div",
         { className: "conversation-card__top" },
         el("span", { className: "conversation-card__partner", text: partner.nickname }),
-        el("span", { className: "conversation-card__role", text: role === "BUYER" ? "문의한 글" : "받은 문의" }),
+        el("span", { className: "conversation-card__role", text: role === "BUYER" ? t("inbox.role_buyer") : t("inbox.role_seller") }),
         el("span", { className: "conversation-card__time", text: formatShortDate(last?.created_at ?? conversation.last_message_at) }),
       ),
       postLine,
@@ -146,9 +148,9 @@ function renderConversationCard(conversation) {
               "span",
               { className: "count-badge" },
               // span의 aria-label은 화면 낭독기가 무시하는 경우가 많아, 보이지 않는 글자로 뜻을 붙인다.
-              el("span", { className: "visually-hidden", text: "안 읽은 메시지 " }),
-              unreadText,
-              el("span", { className: "visually-hidden", text: "개" }),
+              // 언어마다 숫자 위치가 달라 문장 하나로 읽히게 하고, 보이는 숫자는 낭독기에서 숨긴다.
+              el("span", { className: "visually-hidden", text: t("inbox.unread_aria", { count: unread }) }),
+              el("span", { text: unreadText, attrs: { "aria-hidden": "true" } }),
             )
           : null,
       ),
@@ -165,16 +167,16 @@ async function openCardMenu(conversation, menuButton) {
   const items = partner.withdrawn
     ? []
     : [
-        { key: "report", label: "사용자 신고" },
-        { key: "block", label: "차단" },
+        { key: "report", label: t("safety.report_user") },
+        { key: "block", label: t("term.block") },
       ];
-  items.push({ key: "leave", label: "대화방 나가기", danger: true });
+  items.push({ key: "leave", label: t("inbox.leave"), danger: true });
 
-  const choice = await openActionMenu({ heading: `${partner.nickname}님과의 대화`, items });
+  const choice = await openActionMenu({ heading: t("inbox.menu_heading", { nickname: partner.nickname }), items });
   if (choice === "report") {
     const reported = await openReportDialog({
-      heading: "사용자 신고",
-      targetText: `신고 대상: ${partner.nickname}`,
+      heading: t("safety.report_user"),
+      targetText: t("inbox.report_target", { nickname: partner.nickname }),
       send: (data) => reportUser(partner.id, data),
     });
     if (reported) showNotice(REPORT_DONE_TEXT);
@@ -187,7 +189,7 @@ async function openCardMenu(conversation, menuButton) {
       () => leaveConversation(conversation.id),
       () => {
         // 이 방이 빠졌으니 목록을 다시 받는다. (페이지 수·전체 개수가 바뀐다) 쪽지 배지도 함께 줄어든다.
-        showNotice("대화방에서 나갔어요. 상대가 새 쪽지를 보내면 다시 나타나요.");
+        showNotice(t("inbox.left"));
         load();
         refreshUnreadBadge();
       },
@@ -205,7 +207,8 @@ async function runAction(action, onDone) {
       redirectToLogin();
       return;
     }
-    showNotice(error.message);
+    setErrorText(notice, error.message, error.original);
+    notice.hidden = false;
     return;
   }
   onDone();
@@ -222,8 +225,8 @@ function goToPage(page) {
   window.scrollTo({ top: 0 });
 }
 
-function showError(message) {
+function showError(message, original = null) {
   summary.textContent = "";
-  listError.textContent = message;
+  setErrorText(listError, message, original);
   listError.hidden = false;
 }
