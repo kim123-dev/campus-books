@@ -29,16 +29,19 @@ const layoutShift = () =>
     setTimeout(() => resolve({ hero: Math.round(hero * 1000) / 1000, total: Math.round(total * 1000) / 1000 }), 800); })`);
 
 try {
-  // ---------- 비로그인: 큰 배너 ----------
+  // ---------- 비로그인: 한 줄 띠(문구 + 버튼) ----------
   await goto("/static/index.html");
   await setToken(null);
   await goto("/static/index.html", `${ready} && document.querySelector('.home-hero__image').complete`);
   const hero = await rect(".home-hero");
   const image = await rect(".home-hero__image");
   const button = await rect(".home-hero__button");
-  check("비로그인: 배너 보임(문구·보조 문구·버튼·그림)", hero && (await visible(".home-hero__guest.home-hero__title")) && (await visible(".home-hero__sub")) && button && image, JSON.stringify(hero));
+  check("비로그인: 띠 보임(문구·버튼), 보조 문구는 화면 낭독기용", hero && (await visible(".home-hero__guest.home-hero__title")) && button && (await rect(".home-hero__sub")).h <= 1, JSON.stringify(hero));
+  check("비로그인: 띠 높이 56px 이하(첫 화면의 3분의 1을 차지하지 않음)", hero && hero.h <= 56, JSON.stringify(hero));
   check("비로그인: 띠 문구는 숨김", !(await visible(".home-hero__member")));
-  check(`비로그인: 그림 ${MOBILE ? 104 : 240}px, 4:3, 문구 오른쪽`, image && image.w === (MOBILE ? 104 : 240) && image.h === (MOBILE ? 78 : 180) && image.left > button.right - 1, JSON.stringify(image));
+  // 그림은 PC에서 문구 왼쪽 48px, 모바일에서는 문구가 두 줄 안에 들어가도록 숨긴다.
+  if (MOBILE) check("비로그인: 모바일은 그림 숨김", image === null);
+  else check("비로그인: 그림 48px, 4:3, 문구 왼쪽", image && image.w === 48 && image.h === 36 && image.right <= (await rect(".home-hero__guest.home-hero__title")).left, JSON.stringify(image));
   check("비로그인: 그림 alt 비움·실제 크기 지정", await evaluate("(() => { const i = document.querySelector('.home-hero__image'); return i.getAttribute('alt') === '' && i.getAttribute('width') === '480' && i.getAttribute('height') === '360' && i.naturalWidth === 480; })()"));
   check("비로그인: 배너가 제목 위", hero.bottom <= (await rect(".page-title")).top);
   check("비로그인: 버튼은 글쓰기 화면으로", (await evaluate("document.querySelector('.home-hero__button').getAttribute('href')")) === "/static/post-form.html");

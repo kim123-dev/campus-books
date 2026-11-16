@@ -600,8 +600,7 @@ a.button {
 .filter-form {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  padding: var(--gap);
+  gap: var(--space-3) var(--space-4);
 }
 
 .field {
@@ -846,7 +845,7 @@ a.button {
 
 .filter-form__search-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .filter-form__search-row input {
@@ -856,16 +855,16 @@ a.button {
 
 .filter-form__icon-button {
   flex: none;
-  width: 52px;
-  min-height: 52px;
+  width: 48px;
+  min-height: 48px;
   padding: 0;
 }
 
 .filter-form__toggle {
   flex: none;
-  gap: 6px;
-  min-height: 52px;
-  padding: 0 14px;
+  gap: var(--space-1);
+  min-height: 48px;
+  padding: 0 var(--space-3);
 }
 
 .filter-form__toggle[aria-expanded="true"] {
@@ -894,6 +893,13 @@ a.button {
   display: contents;
 }
 
+.filter-form.card {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .filter-form:not(.is-open) .filter-form__more {
   display: none;
 }
@@ -905,74 +911,59 @@ a.button {
 .home-hero {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 24px;
-  padding: 28px 32px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
   border-radius: var(--radius);
   background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
+/* 문구와 버튼을 한 줄에: 문구는 남는 폭을 쓰고(넘치면 줄바꿈), 버튼은 오른쪽 끝 */
 .home-hero__text {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .home-hero__title {
   margin: 0;
   color: var(--color-text);
-  font-size: var(--text-xl);
+  font-size: var(--text-md);
   font-weight: var(--weight-bold);
-  letter-spacing: -0.02em;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
+/* 보조 문구는 화면에서 숨기고 화면 낭독기에는 남긴다. (한 줄 띠에 들어갈 자리가 없다) */
 .home-hero__sub {
-  margin: 0;
-  color: var(--color-sub);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .home-hero__button {
-  margin-top: 8px;
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--space-3);
 }
 
-/* 그림은 PC 240px. 높이는 width·height 비율(4:3)로 정해진다. */
+/* 그림은 문구 왼쪽에 작은 아이콘 크기로. 높이는 width·height 비율(4:3)로 정해진다. */
 .home-hero__image {
   flex: none;
-  width: 240px;
+  order: -1;
+  width: 48px;
   height: auto;
 }
 
 :root:not([data-signed-in]) .home-hero__member,
 :root[data-signed-in] .home-hero__guest {
   display: none;
-}
-
-/* 로그인한 사용자: 문구 한 줄 + 버튼만 있는 얇은 띠 */
-:root[data-signed-in] .home-hero {
-  padding: 8px 8px 8px 20px;
-  border-radius: var(--radius-control);
-}
-
-:root[data-signed-in] .home-hero__text {
-  flex: 1;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-:root[data-signed-in] .home-hero__title {
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
-}
-
-:root[data-signed-in] .home-hero__button {
-  flex: none;
-  margin-top: 0;
 }
 
 /* 하단 탭 바는 모바일에서만 보인다. (아래 "모바일" 구역) */
@@ -1006,7 +997,7 @@ a.button {
 /* ---------- 목록 ---------- */
 
 .result-summary {
-  margin: 28px 0 14px;
+  margin: var(--space-5) 0 var(--space-1);
   color: var(--color-sub);
   font-weight: var(--weight-bold);
 }
@@ -1017,120 +1008,124 @@ a.button {
   width: 200px;
   max-width: 100%;
   height: auto;
-  margin: 8px auto 12px;
+  margin: var(--space-2) auto var(--space-3);
 }
 
 :has(> .empty-state__image) {
   text-align: center;
 }
 
+/* 글 목록은 상자 없이 행을 1px 선으로 나눈다. (PC·모바일 같은 모양) */
 .post-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-@media (min-width: 640px) {
-  .post-list {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* 행 링크와 찜 버튼을 나란히 담는 칸. 버튼을 행 오른쪽 아래에 겹치기 위한 기준점이다. */
+.post-list__item {
+  position: relative;
 }
 
-.post-card {
+.post-list__item + .post-list__item {
+  border-top: 1px solid var(--color-line);
+}
+
+/* .card의 면·모서리·선을 지우고 행으로 쓴다. */
+.post-card.card {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  height: 100%;
-  padding: 22px 22px 20px;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: inherit;
   text-decoration: none;
-  transition:
-    box-shadow var(--duration) var(--ease),
-    transform var(--duration) var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 터치 화면에서는 눌린 뒤 효과가 남지 않도록 마우스가 있는 기기에서만 그림자를 키운다. */
+.post-card:focus-visible {
+  border-radius: var(--radius-control);
+  box-shadow: var(--focus-ring);
+}
+
+/* 터치 화면에서는 눌린 뒤 효과가 남지 않도록 마우스가 있는 기기에서만 제목에 밑줄 */
 @media (hover: hover) {
-  .post-card:hover {
-    box-shadow: var(--shadow-card-hover);
+  .post-card:hover .post-card__title {
+    text-decoration: underline;
   }
 }
 
-.post-card:active {
-  transform: scale(0.98);
-}
-
-.post-card:focus-visible {
-  box-shadow: var(--shadow-card-hover);
-}
-
-/* 목록 카드 사진. 4:3 칸을 꽉 채우고(cover) 넘치는 부분은 잘라 카드 높이를 고르게 맞춘다. */
+/* 정사각형 썸네일. 칸을 꽉 채우고(cover) 넘치는 부분은 잘라 행 높이를 고르게 맞춘다. */
 .post-card__thumb {
   display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 4 / 3;
-  margin-bottom: 12px;
+  flex: none;
+  width: 88px;
+  height: 88px;
   border-radius: var(--radius-control);
   background: var(--color-fill);
   object-fit: cover;
 }
 
-/* 카드의 글자 묶음. 카드와 같은 간격으로 쌓아, 묶음이 생기기 전과 PC 모양이 같다. (모바일에서는 사진 오른쪽) */
 .post-card__body {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
-/* 카드 링크와 찜 버튼을 나란히 담는 칸. 버튼을 사진 오른쪽 위에 겹치기 위한 기준점이다. */
-.post-list__item {
-  position: relative;
-}
-
-.post-card__top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.post-card__condition,
-.post-card__book,
-.post-card__meta {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-
+/* 제목은 2줄까지, 넘치면 말줄임 */
 .post-card__title {
-  margin: 8px 0 0;
-  font-size: var(--text-lg);
-  overflow-wrap: anywhere;
-}
-
-.post-card__book {
-  color: var(--color-sub);
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
   font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  line-height: 1.4;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .post-card__price {
-  margin: 8px 0 4px;
+  margin: 0;
   color: var(--color-text);
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: var(--weight-bold);
-  letter-spacing: -0.01em;
+  line-height: 1.4;
 }
 
 /* 판매 완료 글은 가격을 낮춰, 살 수 있는 글이 먼저 눈에 띄게 한다. */
 .post-card:has(.badge--sold) .post-card__price {
   color: var(--color-muted);
+}
+
+/* 작은 회색 줄: 상태 배지 · 책 상태 · 시간. 좁으면 다음 줄로 넘겨 시간이 잘리지 않게 한다. */
+.post-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+}
+
+.post-card__top .badge {
+  padding: 1px var(--space-2);
+}
+
+.post-card__condition,
+.post-card__meta {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* 하트가 오른쪽 아래에 겹치므로 아래 줄들은 그만큼 비켜 둔다. */
+.post-list__item:has(.wish-button--card) .post-card__price,
+.post-list__item:has(.wish-button--card) .post-card__top {
+  margin-right: 48px;
 }
 
 .badge {
@@ -1488,14 +1483,13 @@ a.button {
 /* 카드 위: 사진 오른쪽 위 모서리. 사진 위에서도 보이도록 흰 면과 그림자를 준다. */
 .wish-button--card {
   position: absolute;
-  top: 30px;
-  right: 30px;
-  background: var(--color-bar);
-  box-shadow: var(--shadow-card);
+  right: -10px;
+  bottom: var(--space-2);
+  background: transparent;
 }
 
 .wish-button--card:hover:not(:disabled) {
-  background: var(--color-surface);
+  background: var(--color-fill);
 }
 
 /* 찜 실패 알림. 카드에는 에러를 넣을 자리가 없어 화면 아래에 잠깐 띄운다. */
@@ -3418,161 +3412,24 @@ a.button {
     bottom: calc(80px + env(safe-area-inset-bottom));
   }
 
-  /* ----- 목록 검색: 한 줄 검색창 + 접히는 필터 (구조는 공통 구역, 여기는 여백만) ----- */
-
-  .filter-form {
-    gap: 12px;
-    padding: 12px;
-  }
-
-  /* ----- 목록 배너: 그림을 문구 오른쪽에 작게 ----- */
+  /* ----- 목록 배너·카드: 모양은 공통 구역과 같다 (한 줄 띠, 행) ----- */
 
   .home-hero {
-    gap: 12px;
-    padding: 18px 16px;
+    margin-top: var(--space-2);
   }
 
-  .home-hero__title {
-    font-size: var(--text-lg);
-  }
-
+  /* 375px에서는 문구가 두 줄 안에 들어가도록 그림을 숨긴다. (PC는 문구 왼쪽에 48px) */
   .home-hero__image {
-    width: 104px;
-  }
-
-  /* 로그인한 사용자의 띠는 첫 화면에 카드가 4장 이상 보이도록 가장 얇게. 버튼은 누르기 좋은 최소 높이 44px. */
-  :root[data-signed-in] .home-hero {
-    margin-top: 8px;
-    padding: 4px 4px 4px 14px;
-  }
-
-  :root[data-signed-in] .home-hero__button {
-    min-height: 44px;
-    padding: 0 14px;
-  }
-
-  :root[data-signed-in] .home-hero + .page-title {
-    margin-top: 12px;
-  }
-
-  .result-summary {
-    margin: 18px 0 10px;
-  }
-
-  /* ----- 카드: 사진을 왼쪽에 작게 둔 가로형. 한 화면에 더 많은 글이 보인다. ----- */
-
-  .post-list {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-  }
-
-  .post-card {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 14px;
-    padding: 12px;
-    border-radius: var(--radius);
-  }
-
-  .post-card__thumb {
-    flex: none;
-    width: 96px;
-    height: 96px;
-    aspect-ratio: 1;
-    margin: 0;
-    border-radius: var(--radius);
-  }
-
-  /* 글자는 4줄 격자로 줄인다: 제목(최대 2줄) / 교재·과목 / 상태 배지 + 가격 / 책 상태 + 판매자·날짜 */
-  .post-card__body {
-    display: grid;
-    flex: 1;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas:
-      "title title"
-      "book book"
-      "badge price"
-      "condition meta";
-    align-items: center;
-    gap: 2px 8px;
-  }
-
-  /* 배지와 책 상태를 격자 칸으로 직접 놓기 위해 묶음 상자를 없앤다. */
-  .post-card__top {
-    display: contents;
-  }
-
-  .post-card__top .badge {
-    grid-area: badge;
-    justify-self: start;
-    padding: 2px 8px;
-  }
-
-  /* 하트가 오른쪽 아래에 겹치므로 아래 두 줄은 그만큼 비켜 둔다. */
-  .post-list__item:has(.wish-button--card) .post-card__price,
-  .post-list__item:has(.wish-button--card) .post-card__meta {
-    margin-right: 40px;
-  }
-
-  .post-card__title {
-    display: -webkit-box;
-    grid-area: title;
-    margin: 0;
-    overflow: hidden;
-    font-size: var(--text-md);
-    line-height: 1.35;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-
-  .post-card__book {
-    grid-area: book;
-    overflow: hidden;
-    font-size: var(--text-md);
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .post-card__price {
-    grid-area: price;
-    margin: 0;
-    font-size: var(--text-md);
-    line-height: 1.35;
-  }
-
-  .post-card__condition {
-    grid-area: condition;
-  }
-
-  .post-card__meta {
-    grid-area: meta;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .post-card__condition,
-  .post-card__meta {
-    font-size: var(--text-sm);
-    line-height: 1.35;
+    display: none;
   }
 
   .page-title {
-    margin: 20px 0 14px;
+    margin: var(--space-4) 0 var(--space-3);
     font-size: var(--text-xl);
   }
 
-  .wish-button--card {
-    top: auto;
-    right: 6px;
-    bottom: 6px;
-    background: transparent;
-    box-shadow: none;
-  }
-
-  .wish-button--card:hover:not(:disabled) {
-    background: var(--color-fill);
+  .result-summary {
+    margin: var(--space-4) 0 0;
   }
 
   /* ----- 누르는 곳 44px 이상 ----- */

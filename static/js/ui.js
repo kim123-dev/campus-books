@@ -3,7 +3,7 @@
 // 글 제목처럼 사용자가 입력한 값에 <script>가 들어 있어도 글자로만 보이고 실행되지 않기 때문이다.
 // (tests/test_static.py가 이 규칙을 검사한다)
 // 화면 문구는 i18n.js의 t()로 언어에 맞게 가져온다.
-import { LANG, formatDateWith, formatNumber, t } from "./i18n.js";
+import { LANG, formatDateWith, formatNumber, formatRelative, t } from "./i18n.js";
 
 /**
  * DOM 요소를 만든다.
@@ -81,6 +81,22 @@ export function formatDate(isoText) {
   if (date === null) return "";
   if (LANG !== "ko") return formatDateWith(date, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   return `${formatDateOnlyKo(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+/**
+ * 목록 행의 짧은 시간 ("3시간 전", "3 hours ago", "3小时前"). 일주일이 지나면 날짜만 쓴다.
+ * 좁은 행에서도 잘리지 않도록 짧게 쓰고, 정확한 시각은 <time>의 title로 남긴다.
+ */
+export function formatAgo(isoText, now = Date.now()) {
+  const date = parseServerDate(isoText);
+  if (date === null) return "";
+  const minutes = Math.max(1, Math.floor((now - date.getTime()) / 60000));
+  if (minutes < 60) return formatRelative(-minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return formatRelative(-hours, "hour");
+  const days = Math.floor(hours / 24);
+  if (days < 7) return formatRelative(-days, "day");
+  return formatDateOnly(isoText);
 }
 
 /** 날짜만 ("2026.11.06", "Nov 6, 2026"). 가입일·차단일처럼 시각이 필요 없는 곳에 쓴다. */
@@ -285,7 +301,6 @@ export function safeImageUrl(url) {
  *   카드 전체가 링크라 그 안에 버튼을 넣을 수 없으므로(HTML 규칙), 링크 옆에 두고 CSS로 사진 위에 겹친다.
  */
 export function renderPostCard(post, { action = null } = {}) {
-  const courseText = post.course_name ? ` · ${post.course_name}` : "";
   // 카드 안의 제목이 링크 이름이 되므로, 사진은 꾸밈 요소로 두어(alt="") 화면 낭독기가 두 번 읽지 않게 한다.
   const thumbnail = el("img", {
     className: "post-card__thumb",
@@ -296,6 +311,12 @@ export function renderPostCard(post, { action = null } = {}) {
     width: 400,
     height: 300,
   });
+  // 정확한 작성 시각은 마우스를 올리면 보이게 title에 둔다. 화면에는 "3시간 전"처럼 짧게.
+  const time = el("time", {
+    className: "post-card__meta",
+    text: formatAgo(post.created_at),
+    attrs: { datetime: post.created_at, title: formatDate(post.created_at) },
+  });
   return el(
     "li",
     { className: "post-list__item" },
@@ -303,20 +324,19 @@ export function renderPostCard(post, { action = null } = {}) {
       "a",
       { className: "card post-card", href: `/static/post.html?id=${encodeURIComponent(post.id)}` },
       thumbnail,
-      // 글자 묶음. 모바일에서는 사진 오른쪽에 두는 가로형 카드가 된다. (PC는 사진 아래에 그대로)
+      // 글자 묶음(사진 오른쪽): 제목(최대 2줄) / 굵은 가격 / 작은 회색 줄(상태 배지·책 상태·시간)
       el(
         "div",
         { className: "post-card__body" },
+        el("h2", { className: "post-card__title", text: post.title }),
+        el("p", { className: "post-card__price", text: formatPrice(post.price) }),
         el(
           "div",
           { className: "post-card__top" },
           statusBadge(post.status),
           el("span", { className: "post-card__condition", text: t("card.condition", { condition: CONDITION_LABELS[post.condition] ?? post.condition }) }),
+          time,
         ),
-        el("h2", { className: "post-card__title", text: post.title }),
-        el("p", { className: "post-card__book", text: `${post.book_title}${courseText}` }),
-        el("p", { className: "post-card__price", text: formatPrice(post.price) }),
-        el("p", { className: "post-card__meta", text: `${post.seller.nickname} · ${formatDate(post.created_at)}` }),
       ),
     ),
     action,

@@ -130,7 +130,7 @@ try {
       heart: heart ? { w: heart.width, h: heart.height, left: heart.left, top: heart.top, bottom: heart.bottom, right: heart.right, cardRight: r.right, cardBottom: r.bottom } : null,
       overlap: heart ? texts.some(x => x.right > heart.left + 0.5 && x.bottom > heart.top + 0.5 && x.top < heart.bottom - 0.5) : false };
   }))()`);
-  check("카드: 사진 96px 왼쪽, 글자는 오른쪽", cards.every((c) => Math.round(c.thumbW) === 96 && Math.round(c.thumbH) === 96 && c.thumbRight < c.titleLeft));
+  check("행: 사진 88px 정사각형 왼쪽, 글자는 오른쪽", cards.every((c) => Math.round(c.thumbW) === 88 && Math.round(c.thumbH) === 88 && c.thumbRight < c.titleLeft));
   check("카드: 높이 170px 이하", cards.every((c) => c.height <= 170), cards.map((c) => Math.round(c.height)).join());
   const tabTop = await evaluate("document.querySelector('.tab-bar').getBoundingClientRect().top");
   const fullyVisible = cards.filter((c) => c.top >= 0 && c.top + c.height <= tabTop).length;
