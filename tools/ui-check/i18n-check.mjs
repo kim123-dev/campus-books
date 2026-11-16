@@ -253,7 +253,7 @@ try {
   await goto("/static/index.html?lang=en", `${homeReady} && !!document.getElementById('nav-alerts')`);
   await waitUntil("document.getElementById('tab-messages').getAttribute('aria-label')");
   const aria = await evaluate("({ bell: document.getElementById('nav-alerts').getAttribute('aria-label'), tab: document.getElementById('tab-messages').getAttribute('aria-label') })");
-  check("en 로그인: 알림 종·쪽지 탭 이름(복수형)", aria.bell.startsWith("Book alerts") && /^Messages(, \d+ unread messages?)?$/.test(aria.tab), JSON.stringify(aria));
+  check("en 로그인: 알림 종(Notifications)·쪽지 탭 이름(복수형)", aria.bell.startsWith("Notifications") && /^Messages(, \d+ unread messages?)?$/.test(aria.tab), JSON.stringify(aria));
   l = await layout();
   check("en 로그인: 헤더 안 넘침, 가로 스크롤 없음", l.header && !l.wide);
   g = await globeSize();
@@ -437,8 +437,20 @@ try {
     const noRoom = await evaluate("(() => { const n = document.getElementById('page-error-text'); return { text: n.firstChild?.textContent, original: n.querySelector('.error-original')?.textContent }; })()");
     check(`${lang} 없는 대화방: 번역 문장 + 한국어 원문`, !!noRoom.original && !/[가-힣]/.test(noRoom.text ?? "가"), JSON.stringify(noRoom));
 
-    // 찾는 교재 알림: 조건 등록 → 목록 문구, 같은 키워드 다시 등록 → 칸 아래 맞춤 문장 + 원문
-    await goto(`/static/alerts.html?lang=${lang}`, `${settled} && document.getElementById('alert-count').textContent !== '' && document.getElementById('result-summary').textContent !== ${JSON.stringify(en ? "Loading…" : "加载中…")}`);
+    // 알림 화면: 제목·안 읽은 쪽지 줄·빈 화면 버튼 번역, 넘침 없음
+    await goto(`/static/alerts.html?lang=${lang}`, `${settled} && !document.getElementById('unread-messages').hidden && document.getElementById('result-summary').textContent !== ${JSON.stringify(en ? "Loading…" : "加载中…")}`);
+    left = await leftover4();
+    o = await overflow();
+    const notif = await evaluate("({ h1: document.querySelector('h1').textContent, h2: document.querySelector('main h2').textContent, row: document.querySelector('#unread-messages a').textContent })");
+    check(
+      `${lang} 알림 화면: 제목·쪽지 줄·찾는 교재 알림 제목 번역, 한국어 안 남음, 화면 안 넘침`,
+      notif.h1 === (en ? "Notifications" : "通知") && notif.h2 === (en ? "Book alerts" : "求书提醒") && (en ? /^\d+ unread messages?$/ : /^\d+ 条未读私信$/).test(notif.row) && left.length === 0 && o.ok,
+      `${JSON.stringify(notif)} ${left.join(" / ")} ${o.bad}`,
+    );
+    await screenshot(`i18n-${W}-${lang}-notifications.png`);
+
+    // 찾는 교재 화면: 조건 등록 → 목록 문구, 같은 키워드 다시 등록 → 칸 아래 맞춤 문장 + 원문
+    await goto(`/static/book-alerts.html?lang=${lang}`, `${settled} && document.getElementById('alert-count').textContent !== ''`);
     const keyword = `알림확인${lang}`;
     const addAlert = async () => {
       await evaluate(`(() => { const f = document.getElementById('alert-form'); f.elements.keyword.value = ${JSON.stringify(keyword)}; f.requestSubmit(); })()`);

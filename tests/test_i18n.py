@@ -132,7 +132,6 @@ ORIGINAL_KOREAN = {
     "term.home": "홈",
     "nav.tab_aria": "하단 메뉴",
     "notice.suspended": "{date}까지 이용이 정지된 상태입니다. 글쓰기·수정·쪽지·찜·신고를 할 수 없어요.",
-    "nav.alerts_unread_aria": "찾는 교재 알림, 새 알림 {count}개",
     "nav.messages_unread_aria": "쪽지, 안 읽은 메시지 {count}개",
     # api.js
     "err.network": "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",

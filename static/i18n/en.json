@@ -43,9 +43,9 @@
   "nav.main_aria": "Main menu",
   "nav.tab_aria": "Bottom menu",
   "nav.me_aria": "{@term.me}, {nickname}",
-  "nav.alerts_unread_aria": {
-    "one": "{@term.book_alerts}, {count} new alert",
-    "other": "{@term.book_alerts}, {count} new alerts"
+  "nav.notifications_unread_aria": {
+    "one": "{@term.notifications}, {count} new",
+    "other": "{@term.notifications}, {count} new"
   },
   "nav.messages_unread_aria": {
     "one": "{@term.messages}, {count} unread message",
@@ -356,7 +356,8 @@
   "title.chat": "{@term.messages} | Campus Books",
   "title.chat_with": "Messages with {nickname} | Campus Books",
   "title.inbox": "{@term.inbox} | Campus Books",
-  "title.alerts": "{@term.book_alerts} | Campus Books",
+  "title.alerts": "{@term.notifications} | Campus Books",
+  "title.book_alerts": "{@term.book_alerts} | Campus Books",
   "title.blocks": "{@term.block_list} | Campus Books",
   "title.me": "{@term.me} | Campus Books",
   "chat.to_inbox": "Back to {@term.inbox}",
@@ -439,6 +440,11 @@
   "alerts.total_new": "{total} total · {count} new",
   "alerts.card_new": "New match for \"{keyword}\"",
   "alerts.card": "Match for \"{keyword}\"",
+  "alerts.unread_messages": {
+    "one": "{count} unread message",
+    "other": "{count} unread messages"
+  },
+  "alerts.register_link": "Add a book alert",
   "blocks.intro": "You and blocked users can't message each other, and their listings won't appear in the list. They won't be told that you blocked them.",
   "blocks.empty": "You haven't blocked anyone.",
   "blocks.page_empty": "No blocked users on this page. (Total: {total}, last page: {pages})",

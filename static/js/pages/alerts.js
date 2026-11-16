@@ -1,17 +1,11 @@
-// 찾는 교재 알림 화면: 위에서 조건(키워드·최대 가격)을 등록·삭제하고, 아래에서 받은 알림을 본다. 로그인이 필요하다.
-// 알림 목록을 그린 뒤 모두 읽음 처리한다. 이번에 처음 보는 알림은 강조한 채로 남고, 헤더 배지는 사라진다.
-import {
-  createAlert,
-  deleteAlert,
-  listAlerts,
-  listNotifications,
-  markAllNotificationsRead,
-} from "../api.js";
-import { redirectToLogin, refreshAlertBadge, renderHeader } from "../auth.js";
+// 알림 화면(헤더 종): 맨 위에 안 읽은 쪽지 수 줄(누르면 쪽지함), 아래에 찾는 교재 알림 목록. 로그인이 필요하다.
+// 알림 목록을 그린 뒤 모두 읽음 처리한다. 이번에 처음 보는 알림은 강조한 채로 남고, 종 배지에서 그만큼 빠진다.
+// 찾는 교재 조건 등록·삭제는 찾는 교재 화면(book-alerts.html, 내 정보에서 진입)에서 한다.
+import { listNotifications, markAllNotificationsRead } from "../api.js";
+import { redirectToLogin, refreshAlertBadge, renderHeader, unreadMessageCount } from "../auth.js";
 import { t } from "../i18n.js";
 import { getToken } from "../token.js";
 import {
-  clearFormErrors,
   el,
   EMPTY_ALERTS_IMAGE,
   formatDate,
@@ -20,19 +14,14 @@ import {
   renderPagination,
   safeImageUrl,
   setErrorText,
-  showFormErrors,
   statusBadge,
-  withContextMessage,
 } from "../ui.js";
 
 const PAGE_SIZE = 20;
 
-const alertForm = document.getElementById("alert-form");
-const alertFormError = document.getElementById("alert-form-error");
-const alertList = document.getElementById("alert-list");
-const alertCount = document.getElementById("alert-count");
 const summary = document.getElementById("result-summary");
 const listError = document.getElementById("list-error");
+const emptyActions = document.getElementById("empty-actions");
 const notificationList = document.getElementById("notification-list");
 const pagination = document.getElementById("pagination");
 
@@ -49,10 +38,17 @@ async function init() {
     else showListError(t("err.network"));
     return;
   }
-  alertForm.addEventListener("submit", onSubmitAlert);
   window.addEventListener("popstate", loadNotifications);
-  loadAlerts();
+  showUnreadMessages();
   loadNotifications();
+}
+
+// 맨 위 "읽지 않은 쪽지 N개" 줄. 숫자는 헤더가 이미 받은 것을 기다려 쓴다(같은 요청을 두 번 보내지 않음). 실패하면 줄을 숨긴다.
+async function showUnreadMessages() {
+  const count = await unreadMessageCount();
+  if (count === null) return;
+  document.getElementById("unread-messages-text").textContent = t("alerts.unread_messages", { count });
+  document.getElementById("unread-messages").hidden = false;
 }
 
 // 401(토큰 만료)이면 로그인 화면으로 보낸다. 처리했으면 true.
@@ -60,103 +56,6 @@ function handleAuthError(error) {
   if (error.status !== 401) return false;
   redirectToLogin();
   return true;
-}
-
-// ---------- 찾는 교재 조건 ----------
-
-async function loadAlerts() {
-  let data;
-  try {
-    data = await listAlerts();
-  } catch (error) {
-    if (handleAuthError(error)) return;
-    showFormErrors(alertForm, alertFormError, error);
-    return;
-  }
-  renderAlerts(data);
-}
-
-function renderAlerts({ items, max_count: maxCount }) {
-  alertCount.textContent = `${items.length}/${maxCount}`;
-  alertList.replaceChildren(...items.map(renderAlertItem));
-}
-
-function renderAlertItem(alert) {
-  const priceText = alert.max_price === null ? t("alerts.price_any") : t("alerts.price_max", { price: formatPrice(alert.max_price) });
-  // 등록하기 전에 이미 올라온 글은 알림이 오지 않으므로, 같은 조건의 검색 결과로 바로 볼 수 있게 한다.
-  const query = new URLSearchParams({ q: alert.keyword });
-  if (alert.max_price !== null) query.set("max_price", String(alert.max_price));
-
-  const removeButton = el("button", { type: "button", className: "link-button link-button--danger", text: t("common.delete") });
-  removeButton.addEventListener("click", () => onDeleteAlert(alert, removeButton));
-  return el(
-    "li",
-    { className: "alert-list__item" },
-    el(
-      "div",
-      { className: "alert-list__text" },
-      el("span", { className: "alert-list__keyword", text: alert.keyword }),
-      " ",
-      el("span", { className: "alert-list__price", text: priceText }),
-    ),
-    el(
-      "div",
-      { className: "alert-list__actions" },
-      el("a", { className: "link-button", href: `/static/index.html?${query}`, text: t("alerts.search_now") }),
-      removeButton,
-    ),
-  );
-}
-
-async function onSubmitAlert(event) {
-  event.preventDefault();
-  clearFormErrors(alertForm, alertFormError);
-  const { keyword, max_price: maxPrice } = alertForm.elements;
-  const data = { keyword: keyword.value };
-  if (maxPrice.value !== "") {
-    const price = Number(maxPrice.value);
-    if (!Number.isInteger(price) || price < 0) {
-      showFormErrors(alertForm, alertFormError, { fieldErrors: { max_price: t("alerts.price_integer") } });
-      return;
-    }
-    data.max_price = price;
-  }
-
-  const submit = alertForm.querySelector("[type=submit]");
-  submit.disabled = true;
-  try {
-    await createAlert(data);
-    alertForm.reset();
-    keyword.focus();
-  } catch (error) {
-    if (handleAuthError(error)) return;
-    // 409(같은 키워드)는 키워드 칸 아래에, 400(개수 초과)·403(정지)은 공통 영역에 보여준다.
-    if (error.status === 409) {
-      const { message, original } = withContextMessage(error, "alerts.duplicate");
-      showFormErrors(alertForm, alertFormError, { fieldErrors: { keyword: message }, fieldOriginals: { keyword: original } });
-    }
-    else showFormErrors(alertForm, alertFormError, error);
-    return;
-  } finally {
-    submit.disabled = false;
-  }
-  loadAlerts();
-}
-
-async function onDeleteAlert(alert, button) {
-  button.disabled = true;
-  try {
-    await deleteAlert(alert.id);
-  } catch (error) {
-    if (handleAuthError(error)) return;
-    // 이미 지워진 조건(404)이면 목록만 새로 맞춘다.
-    if (error.status !== 404) {
-      button.disabled = false;
-      showFormErrors(alertForm, alertFormError, error);
-      return;
-    }
-  }
-  loadAlerts();
 }
 
 // ---------- 알림 ----------
@@ -170,6 +69,7 @@ async function loadNotifications() {
   listError.hidden = true;
   notificationList.replaceChildren();
   pagination.replaceChildren();
+  emptyActions.hidden = true;
 
   let data;
   try {
@@ -198,6 +98,8 @@ function renderNotifications({ items, total, page, size }) {
     renderEmptyState(summary, t("alerts.empty"), {
       image: EMPTY_ALERTS_IMAGE,
     });
+    // 빈 화면 안내 아래에 "찾는 교재 등록하기"
+    emptyActions.hidden = false;
     return;
   }
   const unreadCount = items.filter((item) => item.read_at === null).length;

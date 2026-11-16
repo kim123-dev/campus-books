@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 화면 언어를 그리기 전에 정한다(<html lang>, 깜빡임 방지). 모듈보다 먼저 실행되는 일반 스크립트 -->
+    <script src="/static/js/lang-boot.js"></script>
+    <title>찾는 교재 알림 | Campus Books</title>
+    <meta name="i18n-title" content="title.book_alerts" />
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <!-- 홈 화면 앱(PWA): 앱 정보·아이콘, 아이폰 홈 화면 아이콘과 이름, 서비스 워커 등록 -->
+    <meta name="theme-color" content="#5b3fd6" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <link rel="icon" href="/static/img/favicon.png" type="image/png" sizes="48x48" />
+    <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Campus Books" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <script type="module" src="/static/js/pwa.js"></script>
+    <script type="module" src="/static/js/pages/book-alerts.js"></script>
+  </head>
+  <body>
+    <header id="site-header" class="site-header"></header>
+
+    <main class="container">
+      <h1 class="page-title" data-i18n="term.book_alerts">찾는 교재 알림</h1>
+
+      <!-- 찾는 교재 조건. 조건에 맞는 판매 중인 새 글이 올라오면 알림 화면(alerts.html)에 쌓인다. -->
+      <section class="card account-card" aria-labelledby="alerts-title">
+        <h2 id="alerts-title" class="alert-section-title alert-section-title--in-card"><span data-i18n="alerts.conditions_title">찾는 교재</span> <span id="alert-count"></span></h2>
+        <p class="field-hint" data-i18n="alerts.intro">교재명이나 과목명에 키워드가 들어간 새 글이 올라오면 알려 드려요. (글 제목은 보지 않아요)</p>
+        <form id="alert-form" class="alert-form" novalidate>
+          <div class="field">
+            <label for="alert-keyword" data-i18n="alerts.keyword">키워드</label>
+            <input id="alert-keyword" name="keyword" type="text" minlength="2" maxlength="100" placeholder="예: 자료구조" data-i18n-attr="placeholder:home.course_placeholder" required />
+            <p class="field-error" data-error-for="keyword" hidden></p>
+          </div>
+          <div class="field">
+            <label for="alert-max-price" data-i18n="alerts.max_price">최대 가격 (선택)</label>
+            <input id="alert-max-price" name="max_price" type="number" inputmode="numeric" min="0" step="1000" placeholder="상관없음" data-i18n-attr="placeholder:alerts.any_price_placeholder" />
+            <p class="field-error" data-error-for="max_price" hidden></p>
+          </div>
+          <button type="submit" class="button button--primary alert-form__submit" data-i18n="alerts.add">등록</button>
+        </form>
+        <p id="alert-form-error" class="form-error" role="alert" hidden></p>
+        <ul id="alert-list" class="alert-list"></ul>
+      </section>
+    </main>
+  </body>
+</html>

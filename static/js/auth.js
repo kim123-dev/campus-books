@@ -24,6 +24,7 @@ const ADMIN_PAGE = "/static/admin-dashboard.html";
 const ADMIN_PAGE_PREFIX = "/static/admin";
 const BLOCKS_PAGE = "/static/blocks.html";
 const ALERTS_PAGE = "/static/alerts.html";
+const BOOK_ALERTS_PAGE = "/static/book-alerts.html";
 const MAX_BADGE_COUNT = 99;
 
 // ---------- 돌아갈 주소 (next) ----------
@@ -191,14 +192,15 @@ function loggedInItems(me) {
   ];
 }
 
-// 찾는 교재 알림 종. PC와 모바일 모두 헤더 오른쪽에 보인다. (하단 탭 바에 넣지 않고 헤더에 둔다)
+// 알림 종. PC와 모바일 모두 헤더 오른쪽에 보인다. (하단 탭 바에 넣지 않고 헤더에 둔다)
+// 누르면 알림 화면(안 읽은 쪽지 줄 + 찾는 교재 알림 목록). 배지는 두 숫자의 합이다.
 function alertBell() {
   return el(
     "a",
     {
       className: "site-bell",
       href: ALERTS_PAGE,
-      attrs: { id: "nav-alerts", "aria-label": t("term.book_alerts"), ...(window.location.pathname === ALERTS_PAGE ? { "aria-current": "page" } : {}) },
+      attrs: { id: "nav-alerts", "aria-label": t("term.notifications"), ...(window.location.pathname === ALERTS_PAGE ? { "aria-current": "page" } : {}) },
     },
     icon("bell"),
     el("span", { className: "nav-badge site-bell__badge", attrs: { id: "nav-alerts-unread", "aria-hidden": "true" }, hidden: true }),
@@ -214,7 +216,7 @@ const TABS = [
   { href: HOME_PAGE, labelKey: "term.home", icon: "home" },
   { href: POST_FORM_PAGE, labelKey: "term.sell", icon: "plus", modifier: "write" },
   { href: CONVERSATIONS_PAGE, labelKey: "term.messages", icon: "chat", id: "tab-messages", badgeId: "tab-unread" },
-  { href: ME_PAGE, labelKey: "term.me", icon: "user", also: [BLOCKS_PAGE, ALERTS_PAGE, ...LEGACY_ME_PAGES], alsoPrefix: ADMIN_PAGE_PREFIX },
+  { href: ME_PAGE, labelKey: "term.me", icon: "user", also: [BLOCKS_PAGE, ALERTS_PAGE, BOOK_ALERTS_PAGE, ...LEGACY_ME_PAGES], alsoPrefix: ADMIN_PAGE_PREFIX },
 ];
 
 /**
@@ -252,28 +254,50 @@ export function suspensionText(me) {
   return t("notice.suspended", { date: formatMonthDayTime(me.suspended_until) });
 }
 
-/**
- * 헤더 종의 안 읽은 알림 배지를 다시 채운다. 알림 화면이 모두 읽음 처리한 뒤에도 부른다.
- * 쪽지 배지와 같이 보조 정보라 실패해도 배지만 숨긴다.
- */
-export async function refreshAlertBadge() {
+// ---------- 안 읽은 수 배지 ----------
+// 종 배지 = 안 읽은 쪽지 + 안 읽은 찾는 교재 알림. 두 숫자는 이미 있는 API(쪽지·알림 안 읽은 수)로 따로 받아
+// 여기에 두고 합을 그린다. 헤더는 화면을 열 때 두 API를 한 번씩만 부르고, 읽은 뒤에는 각 화면이 해당 숫자만 다시 받는다.
+const unreadCounts = { messages: 0, alerts: 0 };
+// 가장 최근의 "안 읽은 쪽지 수" 요청. 알림 화면이 같은 숫자를 다시 묻지 않고 이것을 기다린다.
+let messageCountRequest = null;
+
+function badgeText(count) {
+  return count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
+}
+
+function renderBellBadge() {
   const link = document.getElementById("nav-alerts");
   const badge = document.getElementById("nav-alerts-unread");
   if (!link || !badge) return;
-  let count = 0;
-  try {
-    ({ unread_count: count } = await getAlertUnreadCount());
-  } catch {
-    count = 0;
-  }
-  badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
+  const count = unreadCounts.messages + unreadCounts.alerts;
+  badge.textContent = badgeText(count);
   badge.hidden = count === 0;
-  link.setAttribute("aria-label", count > 0 ? t("nav.alerts_unread_aria", { count }) : t("term.book_alerts"));
+  // 배지 숫자는 화면 낭독기에서 숨기고, 링크 이름에 뜻을 담아 읽어 준다.
+  link.setAttribute("aria-label", count > 0 ? t("nav.notifications_unread_aria", { count }) : t("term.notifications"));
 }
 
 /**
- * 헤더의 안 읽은 쪽지 배지를 다시 채운다. 대화 화면이 메시지를 읽은 뒤에도 부른다.
- * 배지는 보조 정보라 실패해도 화면에 에러를 띄우지 않고 배지만 숨긴다.
+ * 안 읽은 찾는 교재 알림 수를 다시 받아 종 배지를 고친다. 알림 화면이 모두 읽음 처리한 뒤에도 부른다.
+ * 배지는 보조 정보라 실패해도 화면에 에러를 띄우지 않고 그 숫자만 0으로 본다.
+ */
+export async function refreshAlertBadge() {
+  if (!document.getElementById("nav-alerts")) return;
+  try {
+    ({ unread_count: unreadCounts.alerts } = await getAlertUnreadCount());
+  } catch {
+    unreadCounts.alerts = 0;
+  }
+  renderBellBadge();
+}
+
+/** 안 읽은 쪽지 수. 헤더가 이미 물어본 것이 있으면 그 결과를 쓴다. 실패하거나 로그인 전이면 null. */
+export function unreadMessageCount() {
+  return messageCountRequest ?? refreshUnreadBadge();
+}
+
+/**
+ * 헤더·하단 탭 바의 "쪽지" 배지와 종 배지를 다시 채운다. 대화 화면이 메시지를 읽은 뒤에도 부른다.
+ * 배지는 보조 정보라 실패해도 화면에 에러를 띄우지 않고 배지만 숨긴다. 받은 숫자(실패면 null)를 돌려준다.
  */
 export async function refreshUnreadBadge() {
   // 헤더(PC)와 하단 탭 바(모바일)의 "쪽지"에 같은 숫자를 넣는다.
@@ -284,20 +308,26 @@ export async function refreshUnreadBadge() {
     .map(([linkId, badgeId]) => [document.getElementById(linkId), document.getElementById(badgeId)])
     .filter(([link, badge]) => link && badge);
   // 로그인하지 않았으면 헤더에 쪽지 링크가 없다. 탭 바만 있어도 숫자를 물어보지 않는다.
-  if (!document.getElementById("nav-messages") || pairs.length === 0) return;
+  if (!document.getElementById("nav-messages") || pairs.length === 0) return null;
 
-  let count = 0;
-  try {
-    ({ unread_count: count } = await getUnreadCount());
-  } catch {
-    count = 0;
-  }
+  const request = getUnreadCount().then(
+    ({ unread_count: n }) => n,
+    () => null,
+  );
+  messageCountRequest = request;
+  const result = await request;
+  // 그사이 더 새 요청이 있었으면 그쪽이 그린다.
+  if (request !== messageCountRequest) return result;
+  const count = result ?? 0;
   for (const [link, badge] of pairs) {
-    badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
+    badge.textContent = badgeText(count);
     badge.hidden = count === 0;
     // 배지 숫자는 화면 낭독기에서 숨기고, 링크 이름에 뜻을 담아 읽어 준다.
     link.setAttribute("aria-label", count > 0 ? t("nav.messages_unread_aria", { count }) : t("term.messages"));
   }
+  unreadCounts.messages = count;
+  renderBellBadge();
+  return result;
 }
 
 /**
