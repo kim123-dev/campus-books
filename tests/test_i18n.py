@@ -519,11 +519,14 @@ def test_supported_languages_match_dictionaries() -> None:
     assert sorted(path.stem for path in I18N_DIR.glob("*.json")) == sorted(LANGS)
 
 
-def test_language_switch_is_hidden_until_all_pages_are_translated() -> None:
-    # 5단계(모든 화면 번역)가 끝나기 전에는 사용자에게 언어 선택을 보여주지 않고, 브라우저 언어도 따르지 않는다.
-    # 다 끝나면 이 값을 true로 바꾸고 이 테스트도 함께 고친다.
+def test_language_switch_is_public() -> None:
+    # 언어 선택을 사용자에게 공개했다. 버튼이 보이고, 저장된 값이 없으면 브라우저 언어를 따른다. (관리자 화면은 아직 한국어)
     boot = (JS_DIR / "lang-boot.js").read_text(encoding="utf-8")
-    assert "var LANG_SWITCH_ENABLED = false;" in boot
+    assert "var LANG_SWITCH_ENABLED = true;" in boot
+    # 순서: 주소의 ?lang= → 저장된 값 → 브라우저 언어 → 한국어
+    order = ["lang = readStored();", "if (!lang && LANG_SWITCH_ENABLED) lang = fromBrowser();", "if (!lang) lang = DEFAULT_LANG;"]
+    positions = [boot.index(part) for part in order]
+    assert positions == sorted(positions)
 
 
 def test_storage_access_is_guarded() -> None:

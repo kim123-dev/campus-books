@@ -1,9 +1,9 @@
 // 화면 언어 확인 (375px): 한국어 기본, ?lang=·저장된 값으로 바꾸기, 영어·중국어 탭 이름과 헤더가 넘치지 않는지,
 // 서버 오류의 번역 문장 + 한국어 원문, 내 정보의 비밀번호 틀림 표시,
-// 기능 플래그를 켰을 때(확인용으로 lang-boot.js를 바꿔 받음)의 브라우저 언어 따르기와 언어 선택 버튼.
-import { readFileSync, writeFileSync } from "node:fs";
+// 언어 선택 공개 후: 로그인 전·후·로그인 화면의 🌐 버튼, 브라우저 언어 따르기, 언어를 바꾸면 저장·다시 불러오기.
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ROOT, readSeed, sleep, startBrowser } from "./lib.mjs";
+import { readSeed, sleep, startBrowser } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -12,7 +12,7 @@ const results = [];
 const check = (name, ok, detail = "") => results.push(`${ok ? "PASS" : "FAIL"}  [${W}] ${name}${detail ? `  (${detail})` : ""}`);
 
 const b = await startBrowser(OUT, { width: W, height: 812, mobile: true });
-const { evaluate, waitUntil, goto, screenshot, send, exceptions, listeners } = b;
+const { evaluate, waitUntil, goto, screenshot, send, exceptions } = b;
 const TOKEN_KEY = "campus-books.token";
 const LANG_KEY = "campus-books.lang";
 const settled = "!document.documentElement.hasAttribute('data-i18n-pending') && document.querySelector('.tab-bar') && document.fonts.status === 'loaded'";
@@ -30,6 +30,9 @@ const layout = () =>
     const header = [...document.querySelectorAll('.site-header *')].every((n) => n.getBoundingClientRect().right <= ${W} + 0.5);
     return { tabs, header, wide: document.documentElement.scrollWidth > ${W}, lang: document.documentElement.lang };
   })()`);
+const globeSize = () =>
+  evaluate("(() => { const n = document.querySelector('.site-lang'); if (!n) return null; const r = n.getBoundingClientRect(); return { w: r.width, h: r.height, inside: r.left >= 0 && r.right <= innerWidth }; })()");
+const globeOk = (g) => !!g && g.w >= 44 && g.h >= 44 && g.inside;
 const texts = (selector) => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].map((n) => n.textContent.trim())`);
 
 try {
@@ -39,7 +42,15 @@ try {
   await goto("/static/index.html", homeReady);
   let l = await layout();
   check("기본: <html lang=ko>, 탭 4칸 한국어", l.lang === "ko" && l.tabs.map((t) => t.text).join("|") === "홈|글쓰기|쪽지|내 정보", l.tabs.map((t) => t.text).join("|"));
-  check("기본: 플래그가 꺼져 있어 언어 버튼 없음", !(await evaluate("!!document.querySelector('.site-lang')")));
+  // 확인용 브라우저 언어는 ko-KR(lib.mjs)이라 저장된 값이 없으면 한국어로 시작한다.
+  let g = await globeSize();
+  check("로그인 전: 🌐 버튼 보임, 44px 이상, 화면 안", globeOk(g), JSON.stringify(g));
+  check("로그인 전: 🌐 버튼이 있어도 하단 탭 4칸·한 줄·헤더 안 넘침", l.tabs.length === 4 && l.tabs.every((t) => t.fits) && l.header && !l.wide, JSON.stringify(l.tabs));
+  await goto("/static/login.html", "!document.documentElement.hasAttribute('data-i18n-pending') && !!document.querySelector('.site-lang')");
+  g = await globeSize();
+  l = await layout();
+  check("로그인 화면: 🌐 버튼 보임, 44px 이상, 헤더 안 넘침", globeOk(g) && l.header && !l.wide, JSON.stringify(g));
+  await goto("/static/index.html", homeReady);
   const koCards = await texts(".post-card .badge, .post-card__condition, .post-card__price");
   check("기본: 카드 문구가 예전과 같음", koCards.includes("판매 중") && koCards.includes("책 상태 상") && koCards.includes("15,000원") && koCards.includes("무료 나눔"), koCards.join(", "));
 
@@ -247,8 +258,10 @@ try {
   check("en 로그인: 알림 종·쪽지 탭 이름(복수형)", aria.bell.startsWith("Book alerts") && /^Messages(, \d+ unread messages?)?$/.test(aria.tab), JSON.stringify(aria));
   l = await layout();
   check("en 로그인: 헤더 안 넘침, 가로 스크롤 없음", l.header && !l.wide);
+  g = await globeSize();
+  check("en 로그인: 🌐 버튼 보임, 44px 이상, 하단 탭 4칸", globeOk(g) && l.tabs.length === 4 && l.tabs.every((t) => t.fits), `${JSON.stringify(g)} ${l.tabs.map((t) => t.text).join("|")}`);
 
-  // 내 정보: 가입일 형식, 언어 칸은 숨김(플래그 꺼짐), 본인 확인 질문 저장 때 비밀번호 틀림은 칸 아래에 번역 문구
+  // 내 정보: 가입일 형식, 언어 칸 보임, 본인 확인 질문 저장 때 비밀번호 틀림은 칸 아래에 번역 문구
   const meReady = `${settled} && !document.getElementById('account').hidden`;
   const wrongPassword = async () => {
     await evaluate(`(() => {
@@ -267,7 +280,7 @@ try {
   await goto("/static/me.html", meReady);
   const meta = await evaluate("document.getElementById('profile-meta').textContent");
   check("en 내 정보: 가입일이 영어 날짜 형식", /· Joined [A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(meta), meta);
-  check("en 내 정보: 언어 칸 숨김(플래그 꺼짐)", await evaluate("document.getElementById('language').hidden"));
+  check("en 내 정보: 언어 칸 보임", !(await evaluate("document.getElementById('language').hidden")));
   let pw = await wrongPassword();
   check("en 질문 저장 + 틀린 비밀번호: 비밀번호 칸 아래에 번역 문구", pw.text === "Your current password is incorrect." && !pw.original, JSON.stringify(pw));
   await goto("/static/me.html?lang=ko", meReady);
@@ -368,7 +381,7 @@ try {
 
   // ---------- 4단계: 쪽지·알림·내 정보 (판매자로 로그인한 상태) ----------
   // 사용자가 쓴 값(닉네임·쪽지·글 제목·키워드·이메일)과 서버가 준 문장(본인 확인 질문)은 원문 그대로라 빼고 본다.
-  const USER_TEXT_4 = `${USER_TEXT}, .message__bubble, #chat-partner, .chat__post a, .conversation-card__partner, .conversation-card__post, .conversation-card__preview, .action-menu__title, .alert-list__keyword, .block-item__name, #profile-nickname, #question-status`;
+  const USER_TEXT_4 = `${USER_TEXT}, .message__bubble, #chat-partner, .chat__post a, .conversation-card__partner, .conversation-card__post, .conversation-card__preview, .action-menu__title, .alert-list__keyword, .block-item__name, #profile-nickname, #question-status, #language, .lang-menu`;
   const leftover4 = () =>
     evaluate(`(() => {
       const out = [];
@@ -487,27 +500,7 @@ try {
   const koInbox = await evaluate("({ summary: document.getElementById('result-summary').textContent, unread: document.querySelector('.count-badge')?.textContent ?? '' })");
   check("ko 쪽지함: 예전 문구", koInbox.summary === "대화방 3개" && (koInbox.unread === "" || /^안 읽은 메시지 \d+개\d+$/.test(koInbox.unread)), JSON.stringify(koInbox));
 
-  // ---------- 기능 플래그를 켰을 때 (lang-boot.js를 바꿔 받아 확인. 저장소의 파일은 그대로) ----------
-  await send("Network.enable");
-  await send("Network.setBypassServiceWorker", { bypass: true });
-  // 요청 단계에서 가로채 저장소의 파일을 플래그만 바꿔 돌려준다. (응답 단계는 304 재확인 때 본문이 비어 있다)
-  const flaggedBoot = readFileSync(join(ROOT, "static", "js", "lang-boot.js"), "utf8").replace(
-    "var LANG_SWITCH_ENABLED = false;",
-    "var LANG_SWITCH_ENABLED = true;",
-  );
-  await send("Fetch.enable", { patterns: [{ urlPattern: "*/static/js/lang-boot.js*", requestStage: "Request" }] });
-  listeners.push((msg) => {
-    if (msg.method !== "Fetch.requestPaused") return;
-    send("Fetch.fulfillRequest", {
-      requestId: msg.params.requestId,
-      responseCode: 200,
-      responseHeaders: [
-        { name: "Content-Type", value: "text/javascript; charset=utf-8" },
-        { name: "Cache-Control", value: "no-store" },
-      ],
-      body: Buffer.from(flaggedBoot, "utf8").toString("base64"),
-    });
-  });
+  // ---------- 브라우저 언어 따르기와 🌐 목록 (언어 선택 공개) ----------
   // 브라우저 언어(navigator.languages)를 페이지 스크립트보다 먼저 바꿔 둔다. 다시 부르면 앞의 것을 지운다.
   let languageScript = null;
   const browserLanguage = async (languages) => {
@@ -523,10 +516,10 @@ try {
   await browserLanguage(["en-US", "en"]);
   await goto("/static/index.html", homeReady);
   const first = await evaluate(`({ lang: document.documentElement.lang, button: !!document.querySelector('.site-lang'), languages: navigator.languages.join(','), stored: localStorage.getItem("${LANG_KEY}") })`);
-  check("플래그 켬 + 브라우저 영어: 영어로 시작", first.lang === "en" && first.button, JSON.stringify(first));
+  check("저장된 값 없음 + 브라우저 영어: 영어로 시작", first.lang === "en" && first.button, JSON.stringify(first));
   await browserLanguage(["ja-JP", "ja"]);
   await goto("/static/index.html", homeReady);
-  check("플래그 켬 + 브라우저 일본어(미지원): 한국어", (await evaluate("document.documentElement.lang")) === "ko");
+  check("저장된 값 없음 + 브라우저 일본어(미지원): 한국어", (await evaluate("document.documentElement.lang")) === "ko");
 
   // 헤더 🌐 버튼: 44px, 펼친 목록 3개 각 44px, 화면 안
   const globe = await evaluate("(() => { const r = document.querySelector('.site-lang').getBoundingClientRect(); return { w: r.width, h: r.height, label: document.querySelector('.site-lang').getAttribute('aria-label') }; })()");
