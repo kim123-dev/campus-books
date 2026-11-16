@@ -37,10 +37,6 @@ import { createWishlistButton } from "../wishlist-button.js";
 
 const HOME_PAGE = "/static/index.html";
 
-// 서버가 허용하는 오픈채팅 주소의 시작 부분. 서버 검증(422)이 1차 방어이고,
-// 화면도 이 형식일 때만 링크를 만들어 javascript: 같은 주소가 href에 들어가지 않게 한 번 더 막는다.
-const OPEN_CHAT_PREFIX = "https://open.kakao.com/";
-
 // 현재 상태에서 바꿀 수 있는 상태. 서버 app/services/post_service.py의 ALLOWED_TRANSITIONS와 같아야 한다.
 // 어긋나더라도 서버가 400으로 막으므로, 여기서는 누르면 실패할 버튼을 보여주지 않는 용도다.
 const ALLOWED_TRANSITIONS = {
@@ -405,7 +401,6 @@ function renderGallery(post) {
  * 연락 방법 영역. 보여줄 것이 없으면 null을 돌려준다.
  * - 판매 완료: 더 연락할 이유가 없으므로 아무것도 보여주지 않는다. (이미 시작한 대화는 쪽지함에서 이어 간다)
  * - 로그인한 구매자: "문의하기"(쪽지). 내 글에는 보여주지 않는다. 서버도 400으로 막는다.
- * - 오픈채팅 링크가 있음: 새 탭으로 여는 버튼. noopener noreferrer로 열린 페이지가 이 창(window.opener)과 주소를 알 수 없게 한다.
  * - 로그인하지 않음: 서버가 링크를 비워 보냈을 수 있고 쪽지도 로그인이 필요하므로 로그인을 안내한다.
  */
 function renderContact(post) {
@@ -423,20 +418,6 @@ function renderContact(post) {
   const isOwner = currentUser !== null && currentUser.id === post.seller.id;
   const actions = [];
   if (currentUser !== null && !isOwner) actions.push(renderInquiryButton(post));
-
-  const url = post.open_chat_url;
-  if (typeof url === "string" && url.startsWith(OPEN_CHAT_PREFIX)) {
-    actions.push(
-      el("a", {
-        // 쪽지 버튼이 있으면 그쪽을 주 버튼으로 두고, 오픈채팅은 보조 버튼으로 보여준다.
-        className: actions.length > 0 ? "button" : "button button--primary",
-        href: url,
-        target: "_blank",
-        rel: "noopener noreferrer",
-        text: t("post.open_chat"),
-      }),
-    );
-  }
 
   if (currentUser === null) {
     return contactSection(

@@ -175,19 +175,19 @@ try {
   await setToken(seed.seller_token);
   await goto("/static/me.html", "!document.getElementById('profile').hidden");
   check("내 정보: 탭 바 '내 정보' 선택", (await tabBar.current()) === "내 정보");
-  check("내 정보: 로그아웃 버튼(일반 사용자는 관리 없음)", await evaluate("(() => { const t = [...document.querySelectorAll('.profile-card__actions > *')].filter(e => e.getClientRects().length).map(e => e.textContent); return t.includes('로그아웃') && !t.includes('관리'); })()"));
+  check("내 정보: 설정에 로그아웃 행(일반 사용자는 관리 없음)", await evaluate("(() => { const t = [...document.querySelectorAll('.settings-row')].filter(e => e.getClientRects().length).map(e => e.textContent.trim()); return t.includes('로그아웃') && !t.includes('관리'); })()"));
   await audit("내 정보(판매자)");
   await screenshot(`m1-${W}-my.png`);
 
   // 관리자: 내 정보 안에 관리
   await setToken(admin);
   await goto("/static/me.html", "!document.getElementById('profile').hidden");
-  check("관리자 내 정보: '관리' 버튼", await evaluate("[...document.querySelectorAll('.profile-card__actions a')].some(a => a.textContent === '관리' && a.getClientRects().length && a.getAttribute('href') === '/static/admin-dashboard.html')"));
+  check("관리자 내 정보: 설정에 '관리' 행", await evaluate("[...document.querySelectorAll('.settings-row')].some(a => a.textContent.trim() === '관리' && a.getClientRects().length && a.getAttribute('href') === '/static/admin-dashboard.html')"));
   await goto("/static/admin.html", ready + " && document.querySelectorAll('.report-card').length > 0");
   check("관리: 탭 바 '내 정보' 선택", (await tabBar.current()) === "내 정보");
   await audit("관리");
   await goto("/static/me.html", "!document.getElementById('profile').hidden");
-  await evaluate("[...document.querySelectorAll('.profile-card__actions button')].find(b => b.textContent === '로그아웃').click()");
+  await evaluate("document.getElementById('logout-button').click()");
   await waitUntil("!localStorage.getItem('campus-books.token') && document.readyState === 'complete'");
   check("내 정보: 로그아웃하면 토큰 삭제", await evaluate("!localStorage.getItem('campus-books.token')"));
 
@@ -270,7 +270,7 @@ try {
     check("연락 바: 화면 맨 아래 고정", bar !== null && bar.position === "fixed" && Math.abs(bar.bottom - H) < 1 && bar.left === 0 && Math.abs(bar.right - W) < 1, JSON.stringify(bar));
     check("연락 바: 찜 하트 · 가격 · 쪽지로 문의하기", bar !== null && bar.items.length === 3 && bar.items[0].startsWith("wish-button") && bar.items[1] === "contact-bar__price:15,000원" && bar.items[2] === "button:쪽지로 문의하기", bar?.items.join(" | "));
     check("연락 바: 바 높이 80px 이하", bar !== null && bar.height <= 80, `${Math.round(bar?.height)}px`);
-    check("연락 바: 글 영역에는 오픈채팅만 남고 위쪽 하트는 바로 옮김", await evaluate("(() => { const c = document.querySelector('.post-detail__contact'); return !c.hidden && [...c.querySelectorAll('.button')].map(b => b.textContent).join() === '오픈채팅으로 연락하기' && document.querySelector('.post-detail__top .wish-button') === null && document.querySelectorAll('.wish-button').length === 1; })()"));
+    check("연락 바: 글 영역의 연락 칸은 숨김(버튼이 바로 옮겨짐), 위쪽 하트도 바로 옮김", await evaluate("(() => { const c = document.querySelector('.post-detail__contact'); return c.hidden && document.querySelector('.post-detail__top .wish-button') === null && document.querySelectorAll('.wish-button').length === 1; })()"));
     const barHeart = "document.querySelector('.contact-bar .wish-button')";
     const heartBefore = await evaluate(`${barHeart}.getAttribute('aria-pressed')`);
     await tap(".contact-bar .wish-button");

@@ -36,6 +36,38 @@ try {
   check("계정 관리 버튼 3개 보임", await b.evaluate(`['nickname-toggle', 'password-toggle', 'withdraw-toggle'].every((id) => !document.getElementById(id).hidden)`));
   check("가로 스크롤 없음", await b.evaluate(`document.documentElement.scrollWidth <= ${W}`));
 
+  // 화면 구성: 프로필 카드(버튼 없음) → 내 글/찜 탭과 목록 → 맨 아래 설정 행 목록
+  await b.waitUntil(`document.getElementById('result-summary').textContent !== '불러오는 중…'`);
+  const layout = await b.evaluate(`(() => {
+    const r = (s) => document.querySelector(s).getBoundingClientRect();
+    const rows = [...document.querySelectorAll('.settings-row')].filter((n) => n.getClientRects().length);
+    const logout = document.querySelector('.settings-list__logout');
+    return {
+      cardButtons: document.querySelectorAll('#profile a.button, #profile button').length,
+      gap: Math.round(r('#me-tabs').top - r('#profile').bottom),
+      order: r('#profile').bottom <= r('#me-tabs').top && r('#pagination').bottom <= r('#account').top,
+      rows: rows.map((n) => n.textContent.trim().split(/\\s+/).join(' ')),
+      tall: rows.every((n) => n.getBoundingClientRect().height >= 44 && n.getBoundingClientRect().right <= ${W}),
+      logoutLast: logout === document.querySelector('.settings-list').lastElementChild && parseFloat(getComputedStyle(logout).borderTopWidth) >= 8,
+    };
+  })()`);
+  check("구성: 프로필 카드에 버튼 칩 없음", layout.cardButtons === 0, JSON.stringify(layout.cardButtons));
+  check("구성: 카드 → 탭 간격 16~24px, 목록 아래에 설정", layout.gap >= 16 && layout.gap <= 24 && layout.order, `${layout.gap}px`);
+  check(
+    "구성: 설정 행 순서(관리는 관리자만)",
+    layout.rows.join("|") === "찾는 교재 알림|차단 목록|닉네임 변경|비밀번호 변경|본인 확인 질문|언어 한국어|회원 탈퇴|로그아웃",
+    layout.rows.join("|"),
+  );
+  check("구성: 행 높이 44px 이상·화면 안", layout.tall);
+  check("구성: 로그아웃은 맨 아래, 구분선으로 분리", layout.logoutLast);
+  await b.evaluate(`document.getElementById('language-toggle').click()`);
+  check("언어 행: 누르면 한국어/English/简体中文", await b.evaluate(`[...document.querySelectorAll('#language-panel .lang-options__item')].map((n) => n.textContent).join('|') === '한국어|English|简体中文'`));
+  await b.evaluate(`document.getElementById('language-toggle').click()`);
+  await b.evaluate(`document.getElementById('nickname-toggle').click()`);
+  check("닉네임 변경: 폼이 행 바로 아래에 펼쳐짐", await b.evaluate(`(() => { const t = document.getElementById('nickname-toggle').getBoundingClientRect(), f = document.getElementById('nickname-form').getBoundingClientRect(), next = document.getElementById('password-toggle').getBoundingClientRect(); return !document.getElementById('nickname-form').hidden && f.top >= t.bottom - 1 && f.top - t.bottom < 8 && next.top >= f.bottom; })()`));
+  await b.screenshot(`account-layout-${W}.png`);
+  await b.evaluate(`document.getElementById('nickname-toggle').click()`);
+
   // 내 정보 카드: 이메일·가입일, 매너 학점, 공개 프로필 링크
   check("내 정보: 이메일·가입일", await b.evaluate(`document.getElementById('profile-meta').textContent.includes('가입')`));
   check("내 정보: 매너 학점 한 줄", await b.waitUntil(`document.getElementById('profile-manner').textContent.startsWith('매너 학점')`));

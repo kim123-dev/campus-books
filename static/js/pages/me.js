@@ -1,9 +1,10 @@
-// 내 정보 화면: 내 정보(닉네임·이메일·가입일·매너 학점), 계정 관리(닉네임·비밀번호 변경, 본인 확인 질문, 탈퇴), 내 글·찜 목록 탭.
+// 내 정보 화면: 프로필 카드(닉네임·이메일·가입일·매너 학점), 내 글·찜 목록 탭, 맨 아래 설정 행 목록
+// (알림·차단 목록 링크, 닉네임·비밀번호 변경, 본인 확인 질문, 언어, 관리, 탈퇴, 로그아웃).
 // 예전의 "내 글"(my-posts.html)과 "찜"(wishlist.html) 화면을 이 화면 하나로 모았다. 로그인이 필요하다.
 // 고른 탭과 페이지는 주소창(?tab=wishlist&page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 목록이 나오게 하기 위해서다.
 import { changePassword, getProfile, listMyPosts, listWishlist, setSecurityQuestion, updateMe, withdraw } from "../api.js";
 import { logout, redirectToLogin, renderHeader } from "../auth.js";
-import { t } from "../i18n.js";
+import { LANG, LANGUAGES, t } from "../i18n.js";
 import { languageOptions } from "../lang-picker.js";
 import { renderSecurityQuestionFields } from "../security-question.js";
 import { clearToken, getToken, setToken } from "../token.js";
@@ -96,15 +97,9 @@ function renderProfile(me) {
   // 가입일은 날짜만 보여준다.
   document.getElementById("profile-meta").textContent = t("me.meta", { email: me.email, date: formatDateOnly(me.created_at) });
   document.getElementById("profile-public-link").href = `/static/user.html?id=${encodeURIComponent(me.id)}`;
-  // 모바일에서는 헤더 메뉴 대신 하단 탭 바를 쓰므로, 헤더에 있던 "관리"·"로그아웃"을 이 화면에 둔다.
-  // PC에서는 헤더에 그대로 있으므로 CSS(mobile-only)가 숨긴다.
-  const actions = profile.querySelector(".profile-card__actions");
-  if (me.role === "ADMIN") {
-    actions.append(el("a", { className: "button mobile-only", href: "/static/admin-dashboard.html", text: t("term.admin") }));
-  }
-  const logoutButton = el("button", { type: "button", className: "button mobile-only", text: t("term.logout") });
-  logoutButton.addEventListener("click", logout);
-  actions.append(logoutButton);
+  // 모바일에서는 헤더 메뉴 대신 하단 탭 바를 쓰므로 "관리"·"로그아웃"을 설정 목록에도 둔다. (PC는 헤더에도 있다)
+  document.getElementById("admin-row").hidden = me.role !== "ADMIN";
+  document.getElementById("logout-button").addEventListener("click", logout);
   profile.hidden = false;
   document.getElementById("account").hidden = false;
 }
@@ -163,8 +158,8 @@ function setUpAccount(me) {
   }
   nicknameToggle.addEventListener("click", () => toggle(nicknameForm));
   passwordToggle.addEventListener("click", () => toggle(passwordForm));
-  // 관리자는 탈퇴할 수 없으므로(서버도 400) 버튼을 두지 않는다.
-  if (me.role === "ADMIN") withdrawToggle.hidden = true;
+  // 관리자는 탈퇴할 수 없으므로(서버도 400) 행을 두지 않는다.
+  if (me.role === "ADMIN") withdrawToggle.closest("li").hidden = true;
   else withdrawToggle.addEventListener("click", () => toggle(withdrawForm));
 
   updateNicknameHint(me);
@@ -270,8 +265,7 @@ function setUpAccount(me) {
 function setUpSecurityQuestion(me, { form, toggle, open, close }) {
   const status = document.getElementById("question-status");
   if (me.role === "ADMIN") {
-    toggle.hidden = true;
-    status.hidden = true;
+    toggle.closest("li").hidden = true;
     return;
   }
   const fields = renderSecurityQuestionFields(document.getElementById("question-fields"), { idPrefix: "me" });
@@ -362,13 +356,22 @@ function showPasswordError(form, errorBox, error, field) {
 
 // ---------- 언어 ----------
 
-// 화면 언어 고르기. 기능 플래그가 꺼져 있으면 languageOptions()가 null이라 칸을 숨긴 채로 둔다.
+// 화면 언어 고르기: 행 오른쪽에 지금 언어, 누르면 아래에 언어 버튼이 펼쳐진다.
+// 기능 플래그가 꺼져 있으면 languageOptions()가 null이라 행을 숨긴 채로 둔다.
 function setUpLanguage() {
   const options = languageOptions();
   if (options === null) return;
-  const section = document.getElementById("language");
-  section.append(options);
-  section.hidden = false;
+  const row = document.getElementById("language");
+  const toggle = document.getElementById("language-toggle");
+  const panel = document.getElementById("language-panel");
+  document.getElementById("language-current").textContent = LANGUAGES.find(({ code }) => code === LANG)?.name ?? LANG;
+  panel.append(options);
+  toggle.addEventListener("click", () => {
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute("aria-expanded", String(!panel.hidden));
+    if (!panel.hidden) panel.querySelector("[aria-current]")?.focus();
+  });
+  row.hidden = false;
 }
 
 // ---------- 탭: 내 글 | 찜 목록 ----------
@@ -453,7 +456,7 @@ function render(tab, { items, total, page, size }) {
 function goToPage(tab, page) {
   history.pushState(null, "", `?tab=${tab}${page > 1 ? `&page=${page}` : ""}`);
   load();
-  // 페이지를 넘기면 목록 맨 위(탭)로 간다. 화면 맨 위로 가면 내 정보 카드를 지나 다시 내려와야 한다.
+  // 페이지를 넘기면 목록 맨 위(탭)로 간다. 화면 맨 위로 가면 프로필 카드를 지나 다시 내려와야 한다.
   tabs.scrollIntoView({ block: "start" });
 }
 

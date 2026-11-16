@@ -29,41 +29,19 @@ const layoutShift = () =>
     setTimeout(() => resolve({ hero: Math.round(hero * 1000) / 1000, total: Math.round(total * 1000) / 1000 }), 800); })`);
 
 try {
-  // ---------- 비로그인: 한 줄 띠(문구 + 버튼) ----------
-  await goto("/static/index.html");
-  await setToken(null);
-  await goto("/static/index.html", `${ready} && document.querySelector('.home-hero__image').complete`);
-  const hero = await rect(".home-hero");
-  const image = await rect(".home-hero__image");
-  const button = await rect(".home-hero__button");
-  check("비로그인: 띠 보임(문구·버튼), 보조 문구는 화면 낭독기용", hero && (await visible(".home-hero__guest.home-hero__title")) && button && (await rect(".home-hero__sub")).h <= 1, JSON.stringify(hero));
-  check("비로그인: 띠 높이 56px 이하(첫 화면의 3분의 1을 차지하지 않음)", hero && hero.h <= 56, JSON.stringify(hero));
-  check("비로그인: 띠 문구는 숨김", !(await visible(".home-hero__member")));
-  // 그림은 PC에서 문구 왼쪽 48px, 모바일에서는 문구가 두 줄 안에 들어가도록 숨긴다.
-  if (MOBILE) check("비로그인: 모바일은 그림 숨김", image === null);
-  else check("비로그인: 그림 48px, 4:3, 문구 왼쪽", image && image.w === 48 && image.h === 36 && image.right <= (await rect(".home-hero__guest.home-hero__title")).left, JSON.stringify(image));
-  check("비로그인: 그림 alt 비움·실제 크기 지정", await evaluate("(() => { const i = document.querySelector('.home-hero__image'); return i.getAttribute('alt') === '' && i.getAttribute('width') === '480' && i.getAttribute('height') === '360' && i.naturalWidth === 480; })()"));
-  check("비로그인: 배너가 제목 위", hero.bottom <= (await rect(".page-title")).top);
-  check("비로그인: 버튼은 글쓰기 화면으로", (await evaluate("document.querySelector('.home-hero__button').getAttribute('href')")) === "/static/post-form.html");
-  if (MOBILE) check("비로그인: 버튼 44px 이상", button.h >= 44, JSON.stringify(button));
-  check("비로그인: 가로 스크롤 없음", await noHScroll());
-  const guestShift = await layoutShift();
-  check("비로그인: 배너 때문에 밀림 없음", guestShift.hero === 0 && (await rect(".home-hero")).h === hero.h, JSON.stringify(guestShift));
-  check("비로그인: 페이지 전체 밀림 없음(CLS < 0.01)", guestShift.total < 0.01, JSON.stringify(guestShift));
-  await screenshot(`home-guest-${W}.png`);
-
-  // ---------- 로그인: 얇은 띠 ----------
-  await setToken(seed.buyer_token);
-  await goto("/static/index.html", `${ready} && document.getElementById('site-header').textContent.length > 0`);
-  const strip = await rect(".home-hero");
-  check("로그인: <html data-signed-in>", await evaluate("document.documentElement.hasAttribute('data-signed-in')"));
-  check("로그인: 띠 문구·버튼만(그림·소개 문구 숨김)", (await visible(".home-hero__member")) && (await visible(".home-hero__button")) && !(await visible(".home-hero__image")) && !(await visible(".home-hero__sub")));
-  check(`로그인: 띠 높이 ${MOBILE ? 52 : 64}px 이하·한 줄`, strip && strip.h <= (MOBILE ? 52 : 64) && (await rect(".home-hero__member")).top >= strip.top, JSON.stringify(strip));
-  const memberShift = await layoutShift();
-  check("로그인: 배너(띠) 때문에 밀림 없음", memberShift.hero === 0, JSON.stringify(memberShift));
-  check("로그인: 페이지 전체 밀림 없음(CLS < 0.01)", memberShift.total < 0.01, JSON.stringify(memberShift));
-  check("로그인: 가로 스크롤 없음", await noHScroll());
-  await screenshot(`home-member-${W}.png`);
+  // ---------- 배너 없음: 헤더 바로 아래 제목, 화면 밀림 없음 ----------
+  for (const token of [null, seed.buyer_token]) {
+    const who = token ? "로그인" : "비로그인";
+    await goto("/static/index.html");
+    await setToken(token);
+    await goto("/static/index.html", `${ready} && document.getElementById('site-header').textContent.length > 0`);
+    check(`${who}: 배너 없음`, (await evaluate("document.querySelector('.home-hero')")) === null);
+    check(`${who}: 제목이 헤더 바로 아래`, (await rect(".page-title")).top - (await rect(".site-header")).bottom <= 40);
+    const shift = await layoutShift();
+    check(`${who}: 페이지 전체 밀림 없음(CLS < 0.01)`, shift.total < 0.01, JSON.stringify(shift));
+    check(`${who}: 가로 스크롤 없음`, await noHScroll());
+    await screenshot(`home-${token ? "member" : "guest"}-${W}.png`);
+  }
 
   // ---------- 한 줄 검색 + 필터 펼치기 ----------
   const row = await evaluate("['#q', '#search-button', '#filter-toggle'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().top))");

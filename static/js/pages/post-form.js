@@ -10,7 +10,8 @@ import { getToken } from "../token.js";
 import { clearFormErrors, el, readPostIdFromUrl, safeImageUrl, setErrorText, showFormErrors } from "../ui.js";
 
 const HOME_PAGE = "/static/index.html";
-const TEXT_FIELDS = ["title", "book_title", "course_name", "description", "open_chat_url"];
+// 오픈채팅 링크(open_chat_url)는 화면에서 받지 않는다. 수정 요청에 넣지 않으므로 서버의 기존 값은 그대로 남는다.
+const TEXT_FIELDS = ["title", "book_title", "course_name", "description"];
 
 // 서버 규칙과 같은 값. 서버가 최종 검사하고(400·413·422), 화면은 올리기 전에 미리 알려주는 용도다.
 // 용량은 줄인 뒤의 크기로 본다. 보통 1MB 안팎으로 줄어들어, 줄이지 못한 사진(원본 그대로 보냄)에만 걸린다.

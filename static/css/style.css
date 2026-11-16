@@ -904,68 +904,6 @@ a.button {
   display: none;
 }
 
-/* ---------- 목록 배너 ----------
-   로그인하지 않았으면 소개 문구·버튼·그림, 로그인했으면(<html data-signed-in>, signed-in.js) 얇은 한 줄 띠.
-   모양은 처음부터 CSS가 정하므로 로그인 확인을 기다리는 동안 목록이 밀리지 않는다. */
-
-.home-hero {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-}
-
-/* 문구와 버튼을 한 줄에: 문구는 남는 폭을 쓰고(넘치면 줄바꿈), 버튼은 오른쪽 끝 */
-.home-hero__text {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.home-hero__title {
-  margin: 0;
-  color: var(--color-text);
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
-  line-height: 1.3;
-}
-
-/* 보조 문구는 화면에서 숨기고 화면 낭독기에는 남긴다. (한 줄 띠에 들어갈 자리가 없다) */
-.home-hero__sub {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-.home-hero__button {
-  flex: none;
-  min-height: 44px;
-  padding: 0 var(--space-3);
-}
-
-/* 그림은 문구 왼쪽에 작은 아이콘 크기로. 높이는 width·height 비율(4:3)로 정해진다. */
-.home-hero__image {
-  flex: none;
-  order: -1;
-  width: 48px;
-  height: auto;
-}
-
-:root:not([data-signed-in]) .home-hero__member,
-:root[data-signed-in] .home-hero__guest {
-  display: none;
-}
-
 /* 하단 탭 바는 모바일에서만 보인다. (아래 "모바일" 구역) */
 .tab-bar {
   display: none;
@@ -1600,11 +1538,9 @@ a.button {
 
 .profile-card {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: var(--gap) 24px;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-4) var(--space-1);
 }
 
 .profile-card__info {
@@ -1618,10 +1554,17 @@ a.button {
   overflow-wrap: anywhere;
 }
 
+/* 이메일·가입일: 작은 회색 (mobile-check의 작은 글자 예외) */
 .profile-card__meta {
   margin: 0;
   color: var(--color-muted);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.profile-card__manner {
+  margin: var(--space-1) 0 0;
+  color: var(--color-sub);
   overflow-wrap: anywhere;
 }
 
@@ -1654,6 +1597,123 @@ a.button {
 
 .account-form .form-error {
   margin-bottom: 12px;
+}
+
+/* ---------- 내 정보: 설정 행 목록 (맨 아래) ---------- */
+
+.settings {
+  margin-top: var(--space-5);
+  padding: 0;
+}
+
+/* 내 정보: 목록 아래 페이지 버튼의 큰 여백(빈 경우 포함)이 설정 위에 빈칸으로 남지 않게 한다. */
+.pagination:has(+ .settings) {
+  margin-bottom: 0;
+}
+
+.pagination:empty:has(+ .settings) {
+  margin-top: 0;
+}
+
+.settings > .account-card__notice {
+  margin: 0 0 var(--space-3);
+}
+
+.settings-list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  list-style: none;
+}
+
+.settings-list > li + li {
+  border-top: 1px solid var(--color-line);
+}
+
+/* 로그아웃은 맨 아래에 두껍게 띄워 다른 설정과 나눈다. */
+.settings-list > .settings-list__logout {
+  border-top: var(--space-2) solid var(--color-bg);
+}
+
+/* 한 행: 이름(왼쪽) · 지금 값(오른쪽) · 화살표. 누르는 곳은 행 전체(52px). */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-row > :first-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-row__value {
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* 오른쪽 화살표(›). 펼치는 행은 열리면 아래(⌄)로 돌린다. */
+.settings-row::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-1);
+  border-right: 2px solid var(--color-muted);
+  border-bottom: 2px solid var(--color-muted);
+  transform: rotate(-45deg);
+}
+
+.settings-row[aria-expanded="true"]::after {
+  transform: rotate(45deg);
+}
+
+.settings-row--plain::after {
+  content: none;
+}
+
+.settings-row--danger {
+  color: var(--color-danger);
+}
+
+@media (hover: hover) {
+  .settings-row:hover {
+    background: var(--color-fill);
+  }
+}
+
+/* 본인 확인 질문 상태(등록 안내·지금 질문)는 행 바로 아래에 */
+.settings-row__note {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  padding: 0 var(--space-4) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+/* 행 아래에 펼쳐지는 폼·언어 버튼 */
+.settings .account-form {
+  max-width: none;
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.settings .account-form .field {
+  max-width: 420px;
 }
 
 /* 빈 화면의 버튼. 빈 화면에서만 보이므로(평소엔 hidden) 다른 화면의 버튼 위치에는 영향이 없다.
@@ -2693,16 +2753,9 @@ a.button {
   font-weight: var(--weight-bold);
 }
 
-/* 내 정보 화면의 "내 글 | 찜 목록" 탭. 계정 관리 카드와 띄운다. */
-.me-tabs {
-  margin-top: 24px;
-}
-
-/* 내 정보 화면: 알림·차단 목록 버튼을 나란히, 좁으면 줄을 바꾼다. */
-.profile-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* 내 정보 화면의 "내 글 | 찜 목록" 탭. 위 프로필 카드와 20px 띄운다. (.tabs의 margin보다 우선) */
+.tabs.me-tabs {
+  margin-top: var(--gap);
 }
 
 /* ---------- 이용 정지 안내 (헤더 아래) ---------- */
@@ -3412,16 +3465,7 @@ a.button {
     bottom: calc(80px + env(safe-area-inset-bottom));
   }
 
-  /* ----- 목록 배너·카드: 모양은 공통 구역과 같다 (한 줄 띠, 행) ----- */
-
-  .home-hero {
-    margin-top: var(--space-2);
-  }
-
-  /* 375px에서는 문구가 두 줄 안에 들어가도록 그림을 숨긴다. (PC는 문구 왼쪽에 48px) */
-  .home-hero__image {
-    display: none;
-  }
+  /* ----- 목록: 모양은 공통 구역과 같다 (행) ----- */
 
   .page-title {
     margin: var(--space-4) 0 var(--space-3);

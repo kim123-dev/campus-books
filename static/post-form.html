@@ -93,22 +93,6 @@
             <p class="field-error" data-error-for="description" hidden></p>
           </div>
 
-          <div class="field">
-            <label for="open_chat_url" data-i18n="field.open_chat_optional">오픈채팅 링크 (선택)</label>
-            <input
-              id="open_chat_url"
-              name="open_chat_url"
-              type="url"
-              maxlength="200"
-              inputmode="url"
-              autocomplete="off"
-              placeholder="https://open.kakao.com/o/..."
-              aria-describedby="open-chat-hint"
-            />
-            <p id="open-chat-hint" class="field-hint" data-i18n="form.open_chat_hint">카카오 오픈채팅 주소만 등록할 수 있습니다. 로그인한 사용자에게만 보이고, 판매 완료되면 숨겨집니다.</p>
-            <p class="field-error" data-error-for="open_chat_url" hidden></p>
-          </div>
-
           <!-- 사진은 글 저장 뒤에 한 장씩 따로 올린다. (static/js/pages/post-form.js) -->
           <div class="field">
             <span class="field-label" id="photos-label" data-i18n="field.photos_optional">사진 (선택)</span>
@@ -120,12 +104,11 @@
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                 multiple
-                aria-describedby="photos-hint photo-count"
+                aria-describedby="photo-count"
               />
               <label for="photos" class="button photo-picker__button" data-i18n="form.add_photo">사진 추가</label>
               <span id="photo-count" class="photo-picker__count" aria-live="polite">0/3</span>
             </div>
-            <p id="photos-hint" class="field-hint" data-i18n="form.photos_hint">JPG·PNG·WebP·HEIC 최대 3장. 큰 사진은 올리기 전에 자동으로 줄입니다. 사진 속 위치 정보(GPS)는 저장되지 않습니다. 고른 사진은 바로 올라가며, 글을 등록하지 않으면 자동으로 지워집니다.</p>
             <!-- 사진 줄이는 중… (1/3) (static/js/pages/post-form.js) -->
             <p id="photo-status" class="photo-status" aria-live="polite" hidden></p>
             <p id="photos-error" class="field-error" role="alert" hidden></p>

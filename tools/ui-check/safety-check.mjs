@@ -213,7 +213,7 @@ try {
 
   // 차단 목록: 내 글 → 차단 목록 → 해제
   await api("POST", `/users/${sellerId}/block`, seed.buyer_token);
-  const blocksLink = ".profile-card__actions a[href=\"/static/blocks.html\"]";
+  const blocksLink = ".settings-list a[href=\"/static/blocks.html\"]";
   await goto("/static/me.html", `document.querySelector(${JSON.stringify(blocksLink)})`);
   check("내 글: '차단 목록' 링크", (await text(blocksLink)) === "차단 목록");
   check(`${W}px: 내 글 가로 스크롤 없음`, await noHorizontalScroll());

@@ -120,12 +120,10 @@ try {
 
   for (const lang of ["en", "zh-CN"]) {
     const en = lang === "en";
-    // 목록 (비로그인): 배너, 검색 한 줄, 필터 펼침, 결과 수, 빈 결과
+    // 목록 (비로그인): 제목, 검색 한 줄, 필터 펼침, 결과 수, 빈 결과
     await goto(`/static/index.html?lang=${lang}`, homeReady);
     const home = await evaluate(`({
       title: document.title,
-      hero: document.querySelector('.home-hero__guest.home-hero__title').textContent,
-      button: document.querySelector('.home-hero__button').textContent.trim(),
       h1: document.querySelector('h1').textContent,
       toggle: document.querySelector('#filter-toggle span:not(.count-badge)').textContent,
       placeholder: document.getElementById('q').placeholder,
@@ -140,10 +138,10 @@ try {
       oneRow: (() => { const rs = [...document.querySelector('.filter-form__search-row').children].map((c) => c.getBoundingClientRect().top); return Math.max(...rs) - Math.min(...rs) < 2; })(),
     })`);
     const homeOk = en
-      ? home.title === "Textbooks | Campus Books" && home.hero.startsWith("Buy and sell") && home.button === "Sell a textbook" && home.h1 === "Used textbooks" &&
+      ? home.title === "Textbooks | Campus Books" && home.h1 === "Used textbooks" &&
         home.toggle === "Filter" && home.placeholder === "Find books" && home.search === "Search" && home.summary === "3 posts"
-      : home.title === "教材列表 | Campus Books" && home.button === "发布教材" && home.toggle === "筛选" && home.summary === "共 3 条";
-    check(`${lang} 목록: 제목·배너·검색·결과 수, 검색 안내 문구가 칸 안에 다 보임`, homeOk && home.oneRow && home.placeholderFits, JSON.stringify(home));
+      : home.title === "教材列表 | Campus Books" && home.toggle === "筛选" && home.summary === "共 3 条";
+    check(`${lang} 목록: 제목·검색·결과 수, 검색 안내 문구가 칸 안에 다 보임`, homeOk && home.oneRow && home.placeholderFits, JSON.stringify(home));
     await evaluate("document.getElementById('filter-toggle').click()");
     await sleep(200);
     const filters = await evaluate(`({
@@ -478,7 +476,7 @@ try {
     left = await leftover4();
     o = await overflow();
     const me4 = await evaluate(`({
-      buttons: [...document.querySelectorAll('.account-card__buttons button')].map((n) => n.textContent.trim()).join('|'),
+      buttons: [...document.querySelectorAll('.settings-row')].filter((n) => n.getClientRects().length).map((n) => n.textContent.trim()).join('|'),
       tabs: [...document.querySelectorAll('#me-tabs a')].map((n) => n.textContent).join('|'),
       summary: document.getElementById('result-summary').textContent,
       manner: document.getElementById('profile-manner').textContent,
@@ -489,7 +487,7 @@ try {
       `${JSON.stringify(me4)} ${left.join(" / ")} ${o.bad}`,
     );
     await screenshot(`i18n-${W}-${lang}-me.png`);
-    for (const id of ["nickname-toggle", "password-toggle", "withdraw-toggle"]) {
+    for (const id of ["nickname-toggle", "password-toggle", "language-toggle", "withdraw-toggle"]) {
       await evaluate(`document.getElementById('${id}').click()`);
       left = await leftover4();
       o = await overflow();
@@ -546,15 +544,16 @@ try {
   await waitUntil(`document.documentElement.lang === 'zh-CN' && ${homeReady}`);
   check("简体中文 고르면 다시 불러와 중국어 + 저장", (await evaluate("document.documentElement.lang")) === "zh-CN" && (await evaluate(`localStorage.getItem("${LANG_KEY}")`)) === "zh-CN");
 
-  // 내 정보의 언어 칸
+  // 내 정보의 언어 행: 오른쪽에 지금 언어, 누르면 언어 버튼 3개가 펼쳐짐
   await goto("/static/me.html", meReady);
+  await evaluate("document.getElementById('language-toggle').click()");
   const options = await evaluate(`(() => {
     const s = document.getElementById('language');
-    return { shown: !s.hidden, title: s.querySelector('h2').textContent, items: [...s.querySelectorAll('.lang-options__item')].map((n) => ({ text: n.textContent, h: n.getBoundingClientRect().height, right: n.getBoundingClientRect().right })) };
+    return { shown: !s.hidden, title: document.getElementById('language-title').textContent, current: document.getElementById('language-current').textContent, items: [...s.querySelectorAll('.lang-options__item')].map((n) => ({ text: n.textContent, h: n.getBoundingClientRect().height, right: n.getBoundingClientRect().right })) };
   })()`);
   check(
-    "내 정보 언어 칸: 보임, 제목 번역, 버튼 3개 44px·화면 안",
-    options.shown && options.title === "语言" && options.items.length === 3 && options.items.every((i) => i.h >= 44 && i.right <= W),
+    "내 정보 언어 행: 보임, 이름 번역, 지금 언어 표시, 펼친 버튼 3개 44px·화면 안",
+    options.shown && options.title === "语言" && options.current === "简体中文" && options.items.length === 3 && options.items.every((i) => i.h >= 44 && i.right <= W),
     JSON.stringify(options),
   );
   await evaluate("document.getElementById('language').scrollIntoView()");

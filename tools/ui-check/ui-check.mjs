@@ -134,7 +134,7 @@ try {
   check("헤더: 쪽지 배지 표시", badge === "4", `배지 ${badge}, aria-label "${badgeLabel}"`);
   // 모바일은 문의 버튼이 하단 연락 바로 옮겨지므로 id로 찾는다.
   const buttons = await evaluate("[document.getElementById('inquiry-button'), ...document.querySelectorAll('.post-detail__contact-actions > :not(#inquiry-button)')].filter(Boolean).map(b => b.textContent + '|' + b.className)");
-  check("구매자: 문의하기(주 버튼) + 오픈채팅(보조 버튼)", buttons.length === 2 && buttons[0].includes("button--primary"), buttons.join(", "));
+  check("구매자: 문의하기(주 버튼)만, 오픈채팅 버튼 없음", buttons.length === 1 && buttons[0].includes("button--primary"), buttons.join(", "));
   check(`${W}px: 가로 스크롤 없음 (상세)`, await noHorizontalScroll());
   await screenshot("2-detail-buyer.png");
 

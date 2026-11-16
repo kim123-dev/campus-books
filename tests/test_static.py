@@ -212,28 +212,6 @@ def test_js_does_not_use_html_string_apis(js_file: Path) -> None:
     assert not found, "textContent/createElement를 사용하세요:\n" + "\n".join(found)
 
 
-def test_open_chat_link_opens_safely() -> None:
-    # 새 탭으로 여는 외부 링크는 noopener noreferrer가 없으면 열린 페이지가 window.opener로
-    # 이 탭을 다른 주소로 바꿀 수 있다(reverse tabnabbing). 오픈채팅 버튼이 이 속성을 갖는지 확인한다.
-    source = (STATIC_DIR / "js" / "pages" / "post.js").read_text(encoding="utf-8")
-    link = re.search(r'el\("a", \{[^}]*href: url,[^}]*\}\)', source, re.S)
-
-    assert link, "post.js에서 오픈채팅 링크(el(\"a\", { href: url, ... }))를 찾지 못했습니다."
-    assert 'target: "_blank"' in link.group(0)
-    assert 'rel: "noopener noreferrer"' in link.group(0)
-
-
-def test_open_chat_prefix_matches_server() -> None:
-    # 화면의 2차 검사 접두사가 서버 규칙과 어긋나면, 정상 링크가 화면에 안 보이게 된다.
-    from app.schemas.post import OPEN_CHAT_URL_PATTERN
-
-    source = (STATIC_DIR / "js" / "pages" / "post.js").read_text(encoding="utf-8")
-    prefix = re.search(r'const OPEN_CHAT_PREFIX = "([^"]+)";', source)
-
-    assert prefix, "post.js에서 OPEN_CHAT_PREFIX를 찾지 못했습니다."
-    assert OPEN_CHAT_URL_PATTERN.pattern.startswith(re.escape(prefix.group(1)))
-
-
 # ---------- 프론트와 서버의 상태 규칙 일치 ----------
 
 POST_JS = STATIC_DIR / "js" / "pages" / "post.js"
@@ -484,33 +462,6 @@ def webp_size(path: Path) -> tuple[int, int]:
     data = path.read_bytes()[:30]
     assert data[:4] == b"RIFF" and data[8:12] == b"WEBP" and data[12:16] == b"VP8X", path.name
     return 1 + int.from_bytes(data[24:27], "little"), 1 + int.from_bytes(data[27:30], "little")
-
-
-def test_home_hero_image_has_real_size_and_is_decorative() -> None:
-    html = INDEX_HTML.read_text(encoding="utf-8")
-    tag = re.search(r'<img class="home-hero__image[^>]*>', html)
-    assert tag, "배너 그림이 없습니다."
-    src = re.search(r'src="([^"]+)"', tag.group(0)).group(1)
-    # 실제 파일이 있고, width·height가 파일 크기와 같아야 그림을 받기 전에도 자리가 맞게 잡힌다.
-    assert webp_size(STATIC_DIR / src.removeprefix("/static/")) == (480, 360)
-    assert 'width="480"' in tag.group(0) and 'height="360"' in tag.group(0)
-    assert 'alt=""' in tag.group(0)
-    assert 'loading="lazy"' not in tag.group(0)  # 첫 화면에 보이는 그림이라 늦게 받지 않는다.
-
-
-def test_home_hero_shape_is_decided_before_render() -> None:
-    html = INDEX_HTML.read_text(encoding="utf-8")
-    head = html.split("</head>")[0]
-    # 모듈(defer)보다 먼저, 화면을 그리기 전에 실행되는 일반 스크립트여야 배너 모양이 처음부터 맞는다.
-    flag = '<script src="/static/js/signed-in.js"></script>'
-    assert flag in head
-    assert head.index(flag) < head.index('<script type="module"')
-    # 토큰 키 이름이 token.js와 같아야 로그인 여부를 맞게 읽는다.
-    token_key = re.search(r'const TOKEN_KEY = "([^"]+)"', (STATIC_DIR / "js" / "token.js").read_text(encoding="utf-8")).group(1)
-    assert f'localStorage.getItem("{token_key}")' in (STATIC_DIR / "js" / "signed-in.js").read_text(encoding="utf-8")
-    # 로그인한 사용자용 띠 문구와 비로그인 소개 문구가 둘 다 있고, 버튼은 글쓰기 화면으로 간다.
-    assert "home-hero__member" in html and "home-hero__guest" in html
-    assert '<a class="button button--primary home-hero__button" href="/static/post-form.html">' in html
 
 
 def test_home_search_is_one_row_on_every_width() -> None:

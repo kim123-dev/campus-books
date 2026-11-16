@@ -153,7 +153,19 @@ try {
 
   await goto("/static/index.html");
   await setToken(seed.seller_token);
+
+  // 오픈채팅 칸이 없는 수정 화면으로 저장해도, 서버에 있던 오픈채팅 링크는 지워지지 않는다. (요청에 필드를 넣지 않음)
+  const openChatOf = () => evaluate(`fetch('/posts/${seed.p1}', { headers: { Authorization: 'Bearer ' + localStorage.getItem('campus-books.token') } }).then((r) => r.json()).then((p) => p.open_chat_url)`);
+  const openChatBefore = await openChatOf();
+  await goto(`/static/post-form.html?id=${seed.p1}`, "!document.getElementById('form-card').hidden && document.getElementById('title').value !== ''");
+  check("수정: 오픈채팅 칸 없음", !(await evaluate("document.getElementById('open_chat_url')")));
+  await evaluate("document.querySelector('#post-form button[type=submit]').click()");
+  await waitUntil("location.pathname === '/static/post.html'", 10000);
+  check("수정 저장: 요청에 오픈채팅 필드 없음, 기존 링크 그대로", openChatBefore === "https://open.kakao.com/o/sTest123" && (await openChatOf()) === openChatBefore, `${openChatBefore}`);
+  check("상세: 오픈채팅 연락 버튼 없음", !(await evaluate("[...document.querySelectorAll('a')].some((a) => a.href.startsWith('https://open.kakao.com/'))")));
+
   await goto("/static/post-form.html", "!document.getElementById('form-card').hidden");
+  check("작성: 오픈채팅 칸·사진 안내 문단 없음, 사진 라벨·개수 표시는 있음", await evaluate("!document.getElementById('open_chat_url') && !document.getElementById('photos-hint') && !!document.getElementById('photos-label') && !!document.getElementById('photo-count') && document.getElementById('photos').getAttribute('aria-describedby') === 'photo-count'"));
   check("작성: 처음에는 0/3, 사진 목록 숨김", (await text("photo-count")) === "0/3" && (await evaluate("document.getElementById('photo-list').hidden")));
 
   await pickFiles(["a.jpg", "b.png"]);

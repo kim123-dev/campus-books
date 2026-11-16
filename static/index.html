@@ -17,8 +17,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Campus Books" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <!-- 화면을 그리기 전에 로그인 여부(저장된 토큰)를 표시해, 배너가 처음부터 맞는 모양으로 나오게 한다. -->
-    <script src="/static/js/signed-in.js"></script>
     <script type="module" src="/static/js/pwa.js"></script>
     <script type="module" src="/static/js/pages/index.js"></script>
   </head>
@@ -26,19 +24,6 @@
     <header id="site-header" class="site-header"></header>
 
     <main class="container">
-      <!-- 서비스 소개 배너. 로그인하지 않은 사용자에게는 문구·버튼·그림, 로그인한 사용자에게는 얇은 한 줄 띠.
-           어느 모양일지는 head의 signed-in.js가 정하고 CSS가 그린다. -->
-      <section class="home-hero" aria-label="서비스 소개" data-i18n-attr="aria-label:home.hero_aria">
-        <div class="home-hero__text">
-          <p class="home-hero__title home-hero__guest" data-i18n="home.hero_title">같은 학교 학생끼리 전공 교재를 사고팔아요</p>
-          <p class="home-hero__sub home-hero__guest" data-i18n="home.hero_sub">다 본 교재는 팔고, 필요한 교재는 싸게 구해요.</p>
-          <p class="home-hero__title home-hero__member" data-i18n="home.hero_member">안 쓰는 교재가 있나요?</p>
-          <a class="button button--primary home-hero__button" href="/static/post-form.html"><span data-i18n="home.hero_button">교재 올리기</span></a>
-        </div>
-        <!-- 꾸밈 그림. 실제 크기(width·height)를 넣어 그림을 받기 전에도 자리를 잡는다. -->
-        <img class="home-hero__image home-hero__guest" src="/static/img/hero.webp" alt="" width="480" height="360" decoding="async" />
-      </section>
-
       <h1 class="page-title" data-i18n="home.title">중고 교재 목록</h1>
 
       <form id="filter-form" class="card filter-form" novalidate>

@@ -259,7 +259,6 @@ ORIGINAL_KOREAN = {
     "post.photo_alt": "{title} 사진 {index}/{total}",
     "post.photo_thumb_aria": "사진 {index} 크게 보기",
     "post.blocked_seller": "차단한 사용자의 글입니다. 차단을 해제하기 전까지 쪽지를 보낼 수 없어요.",
-    "post.open_chat": "오픈채팅으로 연락하기",
     # {login}은 로그인 링크 자리. 예전에는 "…볼 수 있어요. " + 링크
     "post.login_hint": "로그인하면 쪽지로 문의하거나 연락 방법을 볼 수 있어요. {login}",
     "post.inquire": "쪽지로 문의하기",
