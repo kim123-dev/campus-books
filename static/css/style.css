@@ -2810,17 +2810,28 @@ a.button {
   overflow-wrap: anywhere;
 }
 
-/* 상세 화면의 판매자 이름(프로필로 가는 링크) */
+/* 상세 화면의 판매자 이름(프로필로 가는 링크).
+   글자 크기는 그대로 두고, 손가락으로 누르기 좋게 누르는 영역만 44px로 키운다. */
 .post-detail__seller-link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   font-weight: var(--weight-bold);
 }
 
-/* 판매자 이름 옆의 매너 학점. 좁은 화면에서는 이름 아래로 내려간다. */
+/* 판매자 이름 옆의 매너 학점. 좁은 화면에서는 이름 아래로 내려간다.
+   44px 링크의 가운데에 맞춰 학점 글자도 같은 줄 높이에 둔다. */
 .post-detail__seller {
   display: inline-flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
+  align-items: center;
+  column-gap: 8px;
+}
+
+/* 판매자 줄은 링크 때문에 44px로 높아지므로, 왼쪽 "판매자" 제목을 링크 글자 줄에 맞춰 내린다. */
+.post-detail__info dt:has(+ dd > .post-detail__seller) {
+  padding-top: calc((44px - 1lh) / 2);
 }
 
 .post-detail__seller-gpa {
