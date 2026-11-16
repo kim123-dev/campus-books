@@ -3,7 +3,7 @@
 // 언어 선택 공개 후: 로그인 전·후·로그인 화면의 🌐 버튼, 브라우저 언어 따르기, 언어를 바꾸면 저장·다시 불러오기.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { readSeed, sleep, startBrowser } from "./lib.mjs";
+import { api, readSeed, sleep, startBrowser } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -391,8 +391,34 @@ try {
       }
       return out;
     })()`);
+  // 종 알림 판: 판매자에게 긴 키워드의 찾는 교재 알림 하나를 만들어 둔다. (항목이 두 줄을 넘지 않는지 보기 위해)
+  await api("POST", "/users/me/alerts", seed.seller_token, { keyword: "Operating System Concepts" });
   for (const lang of ["en", "zh-CN"]) {
     const en = lang === "en";
+    // 알림 화면이 모두 읽음 처리하므로 언어마다 새 알림을 하나씩 만든다. (글 제목은 영어: 사용자 입력이 한국어로 남았다고 보지 않게)
+    await api("POST", "/posts", seed.buyer_token, { title: `OS textbook ${lang}`, book_title: "Operating System Concepts 10th Edition", condition: "GOOD", price: 9000 });
+    // 종 알림 판: 라벨·전체 보기 번역, 한 항목 두 줄 이내, 판이 화면 안
+    await goto(`/static/index.html?lang=${lang}`, `${settled} && !!document.getElementById('nav-alerts')`);
+    await evaluate("document.getElementById('nav-alerts').click()");
+    await waitUntil("!document.getElementById('notification-panel').hidden && document.querySelector('.notification-panel__status').hidden");
+    const bell = await evaluate(`(() => {
+      const p = document.getElementById('notification-panel'), r = p.getBoundingClientRect();
+      const items = [...p.querySelectorAll('.notification-panel__text')];
+      return {
+        label: p.getAttribute('aria-label'), all: p.querySelector('.notification-panel__all').textContent, inside: r.left >= 0 && r.right <= ${W},
+        lines: items.map((s) => Math.round(s.scrollHeight / parseFloat(getComputedStyle(s).lineHeight))), texts: items.map((s) => s.textContent),
+        wide: [...p.querySelectorAll('*')].filter((n) => n.getBoundingClientRect().right > r.right + 0.5).length,
+      };
+    })()`);
+    const alertText = en ? "New listing for your book alert “Operating System Concepts”" : "求书提醒“Operating System Concepts”有新的匹配帖子";
+    check(
+      `${lang} 종 알림 판: 라벨·전체 보기·항목 번역, 한 항목 두 줄 이내, 넘침 없음`,
+      bell.label === (en ? "Notifications" : "通知") && bell.all === (en ? "See all" : "查看全部") && bell.texts.includes(alertText) &&
+        bell.lines.length > 0 && Math.max(...bell.lines) <= 2 && bell.inside && bell.wide === 0,
+      JSON.stringify(bell),
+    );
+    await screenshot(`i18n-${W}-${lang}-bell.png`);
+    await evaluate("document.getElementById('nav-alerts').click()");
     // 쪽지함: 개수(복수형), 역할, 안 읽은 수 낭독 문장, 카드 메뉴
     await goto(`/static/conversations.html?lang=${lang}`, `${settled} && document.querySelectorAll('.conversation-card').length > 0`);
     let left = await leftover4();

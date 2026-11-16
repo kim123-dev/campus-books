@@ -446,6 +446,11 @@
     "other": "{count} unread messages"
   },
   "alerts.register_link": "Add a book alert",
+  "bell.message_item": "{nickname} sent you a message",
+  "bell.alert_item": "New listing for your book alert “{keyword}”",
+  "bell.empty": "No new notifications",
+  "bell.view_all": "See all",
+  "bell.load_error": "Couldn't load notifications.",
   "blocks.intro": "You and blocked users can't message each other, and their listings won't appear in the list. They won't be told that you blocked them.",
   "blocks.empty": "You haven't blocked anyone.",
   "blocks.page_empty": "No blocked users on this page. (Total: {total}, last page: {pages})",

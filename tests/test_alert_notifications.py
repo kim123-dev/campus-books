@@ -196,6 +196,29 @@ def test_unread_count_and_read_all(client, seller, buyer, add_alert, create_post
     assert all(n["read_at"] is not None for n in notifications(client, buyer))
 
 
+def test_read_one_marks_only_that_notification(client, seller, buyer, add_alert, create_post) -> None:
+    # 종 알림 판에서 항목 하나를 누르면 그 알림만 읽음 처리된다. 다시 눌러도 204.
+    add_alert(buyer, "자료구조")
+    create_post(seller, book_title="자료구조 1판")
+    create_post(seller, book_title="자료구조 2판")
+    newest, older = notifications(client, buyer)
+    assert client.post(f"/notifications/{newest['id']}/read", headers=buyer).status_code == 204
+    assert client.post(f"/notifications/{newest['id']}/read", headers=buyer).status_code == 204
+    assert unread(client, buyer) == 1
+    after = {n["id"]: n["read_at"] for n in notifications(client, buyer)}
+    assert after[newest["id"]] is not None and after[older["id"]] is None
+
+
+def test_read_one_rejects_others_and_missing(client, seller, buyer, add_alert, create_post) -> None:
+    add_alert(buyer, "자료구조")
+    create_post(seller, book_title="자료구조")
+    target = notifications(client, buyer)[0]["id"]
+    assert client.post(f"/notifications/{target}/read", headers=seller).status_code == 404
+    assert client.post("/notifications/999999/read", headers=buyer).status_code == 404
+    assert client.post(f"/notifications/{target}/read").status_code == 401
+    assert unread(client, buyer) == 1
+
+
 def test_list_shows_post_summary_newest_first(client, seller, buyer, add_alert, create_post) -> None:
     add_alert(buyer, "자료구조")
     first = create_post(seller, book_title="자료구조 1판", price=1000)

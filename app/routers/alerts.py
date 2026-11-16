@@ -104,3 +104,14 @@ def count_unread(current_user: CurrentUser, db: Annotated[Session, Depends(get_d
 )
 def read_all(current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]) -> None:
     alert_service.mark_all_read(db, current_user)
+
+
+@router.post(
+    "/notifications/{notification_id}/read",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="알림 하나 읽음",
+    responses={401: {"description": "로그인 필요"}, 404: {"description": "없거나 남의 알림"}},
+)
+def read_one(notification_id: int, current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]) -> None:
+    alert_service.mark_read(db, notification_id, current_user)

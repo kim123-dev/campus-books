@@ -12,7 +12,7 @@
 from sqlalchemy import ColumnElement, delete, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.exceptions import AlertNotFoundError, DuplicateAlertError, TooManyAlertsError
+from app.core.exceptions import AlertNotFoundError, DuplicateAlertError, NotificationNotFoundError, TooManyAlertsError
 from app.models import MAX_ALERTS_PER_USER, AlertNotification, BookAlert, Post, PostStatus, User, UserBlock
 from app.schemas.alert import AlertCreate
 from app.services import block_service
@@ -176,6 +176,21 @@ def mark_all_read(db: Session, user: User) -> None:
         .values(read_at=func.now())
     )
     db.commit()
+
+
+def mark_read(db: Session, notification_id: int, user: User) -> None:
+    """알림 하나를 읽음 처리한다. 종 알림 판에서 항목을 눌렀을 때 부른다.
+    남의 알림이면 있는지조차 알리지 않도록 없는 것과 같이 404. 이미 읽었으면 그대로 둔다(다시 눌러도 성공)."""
+    notification = db.scalar(
+        select(AlertNotification).where(
+            AlertNotification.id == notification_id, AlertNotification.user_id == user.id
+        )
+    )
+    if notification is None:
+        raise NotificationNotFoundError()
+    if notification.read_at is None:
+        notification.read_at = func.now()
+        db.commit()
 
 
 # ---------- 정리 (SQLite는 FK의 CASCADE를 실행하지 않으므로 직접 지운다) ----------

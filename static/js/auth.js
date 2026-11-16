@@ -3,6 +3,7 @@
 import { dismissResetNotice, getAlertUnreadCount, getMe, getUnreadCount } from "./api.js";
 import { t } from "./i18n.js";
 import { languageMenu } from "./lang-picker.js";
+import { notificationBell } from "./notification-panel.js";
 import { clearToken, getToken } from "./token.js";
 import { el, formatMonthDayTime, icon } from "./ui.js";
 
@@ -113,7 +114,16 @@ export async function renderHeader(container) {
   try {
     const me = await getMe();
     nav.replaceChildren(...loggedInItems(me));
-    bellSlot.replaceChildren(alertBell());
+    bellSlot.replaceChildren(
+      notificationBell({
+        button: alertBell(),
+        // 판에서 찾는 교재 알림 하나를 읽으면 종 배지에서 하나를 뺀다. (다음 화면의 헤더가 서버 숫자로 다시 맞춘다)
+        onAlertRead: () => {
+          unreadCounts.alerts = Math.max(0, unreadCounts.alerts - 1);
+          renderBellBadge();
+        },
+      }),
+    );
     // 로그인 메뉴는 모바일에서 하단 탭 바가 대신한다. (로그인·회원가입 링크는 모바일에서도 헤더에 남긴다)
     nav.classList.add("site-nav--member");
     // 정지 중이면 모든 화면 위쪽에 언제까지인지 알려준다. 쓰기 버튼을 눌렀다가 403을 받고 나서야 알게 되지 않도록.
@@ -193,14 +203,15 @@ function loggedInItems(me) {
 }
 
 // 알림 종. PC와 모바일 모두 헤더 오른쪽에 보인다. (하단 탭 바에 넣지 않고 헤더에 둔다)
-// 누르면 알림 화면(안 읽은 쪽지 줄 + 찾는 교재 알림 목록). 배지는 두 숫자의 합이다.
+// 누르면 종 아래에 작은 알림 판이 열린다(notification-panel.js). 판 맨 아래 "전체 보기"가 알림 화면으로 간다.
+// 배지는 안 읽은 쪽지 + 안 읽은 찾는 교재 알림의 합이다.
 function alertBell() {
   return el(
-    "a",
+    "button",
     {
+      type: "button",
       className: "site-bell",
-      href: ALERTS_PAGE,
-      attrs: { id: "nav-alerts", "aria-label": t("term.notifications"), ...(window.location.pathname === ALERTS_PAGE ? { "aria-current": "page" } : {}) },
+      attrs: { id: "nav-alerts", "aria-label": t("term.notifications") },
     },
     icon("bell"),
     el("span", { className: "nav-badge site-bell__badge", attrs: { id: "nav-alerts-unread", "aria-hidden": "true" }, hidden: true }),

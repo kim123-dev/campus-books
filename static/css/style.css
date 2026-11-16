@@ -234,12 +234,16 @@ a {
   justify-content: center;
   width: 44px;
   height: 44px;
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-pill);
+  background: transparent;
   color: var(--color-text);
+  cursor: pointer;
 }
 
 .site-bell:hover,
-.site-bell[aria-current="page"] {
+.site-bell[aria-expanded="true"] {
   background: var(--color-fill);
   color: var(--color-primary);
 }
@@ -261,6 +265,127 @@ a {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
+}
+
+/* ---------- 종 알림 판 (헤더 종 아래 팝오버) ---------- */
+
+/* PC: 종 아래 오른쪽 정렬, 폭 360px. 모바일은 아래 미디어 쿼리에서 화면 좌우 8px 여백 폭으로 바꾼다.
+   높이는 항목 약 3개(목록 안에서 스크롤) + "전체 보기". 하단 탭 바를 넘지 않게 JS가 남은 높이(room)를 준다. */
+.site-bell-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.notification-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  max-height: var(--notification-panel-room, 360px);
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-overlay);
+}
+
+.notification-panel__list {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 232px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.notification-panel__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px var(--space-3) 10px 10px;
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.notification-panel__item:hover {
+  background: var(--color-fill);
+}
+
+/* 읽지 않은 항목 왼쪽의 작은 점. 첫 줄 가운데에 맞춘다. */
+.notification-panel__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+}
+
+.notification-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 한 줄 요약. 긴 닉네임·키워드도 두 줄을 넘지 않게 자른다. */
+.notification-panel__text {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--text-md);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.notification-panel__time {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.notification-panel__status,
+.notification-panel__empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.notification-panel__empty p {
+  margin: 0;
+}
+
+.notification-panel__register {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  color: var(--color-primary);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+/* 맨 아래 "전체 보기": 알림 화면으로 */
+.notification-panel__all {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-primary);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
 }
 
 /* ---------- 언어 선택 (헤더 🌐 버튼과 펼침 목록, 내 정보의 언어 칸) ---------- */
@@ -3401,6 +3526,15 @@ a.button {
 
   .site-header {
     min-height: 52px;
+  }
+
+  /* 종 알림 판: 화면 좌우 8px 여백 폭으로 종 바로 아래(위치는 JS가 잰 값) */
+  .notification-panel {
+    position: fixed;
+    top: var(--notification-panel-top, 56px);
+    right: var(--space-2);
+    left: var(--space-2);
+    width: auto;
   }
 
   /* 375px에서 로고·로그인·회원가입·🌐가 한 줄에 들어가도록 줄바꿈을 막고 간격을 좁힌다. (영어·중국어 포함) */

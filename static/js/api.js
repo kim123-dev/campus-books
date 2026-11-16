@@ -488,6 +488,11 @@ export function markAllNotificationsRead() {
   return request("/notifications/read-all", { method: "POST" });
 }
 
+/** 찾는 교재 알림 하나 읽음. 종 알림 판에서 그 항목을 눌렀을 때 쓴다. */
+export function markNotificationRead(notificationId) {
+  return request(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: "POST" });
+}
+
 export function getMe() {
   return request("/users/me");
 }

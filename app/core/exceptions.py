@@ -94,6 +94,10 @@ class AlertNotFoundError(NotFoundError):
     message = "찾는 교재 조건을 찾을 수 없습니다."
 
 
+class NotificationNotFoundError(NotFoundError):
+    message = "알림을 찾을 수 없습니다."
+
+
 class ConversationNotFoundError(NotFoundError):
     message = "대화방을 찾을 수 없습니다."
 
