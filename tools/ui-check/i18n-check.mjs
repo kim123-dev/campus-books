@@ -71,8 +71,8 @@ try {
     return { main: box.firstChild?.textContent, original: small?.textContent, lang: small?.getAttribute('lang'), size: small ? parseFloat(getComputedStyle(small).fontSize) : 0, color: small ? getComputedStyle(small).color : '' };
   })()`);
   check(
-    "en 로그인 실패: 401 번역 문장 + 한국어 원문(lang=ko, 작은 회색)",
-    loginError.main?.startsWith("Your login details") && /[가-힣]/.test(loginError.original ?? "") && loginError.lang === "ko" && loginError.size < 15 && loginError.color === "rgb(92, 99, 112)",
+    "en 로그인 실패: 로그인 화면용 번역 문장 + 한국어 원문(lang=ko, 작은 회색)",
+    loginError.main === "Incorrect email or password." && /[가-힣]/.test(loginError.original ?? "") && loginError.lang === "ko" && loginError.size < 15 && loginError.color === "rgb(92, 99, 112)",
     JSON.stringify(loginError),
   );
   await screenshot(`i18n-${W}-en-login-error.png`);
@@ -84,6 +84,160 @@ try {
   check("zh-CN: 탭 이름이 칸 안 한 줄, 헤더 안 넘침", l.tabs.every((t) => t.fits) && l.header && !l.wide);
   check("zh-CN: 가격 '원' 유지", (await texts(".post-card__price")).includes("15,000원"));
   await screenshot(`i18n-${W}-zh-home.png`);
+
+  // ---------- 2단계: 로그인 전 화면 (목록·로그인·가입·재설정·설치 안내) ----------
+  // 로그인·가입·재설정 화면은 하단 탭 바가 없으므로 탭 바를 기다리지 않는다.
+  const pageReady = "!document.documentElement.hasAttribute('data-i18n-pending') && document.fonts.status === 'loaded' && !!document.querySelector('.site-nav a')";
+  // 화면 밖(375px 오른쪽)으로 나간 요소와 가로 스크롤. 숨긴 요소는 크기가 0이라 빠진다.
+  const overflow = () =>
+    evaluate(`(() => {
+      const bad = [...document.querySelectorAll('main *, .site-header *')].filter((n) => {
+        const r = n.getBoundingClientRect();
+        return r.width > 0 && (r.right > ${W} + 0.5 || r.left < -0.5);
+      }).map((n) => n.tagName + '.' + n.className + ' ' + (n.textContent || '').trim().slice(0, 24));
+      const sw = document.documentElement.scrollWidth;
+      return { ok: bad.length === 0 && sw <= ${W}, bad: bad.slice(0, 4).join(' / ') + (sw > ${W} ? ' scrollWidth=' + sw : '') };
+    })()`);
+  const text = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)})?.textContent.trim()`);
+  const attr = (selector, name) => evaluate(`document.querySelector(${JSON.stringify(selector)})?.getAttribute(${JSON.stringify(name)})`);
+  const submitForm = (id, values) =>
+    evaluate(`(() => {
+      const f = document.getElementById(${JSON.stringify(id)});
+      for (const [k, v] of Object.entries(${JSON.stringify(values)})) f.elements.namedItem(k).value = v;
+      f.requestSubmit();
+    })()`);
+
+  for (const lang of ["en", "zh-CN"]) {
+    const en = lang === "en";
+    // 목록 (비로그인): 배너, 검색 한 줄, 필터 펼침, 결과 수, 빈 결과
+    await goto(`/static/index.html?lang=${lang}`, homeReady);
+    const home = await evaluate(`({
+      title: document.title,
+      hero: document.querySelector('.home-hero__guest.home-hero__title').textContent,
+      button: document.querySelector('.home-hero__button').textContent.trim(),
+      h1: document.querySelector('h1').textContent,
+      toggle: document.querySelector('#filter-toggle span:not(.count-badge)').textContent,
+      placeholder: document.getElementById('q').placeholder,
+      search: document.getElementById('search-button').getAttribute('aria-label'),
+      summary: document.getElementById('result-summary').textContent,
+      // 검색창 안내 문구가 잘리지 않고 칸 안에 다 보이는지 (글자 폭을 직접 잰다)
+      placeholderFits: (() => {
+        const i = document.getElementById('q'), cs = getComputedStyle(i), c = document.createElement('canvas').getContext('2d');
+        c.font = cs.font;
+        return c.measureText(i.placeholder).width <= i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      })(),
+      oneRow: (() => { const rs = [...document.querySelector('.filter-form__search-row').children].map((c) => c.getBoundingClientRect().top); return Math.max(...rs) - Math.min(...rs) < 2; })(),
+    })`);
+    const homeOk = en
+      ? home.title === "Textbooks | Campus Books" && home.hero.startsWith("Buy and sell") && home.button === "Sell a textbook" && home.h1 === "Used textbooks" &&
+        home.toggle === "Filter" && home.placeholder === "Find books" && home.search === "Search" && home.summary === "3 posts"
+      : home.title === "教材列表 | Campus Books" && home.button === "发布教材" && home.toggle === "筛选" && home.summary === "共 3 条";
+    check(`${lang} 목록: 제목·배너·검색·결과 수, 검색 안내 문구가 칸 안에 다 보임`, homeOk && home.oneRow && home.placeholderFits, JSON.stringify(home));
+    await evaluate("document.getElementById('filter-toggle').click()");
+    await sleep(200);
+    const filters = await evaluate(`({
+      status: document.querySelector('label[for=status]').textContent,
+      options: [...document.getElementById('status').options].map((o) => o.textContent).join('|'),
+      course: document.querySelector('label[for=course_name]').textContent,
+      buttons: [...document.querySelectorAll('#filter-more .form-actions button')].map((b) => b.textContent).join('|'),
+    })`);
+    const filtersOk = en
+      ? filters.status === "Status" && filters.options === "All|For sale|Reserved|Sold" && filters.course === "Course (exact match)" && filters.buttons === "Search|Reset"
+      : filters.options === "全部|在售|已预订|已售出" && filters.buttons === "搜索|重置";
+    let o = await overflow();
+    check(`${lang} 목록: 필터 펼침 문구, 화면 안 넘침`, filtersOk && o.ok, `${JSON.stringify(filters)} ${o.bad}`);
+    await screenshot(`i18n-${W}-${lang}-home-filter.png`);
+    await submitForm("filter-form", { status: "ON_SALE" });
+    await waitUntil("document.querySelectorAll('.post-card').length > 0");
+    check(`${lang} 목록: 필터 개수 aria`, (await attr("#filter-toggle", "aria-label")) === (en ? "Filter, 1 applied" : "筛选，已应用 1 项"));
+    await submitForm("filter-form", { status: "", q: "없는책-zzz" });
+    await waitUntil("!!document.querySelector('.empty-state__image')");
+    check(`${lang} 목록: 빈 검색 결과`, (await text("#result-summary")) === (en ? "No posts match your search." : "没有符合条件的帖子。"));
+
+    // 로그인: 문구, 가입 직후 안내
+    await goto(`/static/login.html?joined=1&lang=${lang}`, pageReady);
+    const login = await evaluate(`({
+      title: document.title,
+      labels: [...document.querySelectorAll('#login-form label')].map((n) => n.textContent).join('|'),
+      submit: document.querySelector('#login-form [type=submit]').textContent,
+      forgot: document.getElementById('reset-link').textContent,
+      switchText: document.querySelector('.auth-switch:not(.auth-switch--forgot)').textContent.replace(/\\s+/g, ' ').trim(),
+      notice: document.getElementById('login-notice').textContent,
+    })`);
+    const loginOk = en
+      ? login.title === "Log in | Campus Books" && login.labels === "Email|Password" && login.submit === "Log in" && login.forgot === "Forgot your password?" &&
+        login.switchText === "Don't have an account? Sign up" && login.notice === "You're signed up. Please log in."
+      : login.labels === "电子邮箱|密码" && login.submit === "登录" && login.notice === "注册成功，请登录。";
+    o = await overflow();
+    check(`${lang} 로그인: 문구·안내, 화면 안 넘침`, loginOk && o.ok, `${JSON.stringify(login)} ${o.bad}`);
+
+    // 가입: 질문 목록(영문 키로 번역), 질문 안 고르면 안내, 긴 질문이 들어간 선택 칸이 넘치지 않는지
+    await goto(`/static/signup.html?lang=${lang}`, `${pageReady} && !!document.getElementById('signup-question')`);
+    await submitForm("signup-form", { email: "new@uicheck.ac.kr", password: "check-password-1", password_confirm: "check-password-1", nickname: "새사람" });
+    await waitUntil("!document.querySelector('[data-error-for=question_key]').hidden");
+    const signup = await evaluate(`({
+      legend: document.querySelector('legend').textContent,
+      first: document.getElementById('signup-question').options[1].textContent,
+      value: document.getElementById('signup-question').options[1].value,
+      error: document.querySelector('[data-error-for=question_key]').textContent,
+      hint: document.getElementById('password-hint').textContent,
+    })`);
+    const signupOk = en
+      ? signup.legend === "If you forget your password" && signup.first.startsWith("What was the name of a shop") && signup.error === "Please choose a question." && signup.hint === "8–64 characters"
+      : signup.legend === "忘记密码时" && signup.first.startsWith("小时候") && signup.error === "请选择一个问题。";
+    o = await overflow();
+    check(`${lang} 가입: 질문 목록·안내 번역, 값은 영문 키, 화면 안 넘침`, signupOk && signup.value === "CHILDHOOD_SHOP" && o.ok, `${JSON.stringify(signup)} ${o.bad}`);
+    await screenshot(`i18n-${W}-${lang}-signup.png`);
+
+    // 재설정: 질문 문장은 서버 원문 그대로, 틀린 답은 번역 문장 + 원문(남은 횟수)
+    await goto(`/static/reset-password.html?lang=${lang}`, pageReady);
+    await submitForm("question-form", { email: "seller@uicheck.ac.kr" });
+    await waitUntil("!document.getElementById('verify-form').hidden");
+    await submitForm("verify-form", { answer: "틀린 답입니다" });
+    await waitUntil("!document.querySelector('#verify-form [data-error-for=answer]').hidden");
+    const reset = await evaluate(`(() => {
+      const slot = document.querySelector('#verify-form [data-error-for=answer]');
+      return {
+        title: document.title,
+        question: document.getElementById('reset-question').textContent,
+        label: document.querySelector('.reset-question__label').textContent,
+        main: slot.firstChild.textContent,
+        original: slot.querySelector('.error-original')?.textContent,
+        button: document.getElementById('verify-button').textContent,
+      };
+    })()`);
+    const resetOk = en
+      ? reset.title === "Reset password | Campus Books" && reset.label === "Security question" && reset.main === "The email or answer is incorrect." && reset.button === "Verify"
+      : reset.label === "安全问题" && reset.main === "电子邮箱或答案不正确。" && reset.button === "验证";
+    o = await overflow();
+    check(
+      `${lang} 재설정: 서버 질문은 한국어 원문, 틀린 답은 번역 + 원문(남은 횟수), 화면 안 넘침`,
+      resetOk && /[가-힣]/.test(reset.question) && /남은 시도/.test(reset.original ?? "") && o.ok,
+      `${JSON.stringify(reset)} ${o.bad}`,
+    );
+    await screenshot(`i18n-${W}-${lang}-reset.png`);
+  }
+
+  // 설치 안내(아이폰 Safari에서만 보임): 문장 가운데 공유 아이콘이 그대로 들어가는지
+  const { userAgent: defaultUa } = await send("Browser.getVersion");
+  await send("Emulation.setUserAgentOverride", {
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    platform: "",
+  });
+  await evaluate("localStorage.removeItem('campus-books.install-guide-dismissed')");
+  await goto("/static/index.html?lang=en", `${homeReady} && !!document.querySelector('.install-guide')`);
+  const guide = await evaluate(`(() => {
+    const g = document.querySelector('.install-guide'), p = g.querySelector('.install-guide__text');
+    return { title: g.querySelector('.install-guide__title').textContent, text: p.textContent, iconInside: !!p.querySelector('svg.icon--share'), close: g.querySelector('.install-guide__close').getAttribute('aria-label'), aria: g.getAttribute('aria-label') };
+  })()`);
+  const o = await overflow();
+  check(
+    "en 설치 안내: 문장 가운데 공유 아이콘, 닫기 이름, 화면 안",
+    guide.text === "Tap Share at the bottom of Safari, then 'Add to Home Screen'." && guide.iconInside && guide.close === "Close the Add to Home Screen tip" && guide.aria === "Add to Home Screen" && o.ok,
+    `${JSON.stringify(guide)} ${o.bad}`,
+  );
+  await screenshot(`i18n-${W}-en-install-guide.png`);
+  await send("Emulation.setUserAgentOverride", { userAgent: defaultUa, platform: "" });
 
   // ---------- 로그인한 화면 (영어) ----------
   await evaluate(`localStorage.setItem("${TOKEN_KEY}", ${JSON.stringify(seed.seller_token)})`);

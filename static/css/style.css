@@ -87,6 +87,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* 중국어는 띄어쓰기 없이 이어 쓰므로 keep-all이면 줄이 바뀌지 않고 화면 밖으로 나간다. 글자 단위로 줄을 바꾼다. */
+:root:lang(zh) body {
+  word-break: normal;
+}
+
 h1,
 h2 {
   font-weight: 700;

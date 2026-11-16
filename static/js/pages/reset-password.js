@@ -3,7 +3,8 @@
 // 가입하지 않은 이메일에도 서버가 그럴듯한 질문과 같은 실패 응답을 주므로, 화면도 계정이 있는지 따로 알려주지 않는다.
 import { getResetQuestion, resetPassword, verifyResetAnswer } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, renderHeader } from "../auth.js";
-import { clearFormErrors, showFormErrors } from "../ui.js";
+import { t } from "../i18n.js";
+import { clearFormErrors, showFormErrors, withContextMessage } from "../ui.js";
 
 const questionForm = document.getElementById("question-form");
 const questionError = document.getElementById("question-error");
@@ -71,12 +72,12 @@ verifyForm.addEventListener("submit", async (event) => {
   if (resetToken !== null) return;
   clearFormErrors(verifyForm, verifyError);
   if (answerInput.value.trim() === "") {
-    showFormErrors(verifyForm, verifyError, { fieldErrors: { answer: "답을 입력해 주세요." } });
+    showFormErrors(verifyForm, verifyError, { fieldErrors: { answer: t("reset.answer_required") } });
     return;
   }
 
   verifyButton.disabled = true;
-  verifyButton.textContent = "확인 중…";
+  verifyButton.textContent = t("reset.verifying");
   try {
     const { reset_token: token } = await verifyResetAnswer({ email, answer: answerInput.value });
     resetToken = token;
@@ -84,11 +85,16 @@ verifyForm.addEventListener("submit", async (event) => {
     resetForm.elements.new_password.focus();
   } catch (error) {
     // 틀린 답(400, 남은 시도 횟수 포함)과 잠김(429, 남은 시간)은 답 칸 바로 아래에 보여준다.
-    const message = error.status === 400 || error.status === 429 ? error.message : null;
-    if (message) showFormErrors(verifyForm, verifyError, { fieldErrors: { answer: message } });
-    else showFormErrors(verifyForm, verifyError, error);
+    // 다른 언어 화면에서는 이 상황에 맞는 번역 문장 아래에 서버 원문(남은 횟수·시간이 들어 있음)을 붙인다.
+    const context = { 400: "reset.wrong_answer", 429: "reset.too_many" }[error.status];
+    if (context) {
+      const { message, original } = withContextMessage(error, context);
+      showFormErrors(verifyForm, verifyError, { fieldErrors: { answer: message }, fieldOriginals: { answer: original } });
+    } else {
+      showFormErrors(verifyForm, verifyError, error);
+    }
     verifyButton.disabled = false;
-    verifyButton.textContent = "인증 확인";
+    verifyButton.textContent = t("reset.verify");
   }
 });
 
@@ -98,7 +104,7 @@ function setVerified(verified) {
   verifyOk.hidden = !verified;
   verifyButton.hidden = verified;
   verifyButton.disabled = false;
-  verifyButton.textContent = "인증 확인";
+  verifyButton.textContent = t("reset.verify");
   resetForm.hidden = !verified;
 }
 
@@ -111,14 +117,14 @@ resetForm.addEventListener("submit", async (event) => {
 
   // 비밀번호 확인은 서버 API에 없는 항목이라 브라우저에서만 검사한다.
   if (password.value !== confirm.value) {
-    showFormErrors(resetForm, resetError, { fieldErrors: { new_password_confirm: "새 비밀번호가 일치하지 않습니다." } });
+    showFormErrors(resetForm, resetError, { fieldErrors: { new_password_confirm: t("reset.password_mismatch") } });
     confirm.focus();
     return;
   }
 
   const submit = resetForm.querySelector("[type=submit]");
   submit.disabled = true;
-  submit.textContent = "바꾸는 중…";
+  submit.textContent = t("reset.submitting");
   try {
     await resetPassword({ reset_token: resetToken, new_password: password.value });
     window.location.assign(authPageUrl(LOGIN_PAGE, { reset: "1" }));
@@ -129,8 +135,9 @@ resetForm.addEventListener("submit", async (event) => {
       setVerified(false);
       answerInput.focus();
     }
-    showFormErrors(resetForm.hidden ? verifyForm : resetForm, resetForm.hidden ? verifyError : resetError, error);
+    const shown = error.status === 400 ? withContextMessage(error, "reset.expired") : error;
+    showFormErrors(resetForm.hidden ? verifyForm : resetForm, resetForm.hidden ? verifyError : resetError, shown);
     submit.disabled = false;
-    submit.textContent = "비밀번호 바꾸기";
+    submit.textContent = t("reset.submit");
   }
 });

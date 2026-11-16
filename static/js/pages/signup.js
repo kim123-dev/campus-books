@@ -3,13 +3,15 @@
 import { getMe, signup } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, getNextFromUrl, renderHeader } from "../auth.js";
 import { renderSecurityQuestionFields } from "../security-question.js";
+import { t } from "../i18n.js";
 import { getToken } from "../token.js";
-import { clearFormErrors, showFormErrors } from "../ui.js";
+import { clearFormErrors, showFormErrors, withContextMessage } from "../ui.js";
 
 const form = document.getElementById("signup-form");
 const errorBox = document.getElementById("signup-error");
 const submitButton = form.querySelector('button[type="submit"]');
-const question = renderSecurityQuestionFields(document.getElementById("signup-question"), { idPrefix: "signup" });
+// 칸 묶음의 id는 질문 선택 칸(signup-question)과 겹치지 않게 따로 둔다. 겹치면 <label for>가 선택 칸을 가리키지 못한다.
+const question = renderSecurityQuestionFields(document.getElementById("signup-question-fields"), { idPrefix: "signup" });
 
 // 로그인 화면으로 갔다가 돌아와도 next가 유지되게 한다.
 document.getElementById("login-link").href = authPageUrl(LOGIN_PAGE);
@@ -26,7 +28,7 @@ form.addEventListener("submit", async (event) => {
   // 비밀번호 확인은 서버 API에 없는 항목이라 브라우저에서만 검사한다.
   // (그 밖의 입력 규칙은 서버가 검사하고, 그 메시지를 칸 아래에 보여준다)
   if (password.value !== passwordConfirm.value) {
-    showFormErrors(form, errorBox, { fieldErrors: { password_confirm: "비밀번호가 일치하지 않습니다." } });
+    showFormErrors(form, errorBox, { fieldErrors: { password_confirm: t("signup.password_mismatch") } });
     passwordConfirm.focus();
     return;
   }
@@ -47,7 +49,7 @@ form.addEventListener("submit", async (event) => {
     window.location.assign(authPageUrl(LOGIN_PAGE, { joined: "1" }));
   } catch (error) {
     // 409(이메일·닉네임 중복)는 서버 메시지를 공통 영역에, 422는 해당 칸 아래에 보여준다.
-    showFormErrors(form, errorBox, error);
+    showFormErrors(form, errorBox, error.status === 409 ? withContextMessage(error, "signup.duplicate") : error);
     setSubmitting(false);
   }
 });
@@ -65,5 +67,5 @@ async function redirectIfLoggedIn() {
 
 function setSubmitting(isSubmitting) {
   submitButton.disabled = isSubmitting;
-  submitButton.textContent = isSubmitting ? "가입 중…" : "가입하기";
+  submitButton.textContent = isSubmitting ? t("signup.submitting") : t("signup.submit");
 }

@@ -1,6 +1,7 @@
 // 홈 화면 앱(PWA) 지원: 서비스 워커 등록과 아이폰 Safari용 "홈 화면에 추가" 안내.
 // 모든 화면이 <script type="module" src="/static/js/pwa.js">로 불러 서비스 워커를 등록하고,
 // 안내는 첫 화면(목록)만 showInstallGuide로 보여준다.
+import { t, tNodes } from "./i18n.js";
 import { el, icon } from "./ui.js";
 
 // 닫은 사용자에게 다시 보이지 않게 기록하는 키
@@ -31,23 +32,18 @@ export function showInstallGuide(container) {
     type: "button",
     className: "install-guide__close",
     text: "×",
-    attrs: { "aria-label": "홈 화면 추가 안내 닫기" },
+    attrs: { "aria-label": t("pwa.close_aria") },
   });
   const shareIcon = el("span", { className: "install-guide__share" }, icon("share"));
   const guide = el(
     "aside",
-    { className: "install-guide", attrs: { "aria-label": "홈 화면에 추가" } },
+    { className: "install-guide", attrs: { "aria-label": t("pwa.aria") } },
     el(
       "div",
       { className: "install-guide__body" },
-      el("p", { className: "install-guide__title", text: "홈 화면에 추가하면 앱처럼 쓸 수 있어요" }),
-      el(
-        "p",
-        { className: "install-guide__text" },
-        "Safari 아래쪽의 ",
-        shareIcon,
-        "공유 → '홈 화면에 추가'를 누르세요.",
-      ),
+      el("p", { className: "install-guide__title", text: t("pwa.title") }),
+      // 문장 가운데 공유 아이콘이 들어간다. 언어마다 아이콘 위치가 달라 사전의 {share} 자리에 끼운다.
+      el("p", { className: "install-guide__text" }, ...tNodes("pwa.text", { share: shareIcon })),
     ),
     close,
   );

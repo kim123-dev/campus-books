@@ -347,11 +347,16 @@ def test_security_question_presets_match_server() -> None:
 
     from app.schemas.security_question import PRESET_QUESTIONS
 
+    # 화면은 영문 키 목록을 갖고, 질문 문장은 사전(question.<키>)에서 가져온다. 한국어 문장이 서버와 같아야 한다.
     source = (STATIC_DIR / "js" / "security-question.js").read_text(encoding="utf-8")
-    block = source[source.index("export const PRESET_QUESTIONS = {") : source.index("};")]
-    assert dict(re.findall(r'^  ([A-Z_]+): "([^"]+)",$', block, re.MULTILINE)) == PRESET_QUESTIONS
+    block = source[source.index("export const PRESET_QUESTION_KEYS = [") : source.index("];")]
+    keys = re.findall(r'^  "([A-Z_]+)",$', block, re.MULTILINE)
+    assert keys == list(PRESET_QUESTIONS)
+    ko = json.loads((STATIC_DIR / "i18n" / "ko.json").read_text(encoding="utf-8"))
+    assert {key: ko[f"question.{key}"] for key in keys} == PRESET_QUESTIONS
     # 답을 정할 때 보여주는 안내
-    assert "남이 쉽게 알 수 없는 답으로 정해 주세요" in source
+    assert 't("sq.answer_hint")' in source
+    assert "남이 쉽게 알 수 없는 답으로 정해 주세요" in ko["sq.answer_hint"]
 
 
 def test_signup_and_me_pages_use_security_question() -> None:

@@ -91,9 +91,9 @@ def test_no_empty_or_untranslated_korean_text() -> None:
         for key, value in DICTS[lang].items():
             for text in texts(value):
                 assert text.strip(), f"{lang}: {key}가 비어 있음"
-                # 가격 단위 "원"은 모든 언어에서 그대로 쓰기로 했다.
-                if lang != "ko" and key != "format.price":
-                    assert not hangul.search(text), f"{lang}: {key}에 한국어가 남음"
+                # 가격 단위 "원"은 모든 언어에서 그대로 쓰기로 했다. 그 밖의 한글이 남았으면 번역이 빠진 것이다.
+                if lang != "ko":
+                    assert not hangul.search(text.replace("원", "")), f"{lang}: {key}에 한국어가 남음"
 
 
 # ---------- 한국어 사전이 예전 화면 문구와 같은지 ----------
@@ -147,6 +147,48 @@ ORIGINAL_KOREAN = {
     "val.max_length": "{count}자 이하로 입력해 주세요.",
     "val.enum": "선택할 수 없는 값입니다.",
     "val.email": "올바른 이메일 형식이 아닙니다.",
+    # ---- 2단계 (로그인 전 화면). HTML 문구는 아래 test_html_i18n_marks_match_korean_dictionary가 확인한다.
+    # login.js
+    "login.joined": "가입이 완료되었습니다. 로그인해 주세요.",
+    "login.reset_done": "비밀번호를 바꿨습니다. 새 비밀번호로 로그인해 주세요.",
+    "login.submitting": "로그인 중…",
+    # signup.js
+    "signup.password_mismatch": "비밀번호가 일치하지 않습니다.",
+    "signup.submitting": "가입 중…",
+    "signup.submit": "가입하기",
+    # reset-password.js
+    "reset.answer_required": "답을 입력해 주세요.",
+    "reset.verifying": "확인 중…",
+    "reset.verify": "인증 확인",
+    "reset.password_mismatch": "새 비밀번호가 일치하지 않습니다.",
+    "reset.submitting": "바꾸는 중…",
+    "reset.submit": "비밀번호 바꾸기",
+    # index.js
+    "term.filter": "필터",
+    "home.filter_aria": "필터, {count}개 적용됨",
+    "common.loading": "불러오는 중…",
+    "home.empty_search": "조건에 맞는 글이 없습니다.",
+    "home.empty": "아직 등록된 글이 없습니다.",
+    "home.page_empty": "이 페이지에는 글이 없습니다. (전체 {total}개, {pages}페이지까지)",
+    "home.total": "총 {count}개",
+    # pwa.js ({share}는 공유 아이콘 자리. 예전에는 "Safari 아래쪽의 " + 아이콘 + "공유 → …")
+    "pwa.close_aria": "홈 화면 추가 안내 닫기",
+    "pwa.aria": "홈 화면에 추가",
+    "pwa.title": "홈 화면에 추가하면 앱처럼 쓸 수 있어요",
+    "pwa.text": "Safari 아래쪽의 {share}공유 → '홈 화면에 추가'를 누르세요.",
+    # security-question.js (질문 9개는 test_static이 서버와 비교한다)
+    "sq.placeholder": "질문을 골라 주세요",
+    "sq.custom": "직접 만들기",
+    "sq.custom_label": "내가 만든 질문",
+    "sq.custom_hint": "5~60자. 질문에 답이나 답의 힌트를 넣지 마세요. 친구·가족이 금방 맞힐 수 있는 질문도 피해 주세요.",
+    "term.security_question": "본인 확인 질문",
+    "sq.hint": "비밀번호를 잊었을 때 이 질문의 답으로 재설정해요.",
+    "field.answer": "답",
+    "sq.answer_hint": "남이 쉽게 알 수 없는 답으로 정해 주세요. 띄어쓰기와 대소문자는 구분하지 않아요. (공백 빼고 2~20자)",
+    "sq.choose": "질문을 골라 주세요.",
+    "sq.custom_too_short": "질문을 5자 이상 적어 주세요.",
+    "sq.answer_too_short": "답은 공백을 빼고 2자 이상이어야 합니다.",
+    "sq.answer_too_long": "답은 공백을 빼고 20자 이하여야 합니다.",
 }
 
 
@@ -198,6 +240,11 @@ def test_html_i18n_marks_match_korean_dictionary(html: Path) -> None:
     for spec in re.findall(r'data-i18n-attr="([^"]+)"', text):
         for pair in spec.split(";"):
             assert pair.split(":")[1].strip() in DICTS["ko"], f"{html.name}: {pair}"
+    # 문서 제목: <meta name="i18n-title">의 키가 한국어 사전에서 <title> 원문과 같아야 한다.
+    title_key = re.search(r'<meta name="i18n-title" content="([^"]+)" />', text)
+    if title_key:
+        title = re.search(r"<title>([^<]*)</title>", text).group(1)
+        assert resolve(DICTS["ko"], title_key.group(1)) == title, html.name
 
 
 # ---------- 언어 정하기 (lang-boot.js) ----------

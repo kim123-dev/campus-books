@@ -21,8 +21,8 @@ const visible = (sel) => b.evaluate(`(() => { const n = document.querySelector($
 
 try {
   // ---------- 가입: 질문 고르기 ----------
-  await b.goto("/static/signup.html", "document.querySelector('#signup-question select')");
-  check("가입: 질문 목록 9개 + 직접 만들기", (await b.evaluate("document.querySelectorAll('#signup-question select option').length")) === 11);
+  await b.goto("/static/signup.html", "document.querySelector('#signup-question-fields select')");
+  check("가입: 질문 목록 9개 + 직접 만들기", (await b.evaluate("document.querySelectorAll('#signup-question-fields select option').length")) === 11);
   check("가입: 답 안내 문구", (await text("#signup-answer-hint")).includes("남이 쉽게 알 수 없는 답으로 정해 주세요"));
   check("가입: 직접 만들기 칸은 처음에 숨김", !(await visible("#signup-custom-question")));
   check(`${W}px: 가입 가로 스크롤 없음`, await noScroll());
@@ -37,7 +37,7 @@ try {
   check("가입: 질문을 안 고르면 칸 아래 안내", (await text("[data-error-for=question_key]")).includes("질문을 골라"));
 
   // 직접 만들기 → 답이 질문에 들어 있으면 서버(422)가 거절한다.
-  await b.evaluate(`(() => { const s = document.querySelector('#signup-question select'); s.value = '__custom'; s.dispatchEvent(new Event('change')); })()`);
+  await b.evaluate(`(() => { const s = document.querySelector('#signup-question-fields select'); s.value = '__custom'; s.dispatchEvent(new Event('change')); })()`);
   check("가입: 직접 만들기 고르면 질문 칸이 보임", await visible("#signup-custom-question"));
   check("가입: 질문을 고르면 지난 안내가 사라짐", !(await visible("[data-error-for=question_key]")));
   check(`${W}px: 직접 만들기 칸 펼친 뒤 가로 스크롤 없음`, await noScroll());
@@ -46,7 +46,7 @@ try {
   check("가입: 답이 질문에 들어 있으면 거절 안내", await b.waitUntil(`(document.querySelector('[data-error-for=security_question]').textContent + document.getElementById('signup-error').textContent).includes('질문 안에')`));
 
   // 준비된 질문으로 가입 → 로그인 화면(joined=1)
-  await b.evaluate(`(() => { const s = document.querySelector('#signup-question select'); s.value = 'CHILDHOOD_SHOP'; s.dispatchEvent(new Event('change'));
+  await b.evaluate(`(() => { const s = document.querySelector('#signup-question-fields select'); s.value = 'CHILDHOOD_SHOP'; s.dispatchEvent(new Event('change'));
     document.getElementById('signup-answer').value = ${JSON.stringify(answer)}; document.getElementById('signup-form').requestSubmit(); })()`);
   check("가입: 성공하면 로그인 화면으로", await b.waitUntil("location.pathname === '/static/login.html' && location.search.includes('joined=1')", 8000));
 

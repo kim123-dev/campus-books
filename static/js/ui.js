@@ -192,6 +192,22 @@ export function showFormErrors(form, generalErrorEl, error) {
 }
 
 /**
+ * 상황을 아는 화면이 "상태 코드별 일반 문장" 대신 더 정확한 번역 문장을 쓰게 한다. (예: 로그인 화면의 401 → "이메일 또는 비밀번호…")
+ * 원문이 없으면(한국어 화면이거나 서버 문장이 아닌 오류) 그대로 돌려주므로, 한국어 화면은 서버 문장을 그대로 보여준다.
+ * 돌려주는 값은 showFormErrors에 그대로 넘길 수 있다.
+ */
+export function withContextMessage(error, key) {
+  if (!error.original) return error;
+  return {
+    status: error.status,
+    message: t(key),
+    original: error.original,
+    fieldErrors: error.fieldErrors,
+    fieldOriginals: error.fieldOriginals,
+  };
+}
+
+/**
  * 오류 문구를 넣는다. original(서버가 보낸 한국어 원문)이 있으면 그 아래에 작은 회색 글씨로 붙인다.
  * 번역 문장은 상태 코드로만 고른 일반 문장이라, 원문이 있어야 정확한 사유를 알 수 있기 때문이다.
  * 화면별 오류 표시는 각 화면을 번역할 때(2~5단계) 이 함수로 바꾼다.

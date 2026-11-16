@@ -2,6 +2,7 @@
 // 필터와 페이지는 주소창(?q=...&page=2)에 저장한다. 새로고침, 뒤로 가기, 링크 공유에도 같은 결과가 나오게 하기 위해서다.
 import { listPosts } from "../api.js";
 import { renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
 import { showInstallGuide } from "../pwa.js";
 import {
   clearFormErrors,
@@ -54,7 +55,7 @@ document.getElementById("filter-reset").addEventListener("click", () => {
 // PC·모바일 모두 검색창 한 줄만 보이고, 필터 버튼을 누르면 판매 상태·과목명·가격 칸이 펼쳐진다.
 
 document.getElementById("search-button").append(icon("search"));
-filterToggle.append(icon("filter"), el("span", { text: "필터" }), filterCount);
+filterToggle.append(icon("filter"), el("span", { text: t("term.filter") }), filterCount);
 filterToggle.addEventListener("click", () => setFilterOpen(!form.classList.contains("is-open")));
 
 function setFilterOpen(open) {
@@ -67,7 +68,7 @@ function showFilterCount(filters) {
   const count = FOLDED_KEYS.filter((key) => filters[key]).length;
   filterCount.textContent = String(count);
   filterCount.hidden = count === 0;
-  filterToggle.setAttribute("aria-label", count > 0 ? `필터, ${count}개 적용됨` : "필터");
+  filterToggle.setAttribute("aria-label", count > 0 ? t("home.filter_aria", { count }) : t("term.filter"));
 }
 
 // 접힌 칸에 오류가 있으면(예: 최소 가격 > 최대 가격 422) 펼쳐서 보여준다.
@@ -124,7 +125,7 @@ async function load() {
   fillForm(filters);
   showFilterCount(filters);
   clearFormErrors(form, filterError);
-  summary.textContent = "불러오는 중…";
+  summary.textContent = t("common.loading");
   emptyActions.hidden = true;
   list.replaceChildren();
   pagination.replaceChildren();
@@ -149,9 +150,9 @@ function render(data, filters, me) {
 
   if (total === 0) {
     // 검색·필터 결과가 없을 때와 글이 하나도 없을 때는 상황이 달라 그림도 다르게 둔다.
-    if (hasFilters) renderEmptyState(summary, "조건에 맞는 글이 없습니다.", { image: EMPTY_SEARCH_IMAGE });
+    if (hasFilters) renderEmptyState(summary, t("home.empty_search"), { image: EMPTY_SEARCH_IMAGE });
     else {
-      renderEmptyState(summary, "아직 등록된 글이 없습니다.", { image: EMPTY_POSTS_IMAGE });
+      renderEmptyState(summary, t("home.empty"), { image: EMPTY_POSTS_IMAGE });
       emptyActions.hidden = false; // "첫 교재 올리기"
     }
     return;
@@ -159,8 +160,8 @@ function render(data, filters, me) {
 
   summary.textContent =
     items.length === 0
-      ? `이 페이지에는 글이 없습니다. (전체 ${total}개, ${totalPages}페이지까지)`
-      : `총 ${total}개`;
+      ? t("home.page_empty", { total, pages: totalPages })
+      : t("home.total", { count: total });
   list.replaceChildren(...items.map((post) => renderPostCard(post, { action: wishlistAction(post, me) })));
   renderPagination(pagination, page, totalPages, (nextPage) => goToPage(filters, nextPage));
 }

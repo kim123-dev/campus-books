@@ -76,11 +76,32 @@ export function t(key, params = {}) {
 }
 
 /**
+ * t()와 같지만 {name} 자리에 요소(Node)도 끼울 수 있다. 문장 가운데 아이콘·링크가 들어가는 곳에 쓴다.
+ * 돌려주는 배열(문자열과 Node)은 el()의 자식이나 append()에 그대로 넘긴다. HTML 문자열은 만들지 않는다.
+ */
+export function tNodes(key, params = {}) {
+  const parts = [];
+  let last = 0;
+  const text = t(key, Object.fromEntries(Object.entries(params).filter(([, value]) => !(value instanceof Node))));
+  for (const match of text.matchAll(PLACEHOLDER)) {
+    const value = params[match[1]];
+    if (!(value instanceof Node)) continue;
+    parts.push(text.slice(last, match.index), value);
+    last = match.index + match[0].length;
+  }
+  parts.push(text.slice(last));
+  return parts.filter((part) => part !== "");
+}
+
+/**
  * HTML에 적어 둔 번역 표시를 적용한다. HTML 문자열을 해석하지 않고 textContent와 setAttribute만 쓴다.
  * - data-i18n="키": 글자를 바꾼다.
  * - data-i18n-attr="placeholder:키;aria-label:키": 속성을 바꾼다.
+ * - <meta name="i18n-title" content="키">: 문서 제목(<title>)을 바꾼다. <title> 태그는 원문 그대로 두기 위해 키를 따로 적는다.
  */
 export function applyI18n(root) {
+  const titleKey = root.querySelector?.('meta[name="i18n-title"]')?.getAttribute("content");
+  if (titleKey) document.title = t(titleKey);
   for (const node of root.querySelectorAll("[data-i18n]")) node.textContent = t(node.dataset.i18n);
   for (const node of root.querySelectorAll("[data-i18n-attr]")) {
     for (const pair of node.dataset.i18nAttr.split(";")) {

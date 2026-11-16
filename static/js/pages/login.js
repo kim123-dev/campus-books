@@ -1,8 +1,9 @@
 // 로그인 화면: 로그인에 성공하면 토큰을 저장하고 원래 보던 화면(next)으로 돌아간다.
 import { getMe, login } from "../api.js";
 import { RESET_PASSWORD_PAGE, SIGNUP_PAGE, authPageUrl, getNextFromUrl, renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
 import { getToken, setToken } from "../token.js";
-import { clearFormErrors, showFormErrors } from "../ui.js";
+import { clearFormErrors, showFormErrors, withContextMessage } from "../ui.js";
 
 const form = document.getElementById("login-form");
 const errorBox = document.getElementById("login-error");
@@ -16,10 +17,10 @@ document.getElementById("reset-link").href = authPageUrl(RESET_PASSWORD_PAGE);
 
 // 가입 직후에는 안내를 보여준다. 이메일은 주소에 개인정보가 남지 않도록 넘겨받지 않는다.
 if (new URLSearchParams(window.location.search).get("joined") === "1") {
-  notice.textContent = "가입이 완료되었습니다. 로그인해 주세요.";
+  notice.textContent = t("login.joined");
   notice.hidden = false;
 } else if (new URLSearchParams(window.location.search).get("reset") === "1") {
-  notice.textContent = "비밀번호를 바꿨습니다. 새 비밀번호로 로그인해 주세요.";
+  notice.textContent = t("login.reset_done");
   notice.hidden = false;
 }
 
@@ -38,7 +39,9 @@ form.addEventListener("submit", async (event) => {
     window.location.replace(next);
   } catch (error) {
     // 401은 서버 메시지를 공통 영역에, 422는 해당 칸 아래에 보여준다.
-    showFormErrors(form, errorBox, error);
+    // 다른 언어 화면에서는 401(이메일·비밀번호 틀림)·403(이용 정지)을 이 화면에 맞는 번역 문장 + 원문으로 보여준다.
+    const context = { 401: "login.failed", 403: "login.suspended" }[error.status];
+    showFormErrors(form, errorBox, context ? withContextMessage(error, context) : error);
     // 다시 입력하기 쉽게 비밀번호만 비운다.
     if (error.status === 401) {
       form.elements.password.value = "";
@@ -62,5 +65,5 @@ async function redirectIfLoggedIn() {
 
 function setSubmitting(isSubmitting) {
   submitButton.disabled = isSubmitting;
-  submitButton.textContent = isSubmitting ? "로그인 중…" : "로그인";
+  submitButton.textContent = isSubmitting ? t("login.submitting") : t("term.login");
 }
