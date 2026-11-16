@@ -20,6 +20,7 @@ const SMALL_OK = [
   ".message__time", ".chat__count", ".profile-card__meta", ".block-item__meta",
   ".report-card__type", ".report-card__status", ".report-card__meta", ".gallery__counter", ".chat__role",
   ".chat__empty-hint", // 빈 대화의 한 줄 개인정보 안내(작은 회색)
+  ".school-hint", // 홈의 학교 안내 한 줄(첫 화면을 차지하지 않게 작게, 링크·닫기는 44px)
 ].join(", ");
 
 // 화면에 보이는 요소 중 규칙에 어긋나는 것을 모은다.

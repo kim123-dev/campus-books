@@ -30,6 +30,8 @@ class UserCreate(BaseModel):
     nickname: str = Field(min_length=2, max_length=30)
     # 비밀번호를 잊었을 때 본인을 확인할 질문과 답. 가입할 때 꼭 정한다.
     security_question: SecurityQuestionInput
+    # 내 학교 (선택). 없거나 비활성 학교면 404/400. 내 정보에서 정하는 것과 같은 user_schools 행에 저장한다.
+    school_id: int | None = Field(default=None, ge=1)
 
     # 대소문자만 다른 이메일로 중복 가입하는 것을 막기 위해 소문자로 통일한다.
     @field_validator("email")

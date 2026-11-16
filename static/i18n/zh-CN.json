@@ -115,6 +115,7 @@
   "login.suspended": "该账号已{@term.suspension}。",
 
   "signup.nickname_hint": "2~30 个字，将作为卖家名称向其他同学显示。",
+  "signup.school_hint": "可以集中查看同{@term.school}的帖子。可在“{@term.me}”中更改。",
   "signup.question_legend": "忘记密码时",
   "signup.submit": "注册",
   "signup.submitting": "注册中…",
@@ -141,6 +142,9 @@
   "reset.expired": "验证已过期或无效，请重新验证。",
 
   "home.title": "二手{@term.textbook}",
+  "home.school_hint": "选择{@term.school}后可集中查看同{@term.school}的帖子",
+  "home.school_hint_link": "去选择",
+  "home.school_hint_close": "关闭{@term.school}提示",
   "home.search_label": "搜索词",
   "home.search_placeholder": "书名或课程",
   "home.status_label": "销售状态",
@@ -296,6 +300,7 @@
   "field.photos_optional": "{@term.photo}（选填）",
   "form.choose": "请选择",
   "form.course_hint": "列表中的课程筛选只查找完全一致的结果。",
+  "form.school_none_note": "不选{@term.school}发布，帖子不会出现在按{@term.school}筛选的列表中",
   "form.price_hint": "价格为 0 时显示为“{@term.free}”。",
   "form.add_photo": "添加照片",
   "form.photo_type": "{name}：只能上传 JPG、PNG、WebP、HEIC 照片。",

@@ -198,6 +198,15 @@ try {
     o = await overflow();
     check(`${lang} 가입: 질문 목록·안내 번역, 값은 영문 키, 화면 안 넘침`, signupOk && signup.value === "CHILDHOOD_SHOP" && o.ok, `${JSON.stringify(signup)} ${o.bad}`);
     await screenshot(`i18n-${W}-${lang}-signup.png`);
+    // 가입: 학교(선택) 칸 — 이름표·"선택 안 함"·안내 번역 (학교 이름은 원문)
+    const signupSchool = await evaluate(`({ label: document.querySelector('label[for=school_id]').textContent, none: document.getElementById('school_id').options[0].textContent, hint: document.getElementById('school-hint').textContent })`);
+    check(
+      `${lang} 가입: 학교 칸 번역`,
+      en
+        ? signupSchool.label === "School (optional)" && signupSchool.none === "Not set" && signupSchool.hint.startsWith("See posts from your School")
+        : signupSchool.label.startsWith("学校") && signupSchool.none === "未选择" && signupSchool.hint.startsWith("可以集中查看同学校"),
+      JSON.stringify(signupSchool),
+    );
 
     // 재설정: 질문 문장은 서버 원문 그대로, 틀린 답은 번역 문장 + 원문(남은 횟수)
     await goto(`/static/reset-password.html?lang=${lang}`, pageReady);
@@ -364,6 +373,9 @@ try {
     o = await overflow();
     const formTitle = await text("#form-title");
     check(`${lang} 수정 화면: 칸 이름·안내 번역, 한국어 안 남음, 화면 안 넘침`, formTitle === (en ? "Edit listing" : "编辑帖子") && left.length === 0 && o.ok, `${formTitle} ${left.join(" / ")} ${o.bad}`);
+    // 판매자는 내 학교가 없고 글에도 학교가 없으므로 학교 칸 아래 안내가 보인다.
+    const schoolNote = await evaluate("(() => { const n = document.getElementById('school-note'); return n.hidden ? null : n.textContent; })()");
+    check(`${lang} 수정 화면: 학교 없을 때 안내 번역`, schoolNote === (en ? "Without a School, this post won't appear in School lists" : "不选学校发布，帖子不会出现在按学校筛选的列表中"), String(schoolNote));
     await screenshot(`i18n-${W}-${lang}-post-form.png`);
 
     // 프로필: 매너 학점(중국어 礼仪绩点), 판매 중인 글·후기 수
@@ -405,6 +417,20 @@ try {
     await api("POST", "/posts", seed.buyer_token, { title: `OS textbook ${lang}`, book_title: "Operating System Concepts 10th Edition", condition: "GOOD", price: 9000 });
     // 종 알림 판: 라벨·전체 보기 번역, 한 항목 두 줄 이내, 판이 화면 안
     await goto(`/static/index.html?lang=${lang}`, `${settled} && !!document.getElementById('nav-alerts')`);
+    // 홈 학교 안내(판매자는 내 학교가 없다): 번역, 두 줄 이내, 화면 안, 닫기·링크 44px
+    await waitUntil("Boolean(document.querySelector('.school-hint'))");
+    const schoolHint = await evaluate(`(() => { const h = document.querySelector('.school-hint'), r = h.getBoundingClientRect(), txt = h.querySelector('.school-hint__text');
+      return { text: txt.textContent, close: h.querySelector('.school-hint__close').getAttribute('aria-label'), h: Math.round(r.height), right: Math.round(r.right),
+        lines: Math.round(txt.getBoundingClientRect().height / parseFloat(getComputedStyle(txt).lineHeight)),
+        small: [...h.querySelectorAll('a, button')].map((n) => Math.round(n.getBoundingClientRect().height)).filter((x) => x < 44).length,
+        wide: [...h.querySelectorAll('*')].filter((n) => n.getBoundingClientRect().right > r.right + 0.5).length }; })()`);
+    check(
+      `${lang} 홈 학교 안내: 번역, 두 줄 이내, 화면 안, 44px`,
+      schoolHint.text === (en ? "Pick your School to see its posts together Choose" : "选择学校后可集中查看同学校的帖子 去选择") &&
+        schoolHint.close === (en ? "Close School tip" : "关闭学校提示") && schoolHint.lines <= 2 && schoolHint.right <= W && schoolHint.small === 0 && schoolHint.wide === 0,
+      JSON.stringify(schoolHint),
+    );
+    await screenshot(`i18n-${W}-${lang}-home-school-hint.png`);
     await evaluate("document.getElementById('nav-alerts').click()");
     await waitUntil("!document.getElementById('notification-panel').hidden && document.querySelector('.notification-panel__status').hidden");
     const bell = await evaluate(`(() => {

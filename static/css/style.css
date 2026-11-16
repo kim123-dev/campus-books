@@ -3405,6 +3405,64 @@ a.button {
   background: var(--color-fill);
 }
 
+/* ---------- 학교 안내 (로그인했는데 내 학교가 비었을 때, 목록 화면 제목 아래) ---------- */
+
+/* 첫 화면을 차지하지 않게 작은 글자 한 줄(좁은 화면에서는 두 줄까지). 닫기 버튼은 44px. */
+.school-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -8px 0 12px;
+  padding: 0 0 0 12px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary-soft);
+}
+
+.school-hint__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-sub);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+/* 링크는 줄 높이를 44px로 넓혀 누르기 쉽게 한다(글자 크기는 그대로). */
+.school-hint__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -12px 0;
+  vertical-align: middle;
+  color: var(--color-primary);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.school-hint__close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-sub);
+  font: inherit;
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.school-hint__close:hover {
+  background: var(--color-fill);
+}
+
+/* 글쓰기: 학교 없이 올릴 때의 작은 안내 */
+.post-form__school-note {
+  margin-top: 4px;
+}
+
 /* ---------- 좁은 화면 ---------- */
 
 @media (max-width: 400px) {

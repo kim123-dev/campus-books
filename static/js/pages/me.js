@@ -404,6 +404,11 @@ async function setUpSchool() {
     toggle.setAttribute("aria-expanded", String(!panel.hidden));
     if (!panel.hidden) options.querySelector("button:not(:disabled)")?.focus();
   });
+  // 홈의 학교 안내 "선택하기"(me.html#school-row)로 들어오면 학교 목록을 펼쳐 둔다.
+  if (window.location.hash === "#school-row") {
+    panel.hidden = false;
+    toggle.setAttribute("aria-expanded", "true");
+  }
 
   let mine;
   let schools;

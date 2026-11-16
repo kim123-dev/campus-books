@@ -127,6 +127,7 @@
   "login.suspended": "This account is suspended.",
 
   "signup.nickname_hint": "2–30 characters. Shown to other students as your seller name.",
+  "signup.school_hint": "See posts from your {@term.school} together. You can change it in {@term.me}.",
   "signup.question_legend": "If you forget your password",
   "signup.submit": "Sign up",
   "signup.submitting": "Signing up…",
@@ -153,6 +154,9 @@
   "reset.expired": "Your verification has expired or is invalid. Please verify again.",
 
   "home.title": "Used textbooks",
+  "home.school_hint": "Pick your {@term.school} to see its posts together",
+  "home.school_hint_link": "Choose",
+  "home.school_hint_close": "Close {@term.school} tip",
   "home.search_label": "Search",
   "home.search_placeholder": "Find books",
   "home.status_label": "Status",
@@ -311,6 +315,7 @@
   "field.photos_optional": "Photos (optional)",
   "form.choose": "Please choose",
   "form.course_hint": "The course filter on the list only finds exact matches.",
+  "form.school_none_note": "Without a {@term.school}, this post won't appear in {@term.school} lists",
   "form.price_hint": "A price of 0 is shown as “{@term.free}”.",
   "form.add_photo": "Add photos",
   "form.photo_type": "{name}: Only JPG, PNG, WebP and HEIC photos can be uploaded.",

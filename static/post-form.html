@@ -57,12 +57,14 @@
             <p class="field-error" data-error-for="course_name" hidden></p>
           </div>
 
-          <!-- 학교(선택). 목록은 post-form.js가 /schools로 채우고, 새 글이면 내 학교를 미리 고른다. -->
+          <!-- 학교(선택). 목록은 post-form.js가 /schools로 채우고, 학교가 비어 있으면 내 학교를 미리 고른다. -->
+          <!-- 내 학교도 없이 비워 두면 아래에 작은 안내를 보여준다(등록은 막지 않는다). -->
           <div class="field">
             <label for="school_id" data-i18n="field.school_optional">학교 (선택)</label>
-            <select id="school_id" name="school_id">
+            <select id="school_id" name="school_id" aria-describedby="school-note">
               <option value="" data-i18n="school.none">선택 안 함</option>
             </select>
+            <p id="school-note" class="field-hint post-form__school-note" data-i18n="form.school_none_note" hidden>학교 없이 올리면 학교별 목록에 안 보여요</p>
             <p class="field-error" data-error-for="school_id" hidden></p>
           </div>
 

@@ -137,6 +137,14 @@ def change_user_school(db: Session, user: User, school_id: int | None, now: date
     return row
 
 
+def add_for_signup(db: Session, user: User, school_id: int) -> None:
+    """가입 때 고른 학교를 저장한다(커밋 전, 학교 확인은 호출한 쪽에서).
+    가입 때 고른 값은 잘못 골랐을 수 있으므로 7일 제한을 걸지 않는다. 바꾼 시각을 7일 전으로 적어 바로 바꿀 수 있게 한다.
+    """
+    changed_at = (user_service.utc_now() - SCHOOL_CHANGE_INTERVAL).replace(tzinfo=None)
+    db.add(UserSchool(user_id=user.id, school_id=school_id, changed_at=changed_at))
+
+
 def delete_for_user(db: Session, user_id: int) -> None:
     """탈퇴 때 내 학교 행을 지운다(커밋 전)."""
     db.execute(delete(UserSchool).where(UserSchool.user_id == user_id))

@@ -115,6 +115,7 @@
   "login.suspended": "이용이 정지된 계정입니다.",
 
   "signup.nickname_hint": "2~30자, 다른 학생에게 판매자 이름으로 보입니다.",
+  "signup.school_hint": "같은 {@term.school} 글을 모아 볼 수 있어요. {@term.me}에서 바꿀 수 있어요.",
   "signup.question_legend": "비밀번호를 잊었을 때",
   "signup.submit": "가입하기",
   "signup.submitting": "가입 중…",
@@ -141,6 +142,9 @@
   "reset.expired": "본인 확인이 만료되었거나 올바르지 않습니다. 처음부터 다시 확인해 주세요.",
 
   "home.title": "중고 교재 목록",
+  "home.school_hint": "{@term.school}를 선택하면 같은 {@term.school} 글을 모아 볼 수 있어요",
+  "home.school_hint_link": "선택하기",
+  "home.school_hint_close": "{@term.school} 안내 닫기",
   "home.search_label": "검색어",
   "home.search_placeholder": "교재명, 과목명",
   "home.status_label": "판매 상태",
@@ -296,6 +300,7 @@
   "field.photos_optional": "{@term.photo} (선택)",
   "form.choose": "선택해 주세요",
   "form.course_hint": "목록의 과목명 필터는 정확히 일치할 때만 찾습니다.",
+  "form.school_none_note": "{@term.school} 없이 올리면 {@term.school}별 목록에 안 보여요",
   "form.price_hint": "0원이면 {@term.free}으로 표시됩니다.",
   "form.add_photo": "사진 추가",
   "form.photo_type": "{name}: JPG, PNG, WebP, HEIC 사진만 올릴 수 있습니다.",

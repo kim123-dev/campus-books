@@ -12,7 +12,7 @@ from app.core.exceptions import (
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
 from app.schemas.user import LoginForm, UserCreate
-from app.services import email_ban_service, security_question_service, user_service
+from app.services import email_ban_service, school_service, security_question_service, user_service
 
 
 # 미리 중복을 확인해 어떤 값이 겹쳤는지 구분된 에러를 돌려준다.
@@ -24,12 +24,14 @@ def _ensure_unique(db: Session, email: str, nickname: str) -> None:
 
 
 def signup(db: Session, data: UserCreate) -> User:
-    """회원가입. 순서: 409 이메일·닉네임 중복 → 400 재가입이 막힌 이메일(강제 탈퇴).
-    본인 확인 질문을 사용자와 같은 트랜잭션으로 저장한다.
+    """회원가입. 순서: 409 이메일·닉네임 중복 → 400 재가입이 막힌 이메일(강제 탈퇴) → 404/400 없거나 비활성 학교.
+    본인 확인 질문과 학교(골랐으면)를 사용자와 같은 트랜잭션으로 저장한다.
     """
     _ensure_unique(db, data.email, data.nickname)
     if email_ban_service.is_banned(db, data.email):
         raise BannedEmailError()
+    if data.school_id is not None:
+        school_service.get_selectable(db, data.school_id)
 
     user = User(
         email=data.email,
@@ -41,6 +43,8 @@ def signup(db: Session, data: UserCreate) -> User:
         # 질문 행이 사용자 id를 가리키므로 먼저 INSERT해 id를 받는다. 중복이면 여기서 IntegrityError가 난다.
         db.flush()
         security_question_service.add_for_signup(db, user, data.security_question)
+        if data.school_id is not None:
+            school_service.add_for_signup(db, user, data.school_id)
         db.commit()
     except IntegrityError:
         # 동시에 같은 값으로 가입하면 위 확인을 둘 다 통과할 수 있다.

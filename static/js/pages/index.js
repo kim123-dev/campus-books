@@ -1,6 +1,6 @@
 // 목록 화면: 필터 → API 호출 → 카드 그리기 → 페이지 이동.
 // 필터와 페이지는 주소창(?q=...&page=2)에 저장한다. 새로고침, 뒤로 가기, 링크 공유에도 같은 결과가 나오게 하기 위해서다.
-import { listPosts, listSchools } from "../api.js";
+import { getMySchool, listPosts, listSchools } from "../api.js";
 import { renderHeader } from "../auth.js";
 import { t } from "../i18n.js";
 import { showInstallGuide } from "../pwa.js";
@@ -19,6 +19,8 @@ import { createWishlistButton } from "../wishlist-button.js";
 
 const PAGE_SIZE = 10;
 const FILTER_KEYS = ["q", "school_id", "status", "course_name", "min_price", "max_price"];
+// 홈의 학교 안내를 닫았는지(이 브라우저에만 기록).
+const SCHOOL_HINT_KEY = "campus-books.school-hint-dismissed";
 // "필터" 버튼 안에 접어 두는 조건. 검색어(q)는 항상 보이는 한 줄 검색창에 있다.
 const FOLDED_KEYS = FILTER_KEYS.filter((key) => key !== "q");
 
@@ -39,13 +41,15 @@ let latestRequestId = 0;
 const schoolsReady = listSchools()
   .then(({ items }) => {
     form.elements.school_id.append(...items.map((school) => el("option", { value: String(school.id), text: school.name })));
+    return items.length;
   })
-  .catch(() => {});
+  .catch(() => 0);
 
 // 로그인한 사용자(없으면 null). 내 글에는 하트를 그리지 않으려고 쓴다.
 const mePromise = renderHeader(document.getElementById("site-header"));
 // 아이폰 Safari에서 처음 열었을 때만 "홈 화면에 추가" 안내를 목록 위에 보여준다.
 showInstallGuide(document.querySelector("main"));
+showSchoolHint();
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -122,6 +126,57 @@ function navigate(filters, page) {
   const query = params.toString();
   history.pushState(null, "", query ? `?${query}` : window.location.pathname);
   load();
+}
+
+// ---------- 학교 안내 ----------
+
+// 로그인했는데 내 학교가 비어 있으면 제목 아래에 작은 안내 한 줄(+ 선택하기, 닫기). 닫으면 다시 보이지 않는다.
+// 고를 학교가 없거나, 내 학교를 받지 못하면 보여주지 않는다(보조 안내라 조용히 넘어간다).
+async function showSchoolHint() {
+  if (readSchoolHintDismissed()) return;
+  const [me, schoolCount] = await Promise.all([mePromise, schoolsReady]);
+  if (me === null || schoolCount === 0) return;
+  try {
+    if ((await getMySchool()).school !== null) return;
+  } catch {
+    return;
+  }
+  const close = el("button", { type: "button", className: "school-hint__close", text: "×", attrs: { "aria-label": t("home.school_hint_close") } });
+  const hint = el(
+    "aside",
+    { className: "school-hint", attrs: { "aria-label": t("term.school") } },
+    el(
+      "p",
+      { className: "school-hint__text" },
+      t("home.school_hint"),
+      " ",
+      // 내 정보의 학교 설정 행으로 가서 학교 목록을 펼친다(me.js가 #school-row를 보고 연다).
+      el("a", { className: "school-hint__link", href: "/static/me.html#school-row", text: t("home.school_hint_link") }),
+    ),
+    close,
+  );
+  close.addEventListener("click", () => {
+    saveSchoolHintDismissed();
+    hint.remove();
+  });
+  document.querySelector(".page-title").after(hint);
+}
+
+// 사생활 보호 모드 등에서 localStorage가 막혀 있으면 예외가 난다. 그때는 기록 없이 이번 화면에서만 닫힌다.
+function readSchoolHintDismissed() {
+  try {
+    return window.localStorage.getItem(SCHOOL_HINT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveSchoolHintDismissed() {
+  try {
+    window.localStorage.setItem(SCHOOL_HINT_KEY, "1");
+  } catch {
+    // 저장하지 못하면 다음에 다시 보일 수 있다.
+  }
 }
 
 // ---------- 불러오기와 그리기 ----------

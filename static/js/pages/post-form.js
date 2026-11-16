@@ -26,6 +26,8 @@ const NO_PREVIEW_IMAGE = "/static/img/book-placeholder.svg";
 const isEdit = new URLSearchParams(window.location.search).has("id");
 const postId = isEdit ? readPostIdFromUrl() : null;
 const submitLabel = isEdit ? t("form.save") : t("form.create");
+// 내 학교({id, name}, 없으면 null). 학교 칸을 미리 고르고, 비어 있을 때 안내를 띄우는 데 쓴다.
+let mySchool = null;
 
 // 이미 올라간 사진: {id, url, thumbnail_url, removed}. removed면 저장할 때 지운다.
 let existingPhotos = [];
@@ -78,10 +80,11 @@ async function init() {
     return;
   }
 
-  // 학교 칸: 목록을 먼저 채운 뒤 값(새 글은 내 학교, 수정은 글의 학교)을 고른다.
-  await loadSchoolOptions();
+  // 학교 칸: 목록을 먼저 채운 뒤 값(새 글은 내 학교, 수정은 글의 학교, 글에 학교가 없으면 내 학교)을 고른다.
+  [, mySchool] = await Promise.all([loadSchoolOptions(), loadMySchool()]);
+  form.elements.school_id.addEventListener("change", updateSchoolNote);
   if (!isEdit) {
-    await preselectMySchool();
+    preselectMySchool();
     showForm();
     return;
   }
@@ -154,23 +157,36 @@ function schoolOption(school) {
   return el("option", { value: String(school.id), text: school.name });
 }
 
-/** 새 글: 내 학교가 있고 지금 고를 수 있는 학교면 미리 고른다. */
-async function preselectMySchool() {
+/** 내 학교(없으면 null). 보조 기능이라 받지 못해도 null로 두고 글은 쓸 수 있다. */
+async function loadMySchool() {
   try {
-    const { school } = await getMySchool();
-    if (school && form.elements.school_id.querySelector(`option[value="${school.id}"]`)) {
-      form.elements.school_id.value = String(school.id);
-    }
+    return (await getMySchool()).school;
   } catch {
-    // 보조 기능이라 실패하면 "선택 안 함" 그대로 둔다.
+    return null;
   }
 }
 
-/** 수정: 글의 학교를 고른다. 그사이 비활성이 된 학교면 목록에 없으므로 그 학교를 보기로 더해 그대로 둘 수 있게 한다. */
+/** 학교 칸이 비어 있으면 내 학교를 고른다(지금 고를 수 있는 학교일 때만). 그 뒤 안내 문구를 맞춘다. */
+function preselectMySchool() {
+  const select = form.elements.school_id;
+  if (select.value === "" && mySchool && select.querySelector(`option[value="${mySchool.id}"]`)) {
+    select.value = String(mySchool.id);
+  }
+  updateSchoolNote();
+}
+
+/** 내 학교도 없이 학교를 비워 두면 "학교별 목록에 안 보여요" 안내. 등록은 막지 않는다. */
+function updateSchoolNote() {
+  document.getElementById("school-note").hidden = !(form.elements.school_id.value === "" && mySchool === null);
+}
+
+/** 수정: 글의 학교를 고른다. 그사이 비활성이 된 학교면 목록에 없으므로 그 학교를 보기로 더해 그대로 둘 수 있게 한다.
+ * 글에 학교가 없으면 새 글처럼 내 학교를 미리 고른다(저장해야 바뀐다). */
 function selectPostSchool(school) {
   const select = form.elements.school_id;
   if (school && !select.querySelector(`option[value="${school.id}"]`)) select.append(schoolOption(school));
   select.value = school ? String(school.id) : "";
+  preselectMySchool();
 }
 
 // 입력칸의 value는 HTML로 해석되지 않으므로 사용자 값을 그대로 넣어도 안전하다.

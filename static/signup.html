@@ -68,6 +68,16 @@
             <p class="field-error" data-error-for="nickname" hidden></p>
           </div>
 
+          <!-- 학교(선택). 목록은 signup.js가 /schools로 채우고, 고를 수 있는 학교가 하나뿐이면 미리 고른다. -->
+          <div class="field">
+            <label for="school_id" data-i18n="field.school_optional">학교 (선택)</label>
+            <select id="school_id" name="school_id" aria-describedby="school-hint">
+              <option value="" data-i18n="school.none">선택 안 함</option>
+            </select>
+            <p id="school-hint" class="field-hint" data-i18n="signup.school_hint">같은 학교 글을 모아 볼 수 있어요. 내 정보에서 바꿀 수 있어요.</p>
+            <p class="field-error" data-error-for="school_id" hidden></p>
+          </div>
+
           <!-- 본인 확인 질문과 답 (security-question.js가 채운다) -->
           <fieldset class="question-fields">
             <legend data-i18n="signup.question_legend">비밀번호를 잊었을 때</legend>

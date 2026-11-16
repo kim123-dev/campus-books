@@ -28,6 +28,18 @@ try {
   check(`${W}px: 가입 가로 스크롤 없음`, await noScroll());
   await b.screenshot(`reset-signup-${W}.png`);
 
+  // ---------- 가입: 학교(선택). 활성 학교가 하나뿐이면(확인용 DB는 기본 학교 하나) 미리 고른다 ----------
+  const activeSchools = (await api("GET", "/schools")).body.items;
+  await b.waitUntil(`document.querySelectorAll('#school_id option').length === ${activeSchools.length + 1}`);
+  const schoolField = await b.evaluate(`(() => { const s = document.getElementById('school_id'); return { options: [...s.options].map((o) => o.textContent), value: s.value,
+    h: Math.round(s.getBoundingClientRect().height), hint: document.getElementById('school-hint').textContent, label: document.querySelector('label[for=school_id]').textContent }; })()`);
+  check("가입: 학교 칸 = '선택 안 함' + 활성 학교, 이름표 '학교 (선택)'", schoolField.options[0] === "선택 안 함" && schoolField.options.length === activeSchools.length + 1 && schoolField.label === "학교 (선택)", JSON.stringify(schoolField));
+  check("가입: 활성 학교가 하나뿐이면 그 학교를 미리 고름", activeSchools.length === 1 && schoolField.value === String(activeSchools[0].id), JSON.stringify(schoolField));
+  check("가입: 학교 칸 44px 이상, 안내 문구", schoolField.h >= 44 && schoolField.hint.includes("같은 학교 글"), JSON.stringify(schoolField));
+  await b.evaluate("document.getElementById('school_id').scrollIntoView({ block: 'center' })");
+  await b.screenshot(`signup-school-${W}.png`);
+  await b.evaluate("window.scrollTo(0, 0)");
+
   const fill = `(() => { const f = document.getElementById('signup-form');
     f.email.value = ${JSON.stringify(email)}; f.password.value = ${JSON.stringify(pw)}; f.password_confirm.value = ${JSON.stringify(pw)};
     f.nickname.value = '질문확인'; })()`;
@@ -49,6 +61,8 @@ try {
   await b.evaluate(`(() => { const s = document.querySelector('#signup-question-fields select'); s.value = 'CHILDHOOD_SHOP'; s.dispatchEvent(new Event('change'));
     document.getElementById('signup-answer').value = ${JSON.stringify(answer)}; document.getElementById('signup-form').requestSubmit(); })()`);
   check("가입: 성공하면 로그인 화면으로", await b.waitUntil("location.pathname === '/static/login.html' && location.search.includes('joined=1')", 8000));
+  const joinedSchool = (await api("GET", "/users/me/school", await loginApi(email, pw))).body;
+  check("가입: 미리 고른 학교가 내 학교로 저장, 바로 바꿀 수 있음", joinedSchool.school?.id === activeSchools[0]?.id && joinedSchool.changeable_at === null, JSON.stringify(joinedSchool));
 
   // ---------- 재설정: 1단계 이메일 → 2단계 질문·답 확인 → 3단계 새 비밀번호 ----------
   await b.goto("/static/reset-password.html", "document.getElementById('question-form')");

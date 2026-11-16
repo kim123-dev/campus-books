@@ -1,4 +1,4 @@
-// 학교 선택 확인: 내 정보의 학교 행(목록에서 고르기, 7일 제한 안내), 글쓰기 기본값·수정·해제, 상세 표시,
+// 학교 선택 확인: 내 정보의 학교 행(목록에서 고르기, 7일 제한 안내), 글쓰기 기본값·수정·해제·학교 없을 때 안내, 상세 표시,
 // 홈 필터(주소 유지·활성 필터 수·목록 행의 학교 이름), 영어·중국어 375px 넘침.
 // 사용: WIDTH=375 tools/ui-check/run.sh school-check
 import { writeFileSync } from "node:fs";
@@ -23,6 +23,21 @@ try {
   const schoolId = schools[0].id;
   await goto("/static/index.html");
   await evaluate(`localStorage.setItem("campus-books.token", ${JSON.stringify(seed.buyer_token)})`);
+
+  // ---------- 글쓰기(내 학교 없음): 학교를 비우면 작은 안내, 등록은 막지 않음 ----------
+  await goto("/static/post-form.html", "!document.getElementById('form-card').hidden");
+  const noteOf = () => evaluate(`(() => { const n = document.getElementById('school-note'); return n.hidden ? null : { text: n.textContent, size: getComputedStyle(n).fontSize }; })()`);
+  const note = await noteOf();
+  check("글쓰기(내 학교 없음): 학교 칸 비어 있고 아래에 안내(다른 칸 안내와 같은 모양)", (await evaluate("document.getElementById('school_id').value")) === "" && note?.text === "학교 없이 올리면 학교별 목록에 안 보여요", JSON.stringify(note));
+  await evaluate(`(() => { const s = document.getElementById('school_id'); s.value = ${JSON.stringify(String(schoolId))}; s.dispatchEvent(new Event('change')); })()`);
+  check("글쓰기: 학교를 고르면 안내가 사라짐", (await noteOf()) === null);
+  await evaluate(`(() => { const s = document.getElementById('school_id'); s.value = ''; s.dispatchEvent(new Event('change')); })()`);
+  check("글쓰기: 다시 비우면 안내", (await noteOf()) !== null);
+  await evaluate("document.getElementById('school_id').scrollIntoView({ block: 'center' })");
+  await screenshot(`school-form-note-${W}.png`);
+  await evaluate(`(() => { const f = document.getElementById('post-form'); f.title.value = '학교 없는 글'; f.book_title.value = '학교 없는 교재'; f.condition.value = 'GOOD'; f.price.value = '1000'; f.requestSubmit(); })()`);
+  check("글쓰기: 학교 없이도 등록됨", await waitUntil("location.pathname === '/static/post.html' && !document.getElementById('post-detail').hidden", 10000));
+  const noSchoolPostId = Number(await evaluate("new URLSearchParams(location.search).get('id')"));
 
   // ---------- 내 정보: 학교 행 ----------
   await goto("/static/me.html", "!document.getElementById('account').hidden && document.getElementById('school-current').textContent !== ''");
@@ -50,6 +65,9 @@ try {
   const form = await evaluate(`({ value: document.getElementById('school_id').value, label: document.querySelector('label[for=school_id]').textContent,
     options: [...document.getElementById('school_id').options].map((o) => o.textContent).join('|') })`);
   check("글쓰기: '학교 (선택)' 칸, 내 학교가 미리 선택됨", form.value === String(schoolId) && form.label === "학교 (선택)" && form.options === `선택 안 함|${SCHOOL}`, JSON.stringify(form));
+  await evaluate("document.getElementById('school_id').value = ''; document.getElementById('school_id').dispatchEvent(new Event('change'))");
+  check("글쓰기: 내 학교가 있으면 비워도 안내 없음", await evaluate("document.getElementById('school-note').hidden"));
+  await evaluate(`document.getElementById('school_id').value = ${JSON.stringify(String(schoolId))}`);
   await evaluate(`(() => { const f = document.getElementById('post-form'); f.title.value = '학교 확인용 글'; f.book_title.value = '학교 교재'; f.condition.value = 'GOOD'; f.price.value = '3000'; })()`);
   await evaluate("document.getElementById('school_id').scrollIntoView({ block: 'center' })");
   await screenshot(`school-form-${W}.png`);
@@ -67,6 +85,9 @@ try {
   await waitUntil("location.pathname === '/static/post.html' && !document.getElementById('post-detail').hidden", 10000);
   check("수정: '선택 안 함'으로 저장하면 학교 해제", !(await infoOf()).some((s) => s.startsWith("학교=")) && (await api("GET", `/posts/${postId}`)).body.school === null);
   await api("PATCH", `/posts/${postId}`, seed.buyer_token, { school_id: schoolId });
+  // 수정: 학교 없는 글을 열면 내 학교가 미리 선택된다(저장해야 바뀐다).
+  await goto(`/static/post-form.html?id=${noSchoolPostId}`, "!document.getElementById('form-card').hidden && document.getElementById('title').value !== ''");
+  check("수정: 학교 없는 글은 내 학교가 미리 선택됨", (await evaluate("document.getElementById('school_id').value")) === String(schoolId) && (await evaluate("document.getElementById('school-note').hidden")));
 
   // ---------- 홈: 학교 필터 ----------
   await goto("/static/index.html", "document.getElementById('school_id').options.length > 1 && !document.getElementById('result-summary').textContent.includes('불러오는 중')");

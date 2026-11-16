@@ -1,4 +1,4 @@
-"""학교: 목록·시드, 관리자 추가·수정·비활성, 내 학교(7일 제한), 글의 학교 저장·해제, 목록 필터, 삭제·탈퇴 시 정리."""
+"""학교: 목록·시드, 관리자 추가·수정·비활성, 내 학교(7일 제한), 가입 때 학교, 글의 학교 저장·해제, 목록 필터, 삭제·탈퇴 시 정리."""
 
 from collections.abc import Callable
 from datetime import timedelta
@@ -8,9 +8,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.models import PostSchool, School, UserSchool
+from app.models import PostSchool, School, User, UserSchool
 from app.services import school_service
-from tests.conftest import TEST_PASSWORD
+from tests.conftest import SECURITY_QUESTION, TEST_PASSWORD
 
 
 @pytest.fixture
@@ -127,6 +127,55 @@ def test_my_school_rejects_missing_and_inactive(client: TestClient, seller: dict
     # 필드를 빼면 422 (실수로 비우지 않게)
     assert client.put("/users/me/school", json={}, headers=seller).status_code == 422
     assert client.get("/users/me/school").status_code == 401
+
+
+# ---------- 가입 때 학교 ----------
+
+
+def signup_with(client: TestClient, email: str, **extra):
+    payload = {"email": email, "password": TEST_PASSWORD, "nickname": email.split("@")[0], "security_question": SECURITY_QUESTION}
+    return client.post("/auth/signup", json=payload | extra)
+
+
+def login_headers(client: TestClient, email: str) -> dict[str, str]:
+    token = client.post("/auth/login", data={"username": email, "password": TEST_PASSWORD}).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_signup_saves_school_and_allows_change_right_away(client: TestClient, schools: dict, db_session: Session) -> None:
+    response = signup_with(client, "picked@campus.ac.kr", school_id=schools["default"])
+    assert response.status_code == 201
+    # 가입 응답 모양은 그대로 (학교는 내 정보 API로 본다)
+    assert set(response.json()) == {"id", "email", "nickname", "created_at"}
+    headers = login_headers(client, "picked@campus.ac.kr")
+    mine = client.get("/users/me/school", headers=headers).json()
+    assert mine == {"school": {"id": schools["default"], "name": "울산과학대학교"}, "changeable_at": None}
+    # 가입 때 고른 학교는 7일 제한을 걸지 않는다. 바꾼 뒤부터는 7일 제한.
+    changed = client.put("/users/me/school", json={"school_id": schools["other"]}, headers=headers)
+    assert changed.status_code == 200 and changed.json()["changeable_at"] is not None
+    assert client.put("/users/me/school", json={"school_id": schools["default"]}, headers=headers).status_code == 400
+    assert db_session.scalar(select(func.count()).select_from(UserSchool)) == 1
+
+
+def test_signup_without_school_leaves_it_empty(client: TestClient, schools: dict, db_session: Session) -> None:
+    assert signup_with(client, "none@campus.ac.kr").status_code == 201
+    assert signup_with(client, "null@campus.ac.kr", school_id=None).status_code == 201
+    assert db_session.scalar(select(func.count()).select_from(UserSchool)) == 0
+    headers = login_headers(client, "none@campus.ac.kr")
+    assert client.get("/users/me/school", headers=headers).json() == {"school": None, "changeable_at": None}
+
+
+def test_signup_rejects_missing_and_inactive_school(client: TestClient, schools: dict, db_session: Session) -> None:
+    missing = signup_with(client, "missing@campus.ac.kr", school_id=999999)
+    assert missing.status_code == 404 and missing.json()["detail"] == "학교를 찾을 수 없습니다."
+    inactive = signup_with(client, "inactive@campus.ac.kr", school_id=schools["closed"])
+    assert inactive.status_code == 400 and inactive.json()["detail"] == "지금은 선택할 수 없는 학교입니다."
+    assert signup_with(client, "zero@campus.ac.kr", school_id=0).status_code == 422
+    assert signup_with(client, "text@campus.ac.kr", school_id="abc").status_code == 422
+    # 거절되면 계정도 학교 행도 만들지 않는다. 같은 이메일로 다시 가입할 수 있다.
+    assert db_session.scalar(select(func.count()).select_from(User)) == 0
+    assert db_session.scalar(select(func.count()).select_from(UserSchool)) == 0
+    assert signup_with(client, "missing@campus.ac.kr", school_id=schools["other"]).status_code == 201
 
 
 # ---------- 글의 학교 ----------

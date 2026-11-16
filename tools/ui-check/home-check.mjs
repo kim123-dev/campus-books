@@ -1,8 +1,8 @@
-// 목록 화면(홈) 확인: 배너(비로그인 큰 배너 / 로그인 얇은 띠), 한 줄 검색과 필터 펼치기, 글이 없을 때의 "첫 교재 올리기".
+// 목록 화면(홈) 확인: 배너(비로그인 큰 배너 / 로그인 얇은 띠), 학교가 빈 사용자의 학교 안내, 한 줄 검색과 필터 펼치기, 글이 없을 때의 "첫 교재 올리기".
 // 사용: WIDTH=375 tools/ui-check/run.sh home-check   (PC는 WIDTH=1280)
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { api, readSeed, startBrowser } from "./lib.mjs";
+import { api, readSeed, sleep, startBrowser } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -42,6 +42,47 @@ try {
     check(`${who}: 가로 스크롤 없음`, await noHScroll());
     await screenshot(`home-${token ? "member" : "guest"}-${W}.png`);
   }
+
+  // ---------- 학교 안내: 로그인했는데 내 학교가 비었을 때만 제목 아래 작은 줄, 닫으면 다시 안 뜸 ----------
+  const hintShown = () => evaluate("Boolean(document.querySelector('.school-hint'))");
+  const hintReady = `${ready} && document.getElementById('site-header').textContent.length > 0`;
+  await setToken(null);
+  await goto("/static/index.html", hintReady);
+  check("학교 안내: 비로그인에는 없음", !(await hintShown()));
+  await setToken(seed.buyer_token);
+  await evaluate("localStorage.removeItem('campus-books.school-hint-dismissed')");
+  await goto("/static/index.html", hintReady);
+  check("학교 안내: 내 학교가 없으면 보임", await waitUntil("Boolean(document.querySelector('.school-hint'))"));
+  const hint = await evaluate(`(() => { const h = document.querySelector('.school-hint'), r = h.getBoundingClientRect(), t = document.querySelector('.page-title').getBoundingClientRect(),
+    f = document.getElementById('filter-form').getBoundingClientRect(), a = h.querySelector('.school-hint__link'), c = h.querySelector('.school-hint__close'), txt = h.querySelector('.school-hint__text');
+    return { h: Math.round(r.height), belowTitle: r.top >= t.bottom - 1 && r.bottom <= f.top + 1, text: txt.textContent, href: a.getAttribute('href'), linkH: Math.round(a.getBoundingClientRect().height),
+      close: [Math.round(c.getBoundingClientRect().width), Math.round(c.getBoundingClientRect().height)], closeLabel: c.getAttribute('aria-label'), right: Math.round(r.right),
+      lines: Math.round(txt.getBoundingClientRect().height / parseFloat(getComputedStyle(txt).lineHeight)) }; })()`);
+  check("학교 안내: 문구·'선택하기' → 내 정보 학교 설정", hint.text === "학교를 선택하면 같은 학교 글을 모아 볼 수 있어요 선택하기" && hint.href === "/static/me.html#school-row", JSON.stringify(hint));
+  check("학교 안내: 제목과 검색 사이, 작은 줄(높이 64px 이하, 두 줄 이내), 화면 안", hint.belowTitle && hint.h <= 64 && hint.lines <= 2 && hint.right <= W, JSON.stringify(hint));
+  check("학교 안내: 닫기 44px·이름, 링크 44px", hint.close[0] >= 44 && hint.close[1] >= 44 && hint.closeLabel === "학교 안내 닫기" && hint.linkH >= 44, JSON.stringify(hint));
+  check("학교 안내: 가로 스크롤 없음", await noHScroll());
+  await screenshot(`home-school-hint-${W}.png`);
+  await evaluate("document.querySelector('.school-hint__link').click()");
+  check("학교 안내: '선택하기' → 내 정보에서 학교 목록이 펼쳐짐", await waitUntil("location.pathname === '/static/me.html' && document.querySelectorAll('#school-options button').length > 0 && !document.getElementById('school-panel').hidden", 8000));
+  await goto("/static/index.html", hintReady);
+  await waitUntil("Boolean(document.querySelector('.school-hint'))");
+  await evaluate("document.querySelector('.school-hint__close').click()");
+  check("학교 안내: 닫으면 사라지고 기록", !(await hintShown()) && (await evaluate("localStorage.getItem('campus-books.school-hint-dismissed')")) === "1");
+  await goto("/static/index.html", hintReady);
+  await sleep(500);
+  check("학교 안내: 닫은 뒤 다시 열어도 안 보임", !(await hintShown()));
+  // 내 학교가 있는 사용자(판매자)에게는 보이지 않는다.
+  await evaluate("localStorage.removeItem('campus-books.school-hint-dismissed')");
+  const schools = (await api("GET", "/schools")).body.items;
+  await api("PUT", "/users/me/school", seed.seller_token, { school_id: schools[0].id });
+  await setToken(seed.seller_token);
+  await goto("/static/index.html", hintReady);
+  await sleep(500);
+  check("학교 안내: 내 학교가 있으면 안 보임", !(await hintShown()));
+  await setToken(seed.buyer_token);
+  await evaluate("localStorage.setItem('campus-books.school-hint-dismissed', '1')");
+  await goto("/static/index.html", hintReady);
 
   // ---------- 한 줄 검색 + 필터 펼치기 ----------
   const row = await evaluate("['#q', '#search-button', '#filter-toggle'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().top))");
