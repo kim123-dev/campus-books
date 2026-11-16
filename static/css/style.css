@@ -2291,41 +2291,95 @@ a.button {
   margin: 8px auto 0;
 }
 
-/* 입력칸 왼쪽 "+"(사진 추가) 아이콘 버튼: 44px 원형 */
-.chat__photo-button {
+/* 입력 줄 양옆 아이콘 버튼("+" 사진 추가, 보내기). 누르는 영역은 44px, 보이는 원은 안쪽 32px(.chat__icon-circle). */
+.chat__photo-button,
+.chat__send {
   display: inline-flex;
-  grid-area: photo;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
-  margin-bottom: 2px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--color-fill);
-  color: var(--color-text);
+  background: transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.chat__photo-button:hover:not(:disabled) {
-  background: var(--color-fill-hover);
+.chat__photo-button {
+  grid-area: photo;
 }
 
-.chat__photo-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+.chat__send {
+  grid-area: send;
 }
 
-.chat__photo-button .icon {
-  width: 24px;
-  height: 24px;
+.chat__icon-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  transition: background-color var(--duration) var(--ease);
+}
+
+.chat__icon-circle .icon {
+  width: 20px;
+  height: 20px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.chat__photo-button .chat__icon-circle {
+  background: var(--color-fill);
+  color: var(--color-text);
+}
+
+.chat__photo-button:hover:not(:disabled) .chat__icon-circle {
+  background: var(--color-fill-hover);
+}
+
+/* 보내기: 보라 원에 흰 종이비행기. 입력이 비었거나 보내는 중이면 회색 */
+.chat__send .chat__icon-circle {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.chat__send .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.chat__send:hover:not(:disabled) .chat__icon-circle {
+  background: var(--color-primary-hover);
+}
+
+.chat__photo-button:disabled,
+.chat__send:disabled {
+  cursor: not-allowed;
+}
+
+.chat__photo-button:disabled .chat__icon-circle {
+  opacity: 0.5;
+}
+
+.chat__send:disabled .chat__icon-circle {
+  background: var(--color-line-strong);
+  color: var(--color-surface);
+}
+
+.chat__photo-button:focus-visible,
+.chat__send:focus-visible {
+  outline: none;
+}
+
+.chat__photo-button:focus-visible .chat__icon-circle,
+.chat__send:focus-visible .chat__icon-circle {
+  box-shadow: var(--focus-ring);
 }
 
 .message__menu {
@@ -2397,8 +2451,8 @@ a.button {
     "bottom bottom bottom"
     "send-error send-error send-error";
   align-items: end;
-  gap: 0 var(--space-2);
-  padding: 14px 16px 16px;
+  gap: 0 var(--space-1);
+  padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--color-divider);
 }
 
@@ -2407,24 +2461,24 @@ a.button {
   margin: 0 0 var(--space-2);
 }
 
-.chat__send {
-  grid-area: send;
-  min-height: 48px;
-}
-
+/* 입력칸: 한 줄(44px, 누르는 곳 기준과 같게)로 시작해 최대 4줄까지 자란다(chat.js가 높이를 맞춤). 글자 16px은 iOS 확대 방지 */
 .chat__form textarea {
+  display: block;
   grid-area: input;
   width: 100%;
-  min-height: 64px;
-  max-height: 160px;
-  padding: 12px 14px;
+  height: 44px;
+  min-height: 44px;
+  max-height: calc(4 * 1.5em + 20px);
+  padding: 10px 14px;
+  overflow-y: auto;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: 20px;
   background: var(--color-fill);
   color: var(--color-text);
   font: inherit;
+  font-size: var(--text-md);
   line-height: 1.5;
-  resize: vertical;
+  resize: none;
 }
 
 .chat__form textarea:focus-visible {
@@ -2522,10 +2576,12 @@ a.button {
 }
 
 /* 닉네임 줄 오른쪽 끝의 ⋯ 버튼 자리. 버튼 안쪽 여백만큼 오른쪽으로 붙인다. */
+/* 닉네임 줄 오른쪽 끝의 ⋯ 버튼 자리(44px). 음수 여백 없이 카드 안쪽 패딩 안에 둬서
+   iOS Safari에서 카드(overflow: hidden) 밖으로 잘리지 않게 한다. */
 .chat__actions {
   display: flex;
-  flex: none;
-  margin-right: calc(-1 * var(--space-2));
+  flex: 0 0 44px;
+  justify-content: flex-end;
 }
 
 .chat__actions:empty {
@@ -3843,27 +3899,24 @@ a.button {
     padding: 12px 14px 8px;
   }
 
-  /* 입력 줄 구조는 공통 구역과 같다. 모바일은 여백과 입력칸 높이만 줄인다. */
+  /* 입력 줄 구조·크기는 공통 구역과 같다. 모바일은 좌우 여백만 줄인다. */
   .chat__form {
-    padding: 10px 12px;
+    padding: var(--space-1) var(--space-2);
   }
 
-  .chat__form textarea {
-    min-height: 48px;
-    max-height: 120px;
-    resize: none;
-  }
-
-  .chat__send {
-    padding: 0 16px;
-  }
-
-  /* 입력 중(키보드가 올라옴): 좁아진 화면을 메시지에 쓰도록 위쪽 줄(헤더·뒤로 가기·⋯·안내)을 접는다. */
+  /* 입력 중(키보드가 올라옴): 좁아진 화면을 메시지에 쓰도록 위쪽 줄(헤더·뒤로 가기·게시글 줄·후기 줄·안내)을 접는다.
+     상대 닉네임 줄과 ⋯(신고·차단)는 남긴다. */
   .chat-body.is-typing .site-header,
   .chat-body.is-typing .back-link,
-  .chat-body.is-typing .chat__actions,
+  .chat-body.is-typing .chat__post,
+  .chat-body.is-typing .chat__review,
   .chat-body.is-typing .chat__header .safety-notice {
     display: none;
+  }
+
+  .chat-body.is-typing .chat__header {
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
   }
 
   .chat-body.is-typing main {

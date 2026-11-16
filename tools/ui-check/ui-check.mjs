@@ -192,8 +192,24 @@ try {
   check("탭 다시 보임: 바로 확인", await waitUntil("[...document.querySelectorAll('.message__bubble')].some(b => b.textContent === '숨긴 동안 온 메시지')", 2000));
 
   // ---------- 전송 ----------
-  await evaluate("{ const t = document.getElementById('content'); t.value = '화면에서 보낸 메시지'; t.dispatchEvent(new Event('input')) }");
-  check("전송: 글자 수 표시", (await evaluate("document.getElementById('content-count').textContent")) === "11 / 1000");
+  // 입력 줄: 빈 입력이면 보내기(종이비행기) 회색 비활성, 입력칸은 한 줄(40px)에서 최대 4줄까지, 글자 수는 800자부터
+  const sendState = () => evaluate(`(() => { const s = document.querySelector('#message-form [type=submit]'), c = s.querySelector('.chat__icon-circle').getBoundingClientRect(), r = s.getBoundingClientRect(); return { disabled: s.disabled, label: s.getAttribute('aria-label'), svg: !!s.querySelector('svg'), circle: Math.round(c.width), hit: Math.round(Math.min(r.width, r.height)), bg: getComputedStyle(s.querySelector('.chat__icon-circle')).backgroundColor }; })()`);
+  const typeText = (value) => evaluate(`{ const t = document.getElementById('content'); t.value = ${JSON.stringify(value)}; t.dispatchEvent(new Event('input')) }`);
+  const empty = await sendState();
+  check("입력 줄: 빈 입력 → 보내기 회색 비활성, 이름 '보내기', 아이콘 32px·누르는 곳 44px", empty.disabled && empty.label === "보내기" && empty.svg && empty.circle === 32 && empty.hit >= 44 && empty.bg !== "rgb(91, 63, 214)", JSON.stringify(empty));
+  const textareaHeight = () => evaluate("Math.round(document.getElementById('content').getBoundingClientRect().height)");
+  const oneLine = await textareaHeight();
+  await typeText("1\n2\n3\n4\n5\n6\n7");
+  const tall = await textareaHeight();
+  check("입력칸: 한 줄 약 44px에서 시작, 최대 4줄(116px)까지만 자람, 글자 16px", oneLine >= 40 && oneLine <= 46 && tall > oneLine && tall <= 116 && (await evaluate("getComputedStyle(document.getElementById('content')).fontSize")) === "16px", `${oneLine} → ${tall}`);
+  check("글자 수: 800자 미만이면 숨김", await evaluate("document.getElementById('content-count').hidden"));
+  await typeText("가".repeat(800));
+  check("글자 수: 800자부터 보임", (await evaluate("!document.getElementById('content-count').hidden && document.getElementById('content-count').textContent")) === "800 / 1000");
+  await typeText("화면에서 보낸 메시지");
+  check("입력칸: 글을 지우면 다시 줄어듦", (await textareaHeight()) === oneLine);
+  await sleep(400); // 보라색으로 바뀌는 전환이 끝난 뒤 잰다
+  const ready = await sendState();
+  check("입력 줄: 글이 있으면 보내기 보라색 활성", !ready.disabled && ready.bg === "rgb(91, 63, 214)", JSON.stringify(ready));
   await evaluate("document.getElementById('message-form').requestSubmit()");
   check("전송: 내 말풍선으로 추가", await waitUntil("document.querySelector('.message:last-child')?.classList.contains('message--mine') && document.querySelector('.message:last-child .message__bubble').textContent === '화면에서 보낸 메시지'"));
   check("전송: 입력창 비움", (await evaluate("document.getElementById('content').value")) === "");

@@ -320,7 +320,16 @@ try {
       evaluate(`(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const ta = r('#content'), btn = r('#message-form button[type=submit]'), sc = r('#chat-scroll'), s = document.getElementById('chat-scroll');
         return { taRight: Math.round(ta.right), taBottom: Math.round(ta.bottom), btnLeft: Math.round(btn.left), btnBottom: Math.round(btn.bottom), btnH: Math.round(btn.height), formBottom: Math.round(r('#message-form').bottom), scrollH: Math.round(sc.height), docH: document.documentElement.scrollHeight, vv: Math.round(visualViewport.height), header: document.getElementById('site-header').getClientRects().length > 0, back: document.querySelector('.back-link').getClientRects().length > 0, atBottom: s.scrollHeight - s.scrollTop - s.clientHeight < 2, scrollY }; })()`);
     const normal = await layout();
-    check("대화: 입력창 오른쪽에 보내기 버튼(같은 줄, 48px)", normal.btnLeft >= normal.taRight && Math.abs(normal.btnBottom - normal.taBottom) <= 1 && normal.btnH >= 48, JSON.stringify(normal));
+    check("대화: 입력창 오른쪽에 보내기 버튼(같은 줄, 누르는 곳 44px)", normal.btnLeft >= normal.taRight && Math.abs(normal.btnBottom - normal.taBottom) <= 4 && normal.btnH >= 44, JSON.stringify(normal));
+    // ⋯(더보기)는 카드 안쪽(오른쪽 패딩 안)에 있어야 iOS Safari에서 잘리지 않는다. 메뉴 창도 화면 안.
+    const moreBox = await evaluate(`(() => { const m = document.querySelector('.chat__more').getBoundingClientRect(), c = document.getElementById('chat').getBoundingClientRect(); return { right: Math.round(m.right), cardRight: Math.round(c.right), w: Math.round(m.width), h: Math.round(m.height) }; })()`);
+    check("대화: ⋯ 버튼이 카드 안쪽(오른쪽 여백 8px 이상), 44px", moreBox.right <= moreBox.cardRight - 8 && moreBox.w >= 44 && moreBox.h >= 44, JSON.stringify(moreBox));
+    await evaluate("document.querySelector('.chat__more').click()");
+    await waitUntil("document.querySelector('dialog.action-menu')?.open");
+    const menuBox = await evaluate(`(() => { const r = document.querySelector('dialog.action-menu').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; })()`);
+    check("대화: ⋯ 메뉴가 화면 오른쪽 밖으로 넘치지 않음", menuBox[0] >= 0 && menuBox[1] <= W, JSON.stringify(menuBox));
+    await evaluate("document.querySelector('dialog.action-menu').close()");
+    await waitUntil("!document.querySelector('dialog.action-menu')");
     check("대화: 페이지 스크롤 없이 화면 높이에 맞음", normal.docH <= H + 1 && normal.formBottom <= H && normal.scrollY === 0, JSON.stringify(normal));
     await screenshot(`m2-${W}-chat.png`);
 
@@ -332,7 +341,8 @@ try {
     await sleep(600);
     const typing = await layout();
     check(`대화 키보드(보이는 높이 ${KB}px): 입력창·보내기 버튼이 화면 안, 페이지 안 밀림`, typing.vv === KB && typing.formBottom <= KB && typing.btnBottom <= KB && typing.docH <= KB + 1 && typing.scrollY === 0, JSON.stringify(typing));
-    check("대화 키보드: 헤더·'← 쪽지함' 접고 메시지 영역 96px 이상", !typing.header && !typing.back && typing.scrollH >= 96, `메시지 영역 ${typing.scrollH}px`);
+    check("대화 키보드: 헤더·'← 쪽지함'·게시글 줄 접고 메시지 영역 200px 이상", !typing.header && !typing.back && typing.scrollH >= 200 && (await evaluate("!document.getElementById('chat-post').getClientRects().length")), `메시지 영역 ${typing.scrollH}px`);
+    check("대화 키보드: 상대 닉네임 줄과 ⋯는 그대로", await evaluate("document.getElementById('chat-partner').getClientRects().length > 0 && document.querySelector('.chat__more').getClientRects().length > 0"));
     check("대화 키보드: 마지막 메시지가 보임(맨 아래)", typing.atBottom);
     check("대화 키보드: 높이 변수 = 보이는 높이", (await evaluate("getComputedStyle(document.documentElement).getPropertyValue('--chat-viewport-height').trim()")) === `${KB}px`);
     await audit("대화(입력 중)");
@@ -354,7 +364,7 @@ try {
     await b.setMetrics(W, H);
     await sleep(600);
     const after = await layout();
-    check("대화: 입력을 마치면 헤더 다시 보이고 높이 원래대로", after.header && after.back && after.vv === H && after.docH <= H + 1 && after.formBottom <= H, JSON.stringify(after));
+    check("대화: 입력을 마치면 헤더·게시글 줄 다시 보이고 높이 원래대로", after.header && after.back && after.vv === H && after.docH <= H + 1 && after.formBottom <= H && (await evaluate("document.getElementById('chat-post').getClientRects().length > 0")), JSON.stringify(after));
   }
 
   check("JS 예외·콘솔 에러 없음", b.exceptions.filter((e) => !String(e).includes("Failed to load resource")).length === 0, b.exceptions.join(" / "));

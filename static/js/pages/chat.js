@@ -52,6 +52,8 @@ const POLL_RETRY_INTERVAL_MS = 15000; // 연결이 불안정할 때는 서버에
 const PAGE_LIMIT = 30; // 한 번에 불러올 메시지 수 (서버 최대 100)
 const NEAR_BOTTOM_PX = 80; // 이만큼 안쪽이면 "맨 아래를 보고 있다"고 본다.
 const MAX_LENGTH = 1000; // 서버 규칙과 같다. (app/schemas/conversation.py)
+// 글자 수는 이만큼 쓴 뒤부터 보여준다. 짧은 쪽지에서는 입력 줄을 가볍게 두기 위해서다.
+const COUNTER_FROM = 800;
 const DEFAULT_RETRY_SECONDS = 10; // 429에 Retry-After가 없을 때
 const MAX_PHOTO_BYTES = 25 * 1024 * 1024; // 서버 규칙과 같다. (app/services/image_service.py)
 
@@ -183,11 +185,16 @@ async function init() {
 
 function bindEvents() {
   form.addEventListener("submit", onSubmit);
-  // "+" 아이콘 버튼. 이름은 aria-label("사진 추가")이 맡는다.
-  photoButton.replaceChildren(icon("plus"));
+  // "+"·보내기 아이콘 버튼. 보이는 원(32px)은 안쪽 span, 누르는 영역은 버튼 전체(44px). 이름은 aria-label이 맡는다.
+  photoButton.replaceChildren(el("span", { className: "chat__icon-circle" }, icon("plus")));
+  submitButton.replaceChildren(el("span", { className: "chat__icon-circle" }, icon("send")));
   photoButton.addEventListener("click", () => photoInput.click());
   photoInput.addEventListener("change", onPhotoChosen);
-  textarea.addEventListener("input", updateCounter);
+  textarea.addEventListener("input", () => {
+    updateCounter();
+    fitTextarea();
+    updateSendButtons();
+  });
   textarea.addEventListener("keydown", onTextareaKeydown);
   updateCounter();
 
@@ -229,7 +236,8 @@ function bindEvents() {
  * - 화면 높이: iOS Safari는 키보드가 올라와도 페이지 높이(dvh)를 줄이지 않고 화면 일부를 덮는다.
  *   그래서 실제로 보이는 높이(visualViewport.height)를 CSS 변수로 넘겨 대화 화면 높이로 쓴다.
  *   메시지 영역 크기가 바뀌면 bindEvents의 ResizeObserver가 맨 아래로 다시 맞춘다.
- * - 입력 중(is-typing): 좁아진 화면을 메시지에 쓰도록 사이트 헤더·"← 쪽지함"·신고/차단 줄을 접는다. (CSS)
+ * - 입력 중(is-typing): 좁아진 화면을 메시지에 쓰도록 사이트 헤더·"← 쪽지함"·게시글 줄을 접는다. (CSS)
+ *   상대 닉네임 줄과 ⋯(신고·차단) 메뉴는 그대로 둔다. 포커스가 빠지면 되돌린다.
  * - 보내기 버튼: 누를 때 입력창에서 포커스가 빠지면 키보드가 내려갔다 다시 올라와 화면이 흔들린다.
  *   버튼이 포커스를 가져가지 않게 해 키보드를 그대로 둔다. (클릭·전송은 그대로 일어난다)
  */
@@ -701,6 +709,13 @@ function handleFatalError(error) {
 function updateCounter() {
   // JS의 length는 이모지 같은 일부 글자를 2자로 센다. 서버(1000자)보다 먼저 막힐 수는 있어도 넘치지는 않는다.
   counter.textContent = `${textarea.value.length} / ${MAX_LENGTH}`;
+  counter.hidden = textarea.value.length < COUNTER_FROM;
+}
+
+/** 입력칸은 한 줄 높이로 시작해 글이 길어지면 최대 4줄(CSS max-height)까지 자란다. 그 뒤로는 칸 안에서 스크롤. */
+function fitTextarea() {
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
 // 넓은 화면에서는 Enter로 보내고 Shift+Enter로 줄을 바꾼다.
@@ -728,6 +743,7 @@ async function onSubmit(event) {
     if (!checkSameAccount()) return;
     textarea.value = "";
     updateCounter();
+    fitTextarea();
     addNewerMessages([message]);
   } catch (error) {
     handleSendError(error);
@@ -791,7 +807,8 @@ function handleSendError(error) {
 function setSending(isSending, photoText = null) {
   sending = isSending;
   updateSendButtons();
-  submitButton.textContent = isSending && photoText === null ? t("chat.sending") : t("chat.send");
+  // 아이콘 버튼이라 글자 대신 이름(aria-label)으로 보내는 중임을 알린다.
+  submitButton.setAttribute("aria-label", isSending && photoText === null ? t("chat.sending") : t("chat.send"));
   const photoSending = isSending && photoText !== null;
   photoProgress.textContent = photoSending ? photoText : "";
   photoProgress.hidden = !photoSending;
@@ -800,7 +817,8 @@ function setSending(isSending, photoText = null) {
 
 function updateSendButtons() {
   const locked = sending || cooldownTimer !== null || !canSend;
-  submitButton.disabled = locked;
+  // 보내기는 입력이 비어 있어도 회색으로 잠근다. (사진은 글 없이 보낼 수 있다)
+  submitButton.disabled = locked || textarea.value.trim() === "";
   photoButton.disabled = locked;
 }
 

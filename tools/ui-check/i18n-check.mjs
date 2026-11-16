@@ -449,7 +449,7 @@ try {
       title: document.title,
       role: document.querySelector('.chat__role')?.textContent,
       placeholder: document.getElementById('content').placeholder,
-      send: document.querySelector('#message-form [type=submit]').textContent,
+      send: document.querySelector('#message-form [type=submit]').getAttribute('aria-label'),
       photo: document.getElementById('photo-button').getAttribute('aria-label'),
       more: document.querySelector('#chat-actions .chat__more').getAttribute('aria-label'),
     })`);
