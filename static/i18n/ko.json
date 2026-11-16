@@ -418,6 +418,8 @@
   "alerts.register_link": "찾는 교재 등록하기",
   "bell.message_item": "{nickname}님이 {@term.messages}를 보냈어요",
   "bell.alert_item": "찾는 교재 '{keyword}'에 맞는 새 글이 올라왔어요",
+  "bell.review_item": "{nickname}님과의 {@term.review}를 남겨 주세요",
+  "bell.review_due": "D-{days}",
   "bell.empty": "새 알림이 없어요",
   "bell.view_all": "전체 보기",
   "bell.load_error": "알림을 불러오지 못했어요.",

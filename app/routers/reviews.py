@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import ActiveUser
-from app.schemas.review import ReviewCreate, ReviewResponse
+from app.core.deps import ActiveUser, CurrentUser
+from app.schemas.review import ReviewCreate, ReviewReminderListResponse, ReviewResponse
 from app.services import review_service
 
 router = APIRouter(tags=["reviews"])
@@ -30,3 +30,17 @@ def create_review(
     trade_id: int, data: ReviewCreate, current_user: ActiveUser, db: Annotated[Session, Depends(get_db)]
 ) -> ReviewResponse:
     return review_service.create_review(db, trade_id, current_user, data)
+
+
+# 읽기 전용이라 정지 중에도 부를 수 있다(CurrentUser). 정지 중에는 후기를 쓸 수 없으므로 서비스가 빈 목록을 돌려준다.
+@router.get(
+    "/notifications/reviews",
+    response_model=ReviewReminderListResponse,
+    summary="안 쓴 후기 알림 (저장하지 않고 계산, 최신 거래순)",
+    responses={401: {"description": "로그인 필요"}},
+)
+def list_review_reminders(
+    current_user: CurrentUser, db: Annotated[Session, Depends(get_db)]
+) -> ReviewReminderListResponse:
+    items = review_service.list_reminders(db, current_user)
+    return ReviewReminderListResponse(items=items, total=len(items))

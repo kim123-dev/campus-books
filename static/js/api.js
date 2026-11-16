@@ -488,6 +488,11 @@ export function markAllNotificationsRead() {
   return request("/notifications/read-all", { method: "POST" });
 }
 
+/** 안 쓴 후기 알림(서버가 거래·후기에서 계산, 읽음 상태 없음). 종 배지·알림 판·알림 화면이 쓴다. */
+export function listReviewReminders() {
+  return request("/notifications/reviews");
+}
+
 /** 찾는 교재 알림 하나 읽음. 종 알림 판에서 그 항목을 눌렀을 때 쓴다. */
 export function markNotificationRead(notificationId) {
   return request(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: "POST" });

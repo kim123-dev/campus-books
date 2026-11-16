@@ -351,6 +351,32 @@ a {
   font-size: var(--text-sm);
 }
 
+/* 요약 아래 한 줄: (후기 기한 배지) + 시간 */
+.notification-panel__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 후기 기한이 3일 이하로 남았을 때의 작은 배지("D-3"). 알림 판과 알림 화면이 함께 쓴다. */
+.due-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.notification-panel__meta .due-badge {
+  margin-left: 0;
+}
+
 .notification-panel__status,
 .notification-panel__empty {
   margin: 0;

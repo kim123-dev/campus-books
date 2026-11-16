@@ -19,7 +19,7 @@ import {
   sendMessageImage,
   unblockUser,
 } from "../api.js";
-import { redirectToLogin, refreshUnreadBadge, renderHeader, suspensionText } from "../auth.js";
+import { redirectToLogin, refreshReviewBadge, refreshUnreadBadge, renderHeader, suspensionText } from "../auth.js";
 import { t } from "../i18n.js";
 import { preparePhoto } from "../photo-resize.js";
 import {
@@ -325,6 +325,8 @@ async function onWriteReview(conversation) {
     send: (data) => createReview(conversation.trade.trade_id, data),
   });
   if (!written) return;
+  // 이 거래의 후기 알림이 빠지므로 종 배지를 바로 다시 받는다. (알림 판은 열 때마다 새로 받는다)
+  refreshReviewBadge();
   try {
     renderReviewState(await getConversation(conversationId));
   } catch (error) {

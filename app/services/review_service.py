@@ -1,10 +1,11 @@
-"""거래 후기: 작성, 쪽지 화면용 후기 상태, 받은 후기 목록, 매너 학점."""
+"""거래 후기: 작성, 쪽지 화면용 후기 상태, 안 쓴 후기 알림, 받은 후기 목록, 매너 학점."""
 
-from datetime import datetime
+import math
+from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from app.core.exceptions import (
     DuplicateReviewError,
@@ -13,15 +14,16 @@ from app.core.exceptions import (
     TradeNotFoundError,
     WithdrawnRevieweeError,
 )
-from app.models import Conversation, Review, ReviewRating, Trade, User
+from app.models import Conversation, Post, Review, ReviewRating, Trade, User
 from app.schemas.review import (
     MannerSummary,
     ReviewCreate,
     RevieweeRole,
+    ReviewReminderResponse,
     ReviewResponse,
     TradeReviewState,
 )
-from app.services import trade_service, user_service
+from app.services import admin_dashboard_service, trade_service, user_service
 
 # 좋아요 비율을 보여주기 시작하는 후기 수. 1~2개로 100%·0%가 뜨면 실제보다 강하게 보이기 때문이다.
 MIN_REVIEWS_FOR_RATIO = 3
@@ -90,6 +92,52 @@ def state_for_conversation(db: Session, conversation: Conversation, viewer: User
         can_write=not written and user_service.utc_now() <= end and not user_service.is_withdrawn(partner),
         deadline=end,
     )
+
+
+def list_reminders(db: Session, user: User, now: datetime | None = None) -> list[ReviewReminderResponse]:
+    """안 쓴 후기 알림: 내가 당사자이고, 아직 후기를 안 썼고, 기간 안이고, 상대가 탈퇴하지 않은 거래(최신순).
+
+    저장하지 않고 그때그때 계산한다. 후기를 쓰거나 기간이 지나거나 되돌리기로 거래가 지워지면 저절로 빠진다.
+    조건은 후기 작성(create_review)이 받아 주는 거래와 같다. 차단 관계여도 쓸 수 있으므로 빼지 않고,
+    정지 중에는 쓸 수 없으므로(ActiveUser 403) 알림도 비운다.
+    """
+    now = now or user_service.utc_now()
+    if user_service.active_suspension_end(user, now) is not None:
+        return []
+    partner = aliased(User)
+    partner_id = case((Trade.seller_id == user.id, Trade.buyer_id), else_=Trade.seller_id)
+    written = select(Review.id).where(Review.trade_id == Trade.id, Review.reviewer_id == user.id).exists()
+    # create_review는 now > 마감이면 거절하므로, 마감이 now 이상인 거래(= 거래 시각이 now - 기간 이상)가 남는다.
+    since = admin_dashboard_service.db_time(db, now - trade_service.REVIEW_PERIOD)
+    rows = db.execute(
+        select(Trade, partner, Post.title)
+        .join(partner, partner.id == partner_id)
+        .outerjoin(Post, Post.id == Trade.post_id)
+        .where(
+            or_(Trade.seller_id == user.id, Trade.buyer_id == user.id),
+            Trade.created_at >= since,
+            ~written,
+            partner.password_hash != user_service.WITHDRAWN_PASSWORD_HASH,
+        )
+        .order_by(Trade.created_at.desc(), Trade.id.desc())
+    ).all()
+    items = []
+    for trade, other, post_title in rows:
+        end = deadline(trade)
+        items.append(
+            ReviewReminderResponse(
+                trade_id=trade.id,
+                conversation_id=trade.conversation_id,
+                partner_nickname=other.nickname,
+                post_title=post_title,
+                book_title=trade.book_title_snapshot,
+                # 남은 시간을 하루 단위로 올림한다. 마감 직전(몇 시간 남음)도 1일로 보인다.
+                days_left=max(1, math.ceil((end - now) / timedelta(days=1))),
+                deadline=end,
+                created_at=trade.created_at,
+            )
+        )
+    return items
 
 
 def list_received(

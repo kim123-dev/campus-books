@@ -1,11 +1,13 @@
 // 알림(헤더 종·배지·종 알림 판, 알림 화면)과 찾는 교재 화면을 헤드리스 Chrome으로 확인한다.
-// 종 배지 = 안 읽은 쪽지 + 안 읽은 찾는 교재 알림. 종을 누르면 종 아래 작은 판(안 읽은 쪽지 대화 + 찾는 교재 알림, 최신순).
-// 알림 화면(판의 "전체 보기") = 안 읽은 쪽지 줄 + 찾는 교재 알림 목록.
+// 종 배지 = 안 읽은 쪽지 + 안 읽은 찾는 교재 알림 + 안 쓴 후기 알림. 종을 누르면 종 아래 작은 판(세 가지를 섞어 최신순).
+// 알림 화면(판의 "전체 보기") = 안 읽은 쪽지 줄 + 찾는 교재 알림과 후기 알림을 섞은 목록.
+// 후기 알림: 판매자가 seed의 c2(구매자가 쪽지를 보낸 대화) 글을 구매자에게 판매 완료하고, 거래 시각을 12일 전으로 옮겨 "D-2"를 본다.
 // 찾는 교재 조건 등록·삭제는 따로 찾는 교재 화면(book-alerts.html, 내 정보에서 진입)에서 한다.
 // 사용: WIDTH=375 tools/ui-check/run.sh alerts-check
+import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { api, loginApi, readSeed, sleep, startBrowser } from "./lib.mjs";
+import { api, cliEnv, loginApi, PYTHON, readSeed, ROOT, sleep, startBrowser } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -17,6 +19,8 @@ const b = await startBrowser(OUT, { width: W });
 const badge = `(() => { const n = document.getElementById('nav-alerts-unread'); return n && !n.hidden ? n.textContent : ''; })()`;
 const badgeOf = (n) => (n === 0 ? "" : n > 99 ? "99+" : String(n));
 const unreadMessages = async () => (await api("GET", "/conversations/unread-count", seed.buyer_token)).body.unread_count;
+// 거래 시각을 12일 전으로 옮긴다(후기 기한 2일 남음). 확인용 서버와 같은 임시 DB를 직접 고친다.
+const AGE_TRADE = `import os, sqlite3; c = sqlite3.connect(os.environ["DATABASE_URL"].removeprefix("sqlite:///")); c.execute("update trades set created_at = datetime('now', '-12 days')"); c.commit()`;
 const rect = (selector) =>
   b.evaluate(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e || !e.getClientRects().length) return null; const r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right) }; })()`);
 
@@ -52,29 +56,40 @@ try {
   await post("데이터통신 겸 네트워크", "데이터 통신과 네트워크", 18000);
   await post("비싼 네트워크 책", "네트워크 프로그래밍", 30000);
 
+  // ---------- 거래 하나 → 구매자에게 안 쓴 후기 알림 1개 (기한 2일 남김) ----------
+  const me = (await api("GET", "/users/me", seed.buyer_token)).body;
+  const sold = await api("PATCH", `/posts/${seed.p2}/status`, seed.seller_token, { status: "SOLD", buyer_id: me.id });
+  check("판매 완료(구매자 지정)", sold.status === 200, JSON.stringify(sold.body));
+  execFileSync(PYTHON, ["-c", AGE_TRADE], { cwd: ROOT, env: cliEnv(OUT) });
+  const reviewItems = (await api("GET", "/notifications/reviews", seed.buyer_token)).body.items;
+  check("후기 알림 API: 1개, 남은 2일", reviewItems.length === 1 && reviewItems[0].days_left === 2 && reviewItems[0].conversation_id === seed.c2, JSON.stringify(reviewItems));
+
   messages = await unreadMessages();
   await b.goto("/static/index.html", "document.getElementById('nav-alerts')");
-  check(`종 배지 = 쪽지 ${messages} + 알림 2`, await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(messages + 2))}`), await b.evaluate(badge));
-  check("종 이름: '알림, 새 소식 N개'", (await b.evaluate(`document.getElementById('nav-alerts').getAttribute('aria-label')`)) === `알림, 새 소식 ${messages + 2}개`);
+  check(`종 배지 = 쪽지 ${messages} + 알림 2 + 후기 1`, await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(messages + 3))}`), await b.evaluate(badge));
+  check("종 이름: '알림, 새 소식 N개'", (await b.evaluate(`document.getElementById('nav-alerts').getAttribute('aria-label')`)) === `알림, 새 소식 ${messages + 3}개`);
   const dot = await rect("#nav-alerts-unread");
   const bell = await rect("#nav-alerts");
   check("종 배지: 빨간 원, 종 오른쪽 위, 종 44px", dot && bell && bell.w >= 44 && bell.h >= 44 && (await b.evaluate(`getComputedStyle(document.getElementById('nav-alerts-unread')).backgroundColor`)) === "rgb(196, 36, 58)", `${JSON.stringify(dot)} ${JSON.stringify(bell)}`);
   // 헤더는 화면을 열 때 안 읽은 수 API를 종류마다 한 번씩만 부른다.
   const calls = await b.evaluate(`performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p.endsWith('/unread-count'))`);
   check("헤더: 안 읽은 수 요청은 쪽지·알림 한 번씩", calls.length === 2 && new Set(calls).size === 2, calls.join(", "));
+  const reviewCalls = await b.evaluate(`performance.getEntriesByType('resource').filter((e) => new URL(e.name).pathname === '/notifications/reviews').length`);
+  check("헤더: 후기 알림 요청 한 번", reviewCalls === 1, String(reviewCalls));
   await b.screenshot(`alerts-badge-${W}.png`);
 
   // ---------- 종 알림 판: 열 때만·열 때마다 불러옴, 위치·크기, 최신순, 점, 44px, 두 줄 이내 ----------
-  const listCalls = () => b.evaluate(`performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p === '/notifications' || p === '/conversations').length`);
+  const listCalls = () => b.evaluate(`performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p === '/notifications' || p === '/conversations' || p === '/notifications/reviews').length`);
   const panelOpen = "!document.getElementById('notification-panel').hidden";
   const panelReady = `${panelOpen} && document.querySelector('.notification-panel__status').hidden`;
   const openPanel = async () => {
     await b.evaluate("document.getElementById('nav-alerts').click()");
     return b.waitUntil(panelReady);
   };
-  check("판: 열기 전에는 목록을 부르지 않음", (await listCalls()) === 0);
+  // 후기 알림 목록은 헤더가 종 배지 숫자로 한 번 먼저 부른다. 판은 그 뒤로 열 때마다 세 목록을 한 번씩 부른다.
+  check("판: 열기 전에는 목록을 부르지 않음(헤더의 후기 수 1회만)", (await listCalls()) === 1, String(await listCalls()));
   check("판: 종을 누르면 열림, aria-expanded=true, role=dialog '알림'", (await openPanel()) && (await b.evaluate(`document.getElementById('nav-alerts').getAttribute('aria-expanded') === 'true' && document.getElementById('notification-panel').getAttribute('role') === 'dialog' && document.getElementById('notification-panel').getAttribute('aria-label') === '알림'`)));
-  check("판: 열 때 쪽지 대화·찾는 교재 알림 두 목록을 한 번씩", (await listCalls()) === 2, String(await listCalls()));
+  check("판: 열 때 쪽지 대화·찾는 교재 알림·후기 알림 세 목록을 한 번씩", (await listCalls()) === 4, String(await listCalls()));
   const unreadRooms = (await api("GET", "/conversations?size=50", seed.buyer_token)).body.items.filter((r) => r.unread_count > 0);
   const panel = await b.evaluate(`(() => {
     const p = document.getElementById('notification-panel'), r = p.getBoundingClientRect(), bell = document.getElementById('nav-alerts').getBoundingClientRect(), tab = document.querySelector('.tab-bar');
@@ -84,6 +99,7 @@ try {
       left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), bottom: Math.round(r.bottom), bellBottom: Math.round(bell.bottom),
       tabTop: Math.round(tab && tab.getClientRects().length ? tab.getBoundingClientRect().top : innerHeight),
       count: items.length, texts: items.map((a) => a.querySelector('.notification-panel__text').textContent), hrefs: items.map((a) => a.getAttribute('href')),
+      due: items.map((a) => a.querySelector('.due-badge')?.textContent ?? '').filter(Boolean),
       sorted: times.every((t, i) => i === 0 || times[i - 1] >= t), dots: p.querySelectorAll('.notification-panel__dot').length,
       minH: Math.round(Math.min(...items.map((a) => a.getBoundingClientRect().height))),
       lines: Math.max(...items.map((a) => { const s = a.querySelector('.notification-panel__text'); return Math.round(s.scrollHeight / parseFloat(getComputedStyle(s).lineHeight)); })),
@@ -91,17 +107,21 @@ try {
     };
   })()`);
   check(`판: 화면 좌우 8px 여백 폭, 종 바로 아래, 하단 탭 위`, panel.left === 8 && panel.right === W - 8 && panel.top >= panel.bellBottom && panel.top - panel.bellBottom <= 8 && panel.bottom <= panel.tabTop, JSON.stringify(panel));
-  check(`판: 항목 = 안 읽은 쪽지 대화 ${unreadRooms.length} + 찾는 교재 알림 2, 최신순, 모두 점`, panel.count === unreadRooms.length + 2 && panel.sorted && panel.dots === panel.count, panel.texts.join(" / "));
+  check(`판: 항목 = 안 읽은 쪽지 대화 ${unreadRooms.length} + 찾는 교재 알림 2 + 후기 1, 최신순, 모두 점`, panel.count === unreadRooms.length + 3 && panel.sorted && panel.dots === panel.count, panel.texts.join(" / "));
+  check("판: 후기 알림 문구·D-2 배지·대화로", panel.texts.includes("판매자민수님과의 거래 후기를 남겨 주세요") && panel.due.join() === "D-2" && panel.hrefs.includes(`/static/chat.html?id=${seed.c2}`), `${panel.due.join()} ${panel.texts.join(" / ")}`);
   check("판: 한 줄 요약 문구", panel.texts.filter((s) => s === "찾는 교재 '네트워크'에 맞는 새 글이 올라왔어요").length === 2 && (unreadRooms.length === 0 || panel.texts.includes("판매자민수님이 쪽지를 보냈어요")), panel.texts.join(" / "));
-  check("판: 쪽지 항목은 대화로, 찾는 교재 항목은 글로", panel.hrefs.every((h) => /^\/static\/(chat|post)\.html\?id=\d+$/.test(h)) && panel.hrefs.filter((h) => h.startsWith("/static/post.html")).length === 2, panel.hrefs.join(" "));
+  check("판: 쪽지·후기 항목은 대화로, 찾는 교재 항목은 글로", panel.hrefs.every((h) => /^\/static\/(chat|post)\.html\?id=\d+$/.test(h)) && panel.hrefs.filter((h) => h.startsWith("/static/post.html")).length === 2, panel.hrefs.join(" "));
   check("판: 항목 44px 이상, 요약은 두 줄 이내", panel.minH >= 44 && panel.lines <= 2, `${panel.minH}px, ${panel.lines}줄`);
   check("판: 맨 아래 '전체 보기' → 알림 화면", panel.all === "전체 보기|/static/alerts.html");
   check("판: 가로 스크롤 없음", await b.evaluate(`document.documentElement.scrollWidth <= ${W}`));
+  // 후기 알림(가장 오래된 항목)이 보이게 판 목록을 맨 아래로 내린 뒤 찍는다.
+  await b.evaluate("document.querySelector('.notification-panel__list').scrollTop = 1e6");
+  await sleep(100);
   await b.screenshot(`alerts-panel-${W}.png`);
   await b.evaluate("document.getElementById('nav-alerts').click()");
   check("판: 종을 다시 누르면 닫힘", await b.waitUntil(`document.getElementById('notification-panel').hidden && document.getElementById('nav-alerts').getAttribute('aria-expanded') === 'false'`));
   await openPanel();
-  check("판: 열 때마다 다시 불러옴", (await listCalls()) === 4, String(await listCalls()));
+  check("판: 열 때마다 다시 불러옴", (await listCalls()) === 7, String(await listCalls()));
   for (const type of ["keyDown", "keyUp"]) await b.send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
   check("판: Esc로 닫히고 종으로 돌아감", await b.waitUntil(`document.getElementById('notification-panel').hidden && document.activeElement?.id === 'nav-alerts'`));
   await openPanel();
@@ -112,14 +132,17 @@ try {
   await openPanel();
   await b.evaluate(`document.querySelector('.notification-panel__item[href^="/static/post.html"]').click()`);
   check("판: 찾는 교재 항목 → 해당 글 화면", await b.waitUntil("location.pathname === '/static/post.html' && !!document.getElementById('nav-alerts')", 8000));
-  check("판: 그 알림만 읽음 처리, 종 배지 하나 줄어듦", await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(messages + 1))}`), await b.evaluate(badge));
+  check("판: 그 알림만 읽음 처리, 종 배지 하나 줄어듦", await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(messages + 2))}`), await b.evaluate(badge));
 
-  // ---------- 알림 화면: 카드 2개, 읽음 처리 후 배지에서 알림만 빠짐 ----------
+  // ---------- 알림 화면: 찾는 교재 카드 2 + 후기 카드 1(구분 제목 없이 시간순), 읽음 처리 후 배지에서 찾는 교재 알림만 빠짐 ----------
   await b.goto("/static/alerts.html", "document.querySelectorAll('.notification-card').length > 0");
-  check("알림 카드 2개", (await b.evaluate(`document.querySelectorAll('.notification-card').length`)) === 2);
-  check("새 알림 강조(판에서 하나 읽어 1개)", (await b.evaluate(`document.querySelectorAll('.notification-card--unread').length`)) === 1);
+  const cards = await b.evaluate(`(() => { const cs = [...document.querySelectorAll('.notification-card')]; return { n: cs.length, hrefs: cs.map((c) => c.getAttribute('href')), h2: document.querySelectorAll('main h2').length, review: cs.find((c) => c.href.includes('chat.html'))?.innerText ?? '' }; })()`);
+  check("알림 카드 3개(찾는 교재 2 + 후기 1), 후기 카드는 맨 아래(가장 오래됨)", cards.n === 3 && cards.hrefs[2] === `/static/chat.html?id=${seed.c2}`, cards.hrefs.join(" "));
+  check("알림 화면: 구분 제목 없음", cards.h2 === 0, String(cards.h2));
+  check("후기 카드: 문구·D-2", cards.review.includes("판매자민수님과의 거래 후기를 남겨 주세요") && cards.review.includes("D-2"), cards.review);
+  check("새 알림 강조(판에서 하나 읽어 찾는 교재 1 + 후기 1)", (await b.evaluate(`document.querySelectorAll('.notification-card--unread').length`)) === 2);
   check("알림이 있으면 등록 버튼 숨김", await b.evaluate(`document.getElementById('empty-actions').hidden`));
-  check("읽음 처리 후 배지 = 안 읽은 쪽지 수", await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(messages))}`), await b.evaluate(badge));
+  check("읽음 처리 후 배지 = 안 읽은 쪽지 수 + 후기 1", await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(messages + 1))}`), await b.evaluate(badge));
   const calls2 = await b.evaluate(`performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p.endsWith('/conversations/unread-count'))`);
   check("알림 화면: 쪽지 수는 헤더가 받은 것을 다시 씀(1회)", calls2.length === 1, String(calls2.length));
   check("가로 스크롤 없음", await b.evaluate(`document.documentElement.scrollWidth <= ${W}`));
@@ -130,11 +153,28 @@ try {
   const room = rooms.find((r) => r.unread_count > 0);
   if (room) {
     await b.goto(`/static/chat.html?id=${room.id}`, "document.querySelectorAll('.message').length > 0");
-    const left = messages - room.unread_count;
+    const left = messages - room.unread_count + 1; // 후기 알림 1개는 남는다
     check("쪽지를 읽으면 종 배지도 갱신", await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(left))}`), `${await b.evaluate(badge)} (기대 ${badgeOf(left) || "숨김"})`);
   } else {
     check("쪽지를 읽으면 종 배지도 갱신", false, "안 읽은 대화방이 없음");
   }
+
+  // ---------- 후기 카드 → 대화 → 후기를 쓰면 종 배지·판에서 후기 알림이 빠짐 ----------
+  await b.goto("/static/alerts.html", "document.querySelectorAll('.notification-card').length > 0");
+  await b.evaluate(`document.querySelector('.notification-card[href*="chat.html"]').click()`);
+  check("후기 카드 → 대화 화면의 '후기 남기기'", await b.waitUntil(`location.pathname === '/static/chat.html' && !document.querySelector('#chat-review').hidden && !!document.querySelector('#chat-review button')`, 8000));
+  const inChat = await unreadMessages();
+  check("대화: 종 배지 = 쪽지 + 후기 1", await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(inChat + 1))}`), await b.evaluate(badge));
+  await b.evaluate(`document.querySelector("#chat-review button").click()`);
+  await b.waitUntil("document.querySelector('dialog[open]')");
+  await b.evaluate(`document.querySelector("dialog[open] input[value='GOOD']").click()`);
+  await b.evaluate(`[...document.querySelectorAll("dialog[open] button")].find((x) => x.textContent === "후기 남기기").click()`);
+  await b.waitUntil("document.querySelector('#chat-review')?.textContent.includes('남겼어요')");
+  const afterWrite = await unreadMessages();
+  check("후기를 쓰면 종 배지에서 바로 빠짐", await b.waitUntil(`${badge} === ${JSON.stringify(badgeOf(afterWrite))}`), `${await b.evaluate(badge)} (기대 ${badgeOf(afterWrite) || "숨김"})`);
+  await openPanel();
+  check("후기를 쓴 뒤 판에 후기 항목 없음", (await b.evaluate(`[...document.querySelectorAll('.notification-panel__text')].some((x) => x.textContent.includes('거래 후기'))`)) === false);
+  await b.evaluate("document.getElementById('nav-alerts').click()");
 
   // ---------- 조건 삭제 ----------
   await b.goto("/static/book-alerts.html", "document.getElementById('alert-count').textContent === '1/10'");

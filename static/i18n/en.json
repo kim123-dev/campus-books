@@ -454,6 +454,8 @@
   "alerts.register_link": "Add a book alert",
   "bell.message_item": "{nickname} sent you a message",
   "bell.alert_item": "New listing for your book alert “{keyword}”",
+  "bell.review_item": "Leave a {@term.review} for {nickname}",
+  "bell.review_due": "{days}d left",
   "bell.empty": "No new notifications",
   "bell.view_all": "See all",
   "bell.load_error": "Couldn't load notifications.",

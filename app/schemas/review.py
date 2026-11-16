@@ -69,6 +69,28 @@ class TradeReviewState(BaseModel):
     deadline: datetime
 
 
+class ReviewReminderResponse(BaseModel):
+    """안 쓴 후기 알림 한 건. 저장하지 않고 거래·후기에서 계산한다(읽음 상태 없음)."""
+
+    trade_id: int
+    # 누르면 이 대화(쪽지 화면)로 가서 "후기 남기기"로 이어진다.
+    conversation_id: int
+    partner_nickname: str
+    # 글이 지워졌으면 null (그때는 화면이 book_title을 쓴다)
+    post_title: str | None
+    book_title: str
+    # 남은 일수(올림). 마지막 날은 1, D-3 표시는 3 이하일 때
+    days_left: int
+    deadline: datetime
+    # 판매 완료(거래 기록) 시각. 다른 알림과 섞어 정렬할 때 쓴다.
+    created_at: datetime
+
+
+class ReviewReminderListResponse(BaseModel):
+    items: list[ReviewReminderResponse]
+    total: int
+
+
 class MannerSummary(BaseModel):
     """매너 학점 요약. 숨긴 후기는 빼고 센다."""
 

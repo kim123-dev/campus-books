@@ -1,9 +1,10 @@
 // 화면 언어 확인 (375px): 한국어 기본, ?lang=·저장된 값으로 바꾸기, 영어·중국어 탭 이름과 헤더가 넘치지 않는지,
 // 서버 오류의 번역 문장 + 한국어 원문, 내 정보의 비밀번호 틀림 표시,
 // 언어 선택 공개 후: 로그인 전·후·로그인 화면의 🌐 버튼, 브라우저 언어 따르기, 언어를 바꾸면 저장·다시 불러오기.
+import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { api, readSeed, sleep, startBrowser } from "./lib.mjs";
+import { api, cliEnv, PYTHON, readSeed, ROOT, sleep, startBrowser } from "./lib.mjs";
 
 const OUT = process.argv[2];
 const W = Number(process.env.WIDTH ?? 375);
@@ -379,7 +380,7 @@ try {
 
   // ---------- 4단계: 쪽지·알림·내 정보 (판매자로 로그인한 상태) ----------
   // 사용자가 쓴 값(닉네임·쪽지·글 제목·키워드·이메일)과 서버가 준 문장(본인 확인 질문)은 원문 그대로라 빼고 본다.
-  const USER_TEXT_4 = `${USER_TEXT}, .message__bubble, #chat-partner, .chat__post a, .conversation-card__partner, .conversation-card__post, .conversation-card__preview, .action-menu__title, .alert-list__keyword, .block-item__name, #profile-nickname, #question-status, #language, .lang-menu`;
+  const USER_TEXT_4 = `${USER_TEXT}, .message__bubble, #chat-partner, .chat__post a, .conversation-card__partner, .conversation-card__post, .conversation-card__preview, .action-menu__title, .alert-list__keyword, .notification-card__user, .block-item__name, #profile-nickname, #question-status, #language, .lang-menu`;
   const leftover4 = () =>
     evaluate(`(() => {
       const out = [];
@@ -393,6 +394,11 @@ try {
     })()`);
   // 종 알림 판: 판매자에게 긴 키워드의 찾는 교재 알림 하나를 만들어 둔다. (항목이 두 줄을 넘지 않는지 보기 위해)
   await api("POST", "/users/me/alerts", seed.seller_token, { keyword: "Operating System Concepts" });
+  // 후기 알림: 구매자가 자기 글(p3, 판매자가 쪽지를 보낸 대화 c3)을 판매자에게 판매 완료하고, 거래를 12일 전으로 옮겨 기한 배지를 본다.
+  const sellerMe = (await api("GET", "/users/me", seed.seller_token)).body;
+  await api("PATCH", `/posts/${seed.p3}/status`, seed.buyer_token, { status: "SOLD", buyer_id: sellerMe.id });
+  execFileSync(PYTHON, ["-c", `import os, sqlite3; c = sqlite3.connect(os.environ["DATABASE_URL"].removeprefix("sqlite:///")); c.execute("update trades set created_at = datetime('now', '-12 days')"); c.commit()`], { cwd: ROOT, env: cliEnv(OUT) });
+  const buyerNickname = (await api("GET", "/users/me", seed.buyer_token)).body.nickname;
   for (const lang of ["en", "zh-CN"]) {
     const en = lang === "en";
     // 알림 화면이 모두 읽음 처리하므로 언어마다 새 알림을 하나씩 만든다. (글 제목은 영어: 사용자 입력이 한국어로 남았다고 보지 않게)
@@ -407,10 +413,17 @@ try {
       return {
         label: p.getAttribute('aria-label'), all: p.querySelector('.notification-panel__all').textContent, inside: r.left >= 0 && r.right <= ${W},
         lines: items.map((s) => Math.round(s.scrollHeight / parseFloat(getComputedStyle(s).lineHeight))), texts: items.map((s) => s.textContent),
+        due: [...p.querySelectorAll('.due-badge')].map((n) => n.textContent),
         wide: [...p.querySelectorAll('*')].filter((n) => n.getBoundingClientRect().right > r.right + 0.5).length,
       };
     })()`);
     const alertText = en ? "New listing for your book alert “Operating System Concepts”" : "求书提醒“Operating System Concepts”有新的匹配帖子";
+    const reviewText = en ? `Leave a Trade review for ${buyerNickname}` : `请留下与${buyerNickname}的交易评价`;
+    check(
+      `${lang} 종 알림 판: 후기 알림 문구·기한 배지 번역`,
+      bell.texts.includes(reviewText) && bell.due.join() === (en ? "2d left" : "剩2天"),
+      `${bell.due.join()} | ${bell.texts.join(" / ")}`,
+    );
     check(
       `${lang} 종 알림 판: 라벨·전체 보기·항목 번역, 한 항목 두 줄 이내, 넘침 없음`,
       bell.label === (en ? "Notifications" : "通知") && bell.all === (en ? "See all" : "查看全部") && bell.texts.includes(alertText) &&
@@ -474,10 +487,11 @@ try {
     await goto(`/static/alerts.html?lang=${lang}`, `${settled} && !document.getElementById('unread-messages').hidden && document.getElementById('result-summary').textContent !== ${JSON.stringify(en ? "Loading…" : "加载中…")}`);
     left = await leftover4();
     o = await overflow();
-    const notif = await evaluate("({ h1: document.querySelector('h1').textContent, h2: document.querySelector('main h2').textContent, row: document.querySelector('#unread-messages a').textContent })");
+    const notif = await evaluate("({ h1: document.querySelector('h1').textContent, h2: document.querySelectorAll('main h2').length, row: document.querySelector('#unread-messages a').textContent, review: document.querySelector('.notification-card[href*=\"chat.html\"]')?.innerText ?? '' })");
     check(
-      `${lang} 알림 화면: 제목·쪽지 줄·찾는 교재 알림 제목 번역, 한국어 안 남음, 화면 안 넘침`,
-      notif.h1 === (en ? "Notifications" : "通知") && notif.h2 === (en ? "Book alerts" : "求书提醒") && (en ? /^\d+ unread messages?$/ : /^\d+ 条未读私信$/).test(notif.row) && left.length === 0 && o.ok,
+      `${lang} 알림 화면: 제목·쪽지 줄·후기 카드 번역(구분 제목 없음), 한국어 안 남음, 화면 안 넘침`,
+      notif.h1 === (en ? "Notifications" : "通知") && notif.h2 === 0 && notif.review.includes(reviewText) && notif.review.includes(en ? "2d left" : "剩2天") &&
+        (en ? /^\d+ unread messages?$/ : /^\d+ 条未读私信$/).test(notif.row) && left.length === 0 && o.ok,
       `${JSON.stringify(notif)} ${left.join(" / ")} ${o.bad}`,
     );
     await screenshot(`i18n-${W}-${lang}-notifications.png`);

@@ -1,11 +1,12 @@
 // 헤더 종을 누르면 종 바로 아래에 뜨는 작은 알림 판(팝오버).
-// 안 읽은 쪽지가 있는 대화와 안 읽은 찾는 교재 알림을 구분 제목 없이 한 목록에 최신순으로 섞어 보여준다.
-// 데이터는 이미 있는 두 API(대화방 목록, 찾는 교재 알림 목록)를 화면에서 합친 것이고, 판을 열 때마다 새로 받는다.
+// 안 읽은 쪽지가 있는 대화, 안 읽은 찾는 교재 알림, 안 쓴 후기 알림을 구분 제목 없이 한 목록에 최신순으로 섞어 보여준다.
+// 데이터는 세 API(대화방 목록, 찾는 교재 알림 목록, 후기 알림)를 화면에서 합친 것이고, 판을 열 때마다 새로 받는다.
+// 그래서 대화에서 후기를 쓰고 돌아와 판을 열면 그 항목은 이미 빠져 있다.
 // 판은 다시 누르기·바깥 누르기·Esc·다른 화면으로 이동하면 닫힌다. 맨 아래 "전체 보기"는 알림 화면(alerts.html)으로.
 
-import { listConversations, listNotifications, markNotificationRead } from "./api.js";
+import { listConversations, listNotifications, listReviewReminders, markNotificationRead } from "./api.js";
 import { t } from "./i18n.js";
-import { el, formatAgo, formatDate } from "./ui.js";
+import { el, formatAgo, formatDate, reviewDueText } from "./ui.js";
 
 const ALERTS_PAGE = "/static/alerts.html";
 const BOOK_ALERTS_PAGE = "/static/book-alerts.html";
@@ -97,11 +98,12 @@ export function notificationBell({ button, onAlertRead }) {
   return wrap;
 }
 
-/** 두 API를 함께 불러 안 읽은 것만 골라 최신순으로 섞는다. */
+/** 세 API를 함께 불러 안 읽은(안 쓴) 것만 골라 최신순으로 섞는다. */
 async function fetchItems() {
-  const [conversations, notifications] = await Promise.all([
+  const [conversations, notifications, reviews] = await Promise.all([
     listConversations({ size: FETCH_SIZE }),
     listNotifications({ size: FETCH_SIZE }),
+    listReviewReminders(),
   ]);
   const messageItems = conversations.items
     .filter((c) => c.unread_count > 0)
@@ -120,8 +122,16 @@ async function fetchItems() {
       text: t("bell.alert_item", { keyword: n.keyword }),
       href: `${POST_PAGE}?id=${encodeURIComponent(n.post.id)}`,
     }));
+  // 후기 알림은 판매 완료 시각으로 섞는다. 누르면 그 대화로 가서 "후기 남기기"로 이어진다(읽음 처리 없음).
+  const reviewItems = reviews.items.map((r) => ({
+    kind: "review",
+    time: r.created_at,
+    text: t("bell.review_item", { nickname: r.partner_nickname }),
+    due: reviewDueText(r.days_left),
+    href: `${CHAT_PAGE}?id=${encodeURIComponent(r.conversation_id)}`,
+  }));
   // 서버 시각은 같은 형식의 ISO 문자열이라 글자 순서가 곧 시간 순서다.
-  return [...messageItems, ...alertItems].sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
+  return [...messageItems, ...alertItems, ...reviewItems].sort((a, b) => (a.time < b.time ? 1 : a.time > b.time ? -1 : 0));
 }
 
 /** 한 줄 요약 + 작은 회색 시간. 판에는 안 읽은 것만 오므로 모두 왼쪽에 점이 있다. */
@@ -134,7 +144,13 @@ function itemRow(item, onAlertRead) {
       "span",
       { className: "notification-panel__body" },
       el("span", { className: "notification-panel__text", text: item.text }),
-      el("time", { className: "notification-panel__time", text: formatAgo(item.time), attrs: { datetime: item.time, title: formatDate(item.time) } }),
+      el(
+        "span",
+        { className: "notification-panel__meta" },
+        // 후기 기한이 3일 이하로 남았으면 "D-3" 작은 배지를 시간 앞에 둔다. (요약 문장은 두 줄 안에 남게 따로 둔다)
+        item.due ? el("span", { className: "due-badge", text: item.due }) : null,
+        el("time", { className: "notification-panel__time", text: formatAgo(item.time), attrs: { datetime: item.time, title: formatDate(item.time) } }),
+      ),
     ),
   );
   if (item.kind === "alert") {

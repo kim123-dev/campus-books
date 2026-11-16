@@ -418,6 +418,8 @@
   "alerts.register_link": "添加{@term.book_alerts}",
   "bell.message_item": "{nickname} 给你发来了{@term.messages}",
   "bell.alert_item": "求书提醒“{keyword}”有新的匹配帖子",
+  "bell.review_item": "请留下与{nickname}的{@term.review}",
+  "bell.review_due": "剩{days}天",
   "bell.empty": "暂无新{@term.notifications}",
   "bell.view_all": "查看全部",
   "bell.load_error": "{@term.notifications}加载失败。",

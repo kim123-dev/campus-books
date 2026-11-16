@@ -1,6 +1,6 @@
 // 로그인 상태 처리: 공통 헤더, 로그인 후 돌아갈 주소, 로그아웃.
 // 토큰 보관 자체는 token.js가 맡는다.
-import { dismissResetNotice, getAlertUnreadCount, getMe, getUnreadCount } from "./api.js";
+import { dismissResetNotice, getAlertUnreadCount, getMe, getUnreadCount, listReviewReminders } from "./api.js";
 import { t } from "./i18n.js";
 import { languageMenu } from "./lang-picker.js";
 import { notificationBell } from "./notification-panel.js";
@@ -137,6 +137,14 @@ export async function renderHeader(container) {
     // 배지는 헤더를 그린 뒤 따로 채운다. 기다리지 않아서, 배지 요청이 늦어도 화면이 먼저 뜬다.
     refreshUnreadBadge();
     refreshAlertBadge();
+    refreshReviewBadge();
+    // 뒤로 가기로 돌아온 화면(페이지 캐시)은 예전 숫자를 그대로 보여주므로 다시 받는다. (대화에서 후기를 쓰고 돌아온 경우 등)
+    window.addEventListener("pageshow", (event) => {
+      if (!event.persisted) return;
+      refreshUnreadBadge();
+      refreshAlertBadge();
+      refreshReviewBadge();
+    });
     return me;
   } catch {
     // 401이면 api.js가 이미 토큰을 지웠다.
@@ -266,9 +274,9 @@ export function suspensionText(me) {
 }
 
 // ---------- 안 읽은 수 배지 ----------
-// 종 배지 = 안 읽은 쪽지 + 안 읽은 찾는 교재 알림. 두 숫자는 이미 있는 API(쪽지·알림 안 읽은 수)로 따로 받아
-// 여기에 두고 합을 그린다. 헤더는 화면을 열 때 두 API를 한 번씩만 부르고, 읽은 뒤에는 각 화면이 해당 숫자만 다시 받는다.
-const unreadCounts = { messages: 0, alerts: 0 };
+// 종 배지 = 안 읽은 쪽지 + 안 읽은 찾는 교재 알림 + 안 쓴 후기 알림. 세 숫자는 각 API로 따로 받아
+// 여기에 두고 합을 그린다. 헤더는 화면을 열 때 세 API를 한 번씩만 부르고, 읽은(쓴) 뒤에는 각 화면이 해당 숫자만 다시 받는다.
+const unreadCounts = { messages: 0, alerts: 0, reviews: 0 };
 // 가장 최근의 "안 읽은 쪽지 수" 요청. 알림 화면이 같은 숫자를 다시 묻지 않고 이것을 기다린다.
 let messageCountRequest = null;
 
@@ -280,7 +288,7 @@ function renderBellBadge() {
   const link = document.getElementById("nav-alerts");
   const badge = document.getElementById("nav-alerts-unread");
   if (!link || !badge) return;
-  const count = unreadCounts.messages + unreadCounts.alerts;
+  const count = unreadCounts.messages + unreadCounts.alerts + unreadCounts.reviews;
   badge.textContent = badgeText(count);
   badge.hidden = count === 0;
   // 배지 숫자는 화면 낭독기에서 숨기고, 링크 이름에 뜻을 담아 읽어 준다.
@@ -297,6 +305,20 @@ export async function refreshAlertBadge() {
     ({ unread_count: unreadCounts.alerts } = await getAlertUnreadCount());
   } catch {
     unreadCounts.alerts = 0;
+  }
+  renderBellBadge();
+}
+
+/**
+ * 안 쓴 후기 알림 수를 다시 받아 종 배지를 고친다. 대화 화면이 후기를 저장한 뒤에도 부른다.
+ * 후기 알림은 읽음 처리가 없고, 후기를 쓰거나 기한이 지나야 줄어든다. 실패하면 그 숫자만 0으로 본다.
+ */
+export async function refreshReviewBadge() {
+  if (!document.getElementById("nav-alerts")) return;
+  try {
+    ({ total: unreadCounts.reviews } = await listReviewReminders());
+  } catch {
+    unreadCounts.reviews = 0;
   }
   renderBellBadge();
 }

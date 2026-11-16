@@ -70,6 +70,14 @@ export const CONDITION_LABELS = {
   POOR: t("enum.condition.POOR"),
 };
 
+// 후기 기한이 이 일수 이하로 남으면 "D-3" 작은 배지를 붙인다. (알림 판과 알림 화면이 함께 쓴다)
+export const REVIEW_DUE_SOON_DAYS = 3;
+
+/** 후기 알림의 기한 배지 글자("D-3"). 기한이 넉넉하면 null. days: 서버가 올림한 남은 일수 */
+export function reviewDueText(days) {
+  return days <= REVIEW_DUE_SOON_DAYS ? t("bell.review_due", { days }) : null;
+}
+
 // 가격은 모든 언어에서 "12,000원"으로 쓴다. 원화만 다루는 서비스라 단위를 바꾸지 않고, 숫자 형식만 언어에 맞춘다.
 export function formatPrice(price) {
   return price === 0 ? t("term.free") : t("format.price", { price: formatNumber(price) });
