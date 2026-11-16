@@ -297,7 +297,7 @@ try {
   check("ko 목록: 검색 안내 문구가 칸 안에 다 보임", koSearch.text <= koSearch.room, JSON.stringify(koSearch));
 
   // 남은 한국어: 사용자가 쓴 글·교재 제목·닉네임·후기·서버 원문 자리를 빼고 한글이 보이면 번역이 빠진 것이다.
-  const USER_TEXT = ".post-detail__title, .post-detail__description, .post-detail__info dd, .report-dialog__target, .profile__name, .post-card, .review, .error-original, .site-header, .tab-bar";
+  const USER_TEXT = ".post-detail__title, .post-detail__description, .post-detail__info dd, .report-dialog__target, .profile__name, .post-card, .review, .error-original, .site-header, .tab-bar, #school_id option:not([value='']), #school-current, .school-options__item";
   const leftoverKorean = () =>
     evaluate(`(() => {
       const out = [];

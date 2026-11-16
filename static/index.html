@@ -45,6 +45,14 @@
         </div>
 
         <div id="filter-more" class="filter-form__more">
+        <!-- 학교: 고르면 그 학교로 등록된 글만(학교 없는 글은 "전체"에서만). 목록은 index.js가 /schools로 채운다. -->
+        <div class="field">
+          <label for="school_id" data-i18n="term.school">학교</label>
+          <select id="school_id" name="school_id">
+            <option value="" data-i18n="common.all">전체</option>
+          </select>
+        </div>
+
         <div class="field">
           <label for="status" data-i18n="home.status_label">판매 상태</label>
           <select id="status" name="status">

@@ -75,6 +75,7 @@ class PostCreate(BaseModel):
     )
     # 미리 올려 둔 임시 사진(POST /pending-images)의 번호. 보낸 순서대로 글의 사진이 된다.
     image_ids: list[ImageId] = _image_ids_field("글에 붙일 임시 사진 번호 (최대 3개)")
+    school_id: int | None = Field(default=None, ge=1, description="학교 (선택). 없거나 비활성 학교면 404/400")
 
     @field_validator("title", "book_title", mode="before")
     @classmethod
@@ -115,6 +116,7 @@ class PostUpdate(BaseModel):
     # 사진 변경도 글 내용과 한 번에 저장한다. 지우기를 먼저 하므로 "3장 중 1장 바꾸기"가 3장 제한에 걸리지 않는다.
     remove_image_ids: list[ImageId] = _image_ids_field("지울 사진 번호 (이 글의 사진)")
     add_image_ids: list[ImageId] = _image_ids_field("새로 붙일 임시 사진 번호 (빈 칸에 순서대로, 지운 사진의 자리부터)")
+    school_id: int | None = Field(default=None, ge=1, description="학교. null을 보내면 학교 해제, 보내지 않으면 그대로")
 
     @field_validator("title", "book_title", mode="before")
     @classmethod
@@ -168,6 +170,7 @@ class PostSearchParams(BaseModel):
     )
     min_price: int | None = Field(default=None, ge=0, le=MAX_PRICE, description="최소 가격 (포함)")
     max_price: int | None = Field(default=None, ge=0, le=MAX_PRICE, description="최대 가격 (포함)")
+    school_id: int | None = Field(default=None, ge=1, description="학교 (그 학교로 등록된 글만, 학교 없는 글은 빠짐)")
 
     # ?q= 처럼 빈 값이나 공백만 보내면 조건을 걸지 않은 것으로 본다.
     @field_validator("q", "course_name", mode="before")
@@ -220,6 +223,15 @@ class PendingImageResponse(BaseModel):
     id: int
 
 
+class SchoolBrief(BaseModel):
+    """글·내 정보에 붙는 학교 요약. 이름은 번역하지 않는다."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+
+
 class SellerResponse(BaseModel):
     """글에 함께 보여줄 판매자 정보. 이메일은 노출하지 않는다."""
 
@@ -245,6 +257,8 @@ class PostResponse(BaseModel):
     thumbnail_url: str | None = Field(default=None, validation_alias="thumbnail_filename")
     # 로그인한 사용자가 찜한 글인지. 로그인하지 않았거나 내 글 목록처럼 상관없는 응답에서는 null.
     is_wishlisted: bool | None = None
+    # 글의 학교. 학교 없이 쓴 글(기존 글 포함)은 null.
+    school: SchoolBrief | None = None
     created_at: datetime
     updated_at: datetime
 

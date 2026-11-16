@@ -502,6 +502,36 @@ export function updateMe(data) {
   return request("/users/me", { method: "PATCH", json: data });
 }
 
+// ---------- 학교 ----------
+
+/** 고를 수 있는(활성) 학교 목록. 로그인 없이도 된다. */
+export function listSchools() {
+  return request("/schools");
+}
+
+/** 내 학교 { school: {id, name} | null, changeable_at } */
+export function getMySchool() {
+  return request("/users/me/school");
+}
+
+/** 내 학교 변경(7일에 한 번). schoolId가 null이면 비운다. */
+export function updateMySchool(schoolId) {
+  return request("/users/me/school", { method: "PUT", json: { school_id: schoolId } });
+}
+
+export function adminListSchools() {
+  return request("/admin/schools");
+}
+
+export function adminCreateSchool(data) {
+  return request("/admin/schools", { method: "POST", json: data });
+}
+
+/** data: { name?, sort_order?, is_active? } 보낸 것만 바뀐다. */
+export function adminUpdateSchool(schoolId, data) {
+  return request(`/admin/schools/${encodeURIComponent(schoolId)}`, { method: "PATCH", json: data });
+}
+
 // ---------- 에러 변환 ----------
 
 function toApiError(status, data) {

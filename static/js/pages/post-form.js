@@ -2,7 +2,7 @@
 // 입력 규칙 검사는 서버가 하고, 화면은 서버 메시지를 칸 아래(422)나 폼 아래(400·403·404)에 보여준다.
 // 사진은 고르는 즉시 "임시 사진"으로 올려 두고, 저장할 때 글(JSON)과 함께 사진 번호만 보낸다.
 // 글을 쓰는 동안 업로드가 끝나므로 저장 버튼을 누른 뒤 기다리는 시간이 거의 없다.
-import { createPost, deletePendingImage, getPost, updatePost, uploadPendingImage } from "../api.js";
+import { createPost, deletePendingImage, getMySchool, getPost, listSchools, updatePost, uploadPendingImage } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
 import { t } from "../i18n.js";
 import { preparePhoto } from "../photo-resize.js";
@@ -78,7 +78,10 @@ async function init() {
     return;
   }
 
+  // 학교 칸: 목록을 먼저 채운 뒤 값(새 글은 내 학교, 수정은 글의 학교)을 고른다.
+  await loadSchoolOptions();
   if (!isEdit) {
+    await preselectMySchool();
     showForm();
     return;
   }
@@ -135,9 +138,45 @@ function showPageError(message, linkHref, linkText, original = null) {
   pageError.hidden = false;
 }
 
+// ---------- 학교 (선택) ----------
+
+/** 고를 수 있는 학교를 선택 칸에 채운다. 학교 이름은 번역하지 않는다. 실패하면 "선택 안 함"만 남는다. */
+async function loadSchoolOptions() {
+  try {
+    const { items } = await listSchools();
+    form.elements.school_id.append(...items.map((school) => schoolOption(school)));
+  } catch {
+    // 학교는 선택 항목이라 목록을 못 받아도 글은 쓸 수 있다.
+  }
+}
+
+function schoolOption(school) {
+  return el("option", { value: String(school.id), text: school.name });
+}
+
+/** 새 글: 내 학교가 있고 지금 고를 수 있는 학교면 미리 고른다. */
+async function preselectMySchool() {
+  try {
+    const { school } = await getMySchool();
+    if (school && form.elements.school_id.querySelector(`option[value="${school.id}"]`)) {
+      form.elements.school_id.value = String(school.id);
+    }
+  } catch {
+    // 보조 기능이라 실패하면 "선택 안 함" 그대로 둔다.
+  }
+}
+
+/** 수정: 글의 학교를 고른다. 그사이 비활성이 된 학교면 목록에 없으므로 그 학교를 보기로 더해 그대로 둘 수 있게 한다. */
+function selectPostSchool(school) {
+  const select = form.elements.school_id;
+  if (school && !select.querySelector(`option[value="${school.id}"]`)) select.append(schoolOption(school));
+  select.value = school ? String(school.id) : "";
+}
+
 // 입력칸의 value는 HTML로 해석되지 않으므로 사용자 값을 그대로 넣어도 안전하다.
 function fillForm(post) {
   for (const field of TEXT_FIELDS) form.elements.namedItem(field).value = post[field] ?? "";
+  selectPostSchool(post.school);
   form.elements.condition.value = post.condition;
   form.elements.price.value = String(post.price);
   setExistingPhotos(post.images);
@@ -357,6 +396,9 @@ function readPayload() {
   const price = form.elements.price.value.trim();
   payload.condition = condition === "" ? emptyValue : condition;
   payload.price = price === "" ? emptyValue : Number(price);
+  // 학교: 작성은 고르지 않으면 빼고, 수정은 null을 보내 학교를 해제한다.
+  const school = form.elements.school_id.value;
+  payload.school_id = school === "" ? emptyValue : Number(school);
 
   const pendingIds = newPhotos.map((photo) => photo.pendingId);
   if (isEdit) {

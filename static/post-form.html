@@ -57,6 +57,15 @@
             <p class="field-error" data-error-for="course_name" hidden></p>
           </div>
 
+          <!-- 학교(선택). 목록은 post-form.js가 /schools로 채우고, 새 글이면 내 학교를 미리 고른다. -->
+          <div class="field">
+            <label for="school_id" data-i18n="field.school_optional">학교 (선택)</label>
+            <select id="school_id" name="school_id">
+              <option value="" data-i18n="school.none">선택 안 함</option>
+            </select>
+            <p class="field-error" data-error-for="school_id" hidden></p>
+          </div>
+
           <div class="field-row">
             <div class="field">
               <label for="condition" data-i18n="field.condition">책 상태</label>

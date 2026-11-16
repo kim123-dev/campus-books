@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.post_image import PostImage
+from app.models.school import PostSchool, School
 from app.models.user import User
 
 
@@ -79,3 +80,23 @@ class Post(Base):
         .correlate_except(PostImage)
         .scalar_subquery()
     )
+
+    # 글의 학교(post_schools, 글당 최대 1행). 썸네일과 같이 글을 읽는 SELECT 안의 하위 쿼리로 가져와
+    # 목록 요청의 쿼리 수를 늘리지 않는다. posts 테이블에는 컬럼을 더하지 않는다. 학교 없는 글은 둘 다 None.
+    school_ref_id: Mapped[int | None] = column_property(
+        select(PostSchool.school_id).where(PostSchool.post_id == id).correlate_except(PostSchool).scalar_subquery()
+    )
+    school_ref_name: Mapped[str | None] = column_property(
+        select(School.name)
+        .join(PostSchool, PostSchool.school_id == School.id)
+        .where(PostSchool.post_id == id)
+        .correlate_except(PostSchool, School)
+        .scalar_subquery()
+    )
+
+    @property
+    def school(self) -> dict | None:
+        """응답용 학교 {id, name}. 학교 없는 글이면 None."""
+        if self.school_ref_id is None:
+            return None
+        return {"id": self.school_ref_id, "name": self.school_ref_name}

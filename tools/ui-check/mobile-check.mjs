@@ -15,7 +15,7 @@ const check = (name, ok, detail = "") => results.push(`${ok ? "PASS" : "FAIL"}  
 // 작게 둘 수 있는 글자(배지·날짜·글자 수·탭 이름 등). 이 밖의 글자는 16px 이상이어야 한다.
 const SMALL_OK = [
   ".badge", ".nav-badge", ".count-badge", ".tab-bar__label",
-  ".post-card__condition", ".post-card__meta",
+  ".post-card__condition", ".post-card__meta", ".post-card__school",
   ".conversation-card__time", ".conversation-card__role",
   ".message__time", ".chat__count", ".profile-card__meta", ".block-item__meta",
   ".report-card__type", ".report-card__status", ".report-card__meta", ".gallery__counter", ".chat__role",

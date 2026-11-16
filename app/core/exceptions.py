@@ -98,6 +98,7 @@ class NotificationNotFoundError(NotFoundError):
     message = "알림을 찾을 수 없습니다."
 
 
+
 class ConversationNotFoundError(NotFoundError):
     message = "대화방을 찾을 수 없습니다."
 
@@ -388,3 +389,24 @@ class NotAuthenticatedError(AuthenticationError):
 
 class InvalidTokenError(AuthenticationError):
     message = "인증 정보가 유효하지 않거나 만료되었습니다."
+
+
+class SchoolNotFoundError(NotFoundError):
+    message = "학교를 찾을 수 없습니다."
+
+
+class InactiveSchoolError(BadRequestError):
+    message = "지금은 선택할 수 없는 학교입니다."
+
+
+class DuplicateSchoolNameError(ConflictError):
+    message = "이미 있는 학교 이름입니다."
+
+
+class SameSchoolError(BadRequestError):
+    message = "지금 설정한 학교와 같습니다."
+
+
+class SchoolChangeTooSoonError(BadRequestError):
+    # 실제 메시지는 다시 바꿀 수 있는 날짜를 넣어 만든다. (school_service.change_user_school)
+    message = "학교는 7일에 한 번만 바꿀 수 있습니다."

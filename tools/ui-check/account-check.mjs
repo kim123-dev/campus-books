@@ -55,7 +55,7 @@ try {
   check("구성: 카드 → 탭 간격 16~24px, 목록 아래에 설정", layout.gap >= 16 && layout.gap <= 24 && layout.order, `${layout.gap}px`);
   check(
     "구성: 설정 행 순서(관리는 관리자만)",
-    layout.rows.join("|") === "찾는 교재 알림|차단 목록|닉네임 변경|비밀번호 변경|본인 확인 질문|언어 한국어|회원 탈퇴|로그아웃",
+    layout.rows.join("|") === "찾는 교재 알림|차단 목록|학교 선택 안 함|닉네임 변경|비밀번호 변경|본인 확인 질문|언어 한국어|회원 탈퇴|로그아웃",
     layout.rows.join("|"),
   );
   check("구성: 행 높이 44px 이상·화면 안", layout.tall);

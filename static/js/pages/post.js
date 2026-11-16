@@ -138,6 +138,8 @@ function renderDetail(post) {
     info.append(el("dt", { text: label }), typeof value === "string" ? el("dd", { text: value }) : el("dd", {}, value));
   addInfo(t("field.book_title"), post.book_title);
   if (post.course_name) addInfo(t("field.course"), post.course_name);
+  // 학교 이름은 번역하지 않는다.
+  if (post.school) addInfo(t("term.school"), post.school.name);
   addInfo(t("field.condition"), CONDITION_LABELS[post.condition] ?? post.condition);
   // 판매자 이름을 누르면 프로필(매너 학점·받은 후기)로 간다.
   // 이름 옆에 매너 학점을 붙여, 프로필에 들어가지 않아도 어떤 판매자인지 보이게 한다.

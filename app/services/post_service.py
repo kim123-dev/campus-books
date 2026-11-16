@@ -17,7 +17,14 @@ from app.models import Conversation, Post, PostStatus, User, Wishlist
 from app.schemas.post import PostCreate, PostDetailResponse, PostSearchParams, PostUpdate
 from app.schemas.review import MannerSummary
 from app.schemas.trade import PostBuyerResponse
-from app.services import alert_service, block_service, image_storage, pending_image_service, trade_service
+from app.services import (
+    alert_service,
+    block_service,
+    image_storage,
+    pending_image_service,
+    school_service,
+    trade_service,
+)
 
 # LIKE 패턴에서 특수문자를 일반 글자로 다루기 위한 이스케이프 문자
 LIKE_ESCAPE = "\\"
@@ -38,13 +45,16 @@ def create_post(db: Session, seller: User, data: PostCreate) -> Post:
     image_ids로 받은 임시 사진을 글과 한 트랜잭션으로 붙인다. 사진 없는 글이 먼저 공개되는 순간이 없고,
     찾는 교재 알림도 사진이 붙은 글로 나간다. 400: 없는(지워진) 임시 사진.
     """
-    post = Post(seller_id=seller.id, **data.model_dump(exclude={"image_ids"}))
+    # 학교는 글을 저장하기 전에 확인한다. (없는 학교 404, 비활성 400)
+    school_service.check_post_school(db, data.school_id)
+    post = Post(seller_id=seller.id, **data.model_dump(exclude={"image_ids", "school_id"}))
     db.add(post)
     moved: list[str] = []
     try:
         # 사진과 알림에 글 번호가 필요하므로 먼저 INSERT한다. 글·사진·알림은 한 트랜잭션으로 함께 저장된다.
         db.flush()
         moved = pending_image_service.attach(db, post.id, seller, data.image_ids, used_slots=set())
+        school_service.set_post_school(db, post, data.school_id)
         alert_service.notify_matching(db, post)
         db.commit()
     except Exception:
@@ -101,6 +111,11 @@ def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post
     changes = data.model_dump(exclude_unset=True)
     remove_ids = changes.pop("remove_image_ids", [])
     add_ids = changes.pop("add_image_ids", [])
+    # 학교: 보내지 않으면 그대로, null이면 해제. 지금 학교를 그대로 보내면(비활성이 됐더라도) 바꾸지 않는다.
+    school_changed = "school_id" in changes and changes["school_id"] != post.school_ref_id
+    new_school_id = changes.pop("school_id", None)
+    if school_changed:
+        school_service.check_post_school(db, new_school_id)
     rematch = alert_service.match_fields_changed(post, changes)
     for field, value in changes.items():
         setattr(post, field, value)
@@ -112,6 +127,8 @@ def update_post(db: Session, post_id: int, user: User, data: PostUpdate) -> Post
         moved = pending_image_service.attach(
             db, post.id, user, add_ids, used_slots={image.slot for image in post.images}
         )
+        if school_changed:
+            school_service.set_post_school(db, post, new_school_id)
         # 교재명·과목명·가격이 바뀌어 조건에 새로 맞게 된 사람에게 알린다. (이미 받은 사람은 건너뛴다)
         if rematch:
             alert_service.notify_matching(db, post)
@@ -220,6 +237,7 @@ def delete_post_rows(db: Session, post: Post) -> list[str]:
     db.execute(delete(Wishlist).where(Wishlist.post_id == post.id))
     # 찾는 교재 알림도 글이 없으면 의미가 없으므로 함께 지운다.
     alert_service.delete_for_post(db, post.id)
+    school_service.delete_for_post(db, post.id)
     image_names = [name for image in post.images for name in (image.filename, image.thumb_filename)]
     db.delete(post)  # 사진 행은 relationship cascade로 함께 지워진다.
     return image_names
@@ -281,6 +299,8 @@ def _search_conditions(search: PostSearchParams) -> list[ColumnElement[bool]]:
         conditions.append(Post.price >= search.min_price)
     if search.max_price is not None:
         conditions.append(Post.price <= search.max_price)
+    if search.school_id is not None:
+        conditions.append(school_service.search_condition(search.school_id))
     return conditions
 
 

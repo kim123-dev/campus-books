@@ -1,6 +1,6 @@
 // 목록 화면: 필터 → API 호출 → 카드 그리기 → 페이지 이동.
 // 필터와 페이지는 주소창(?q=...&page=2)에 저장한다. 새로고침, 뒤로 가기, 링크 공유에도 같은 결과가 나오게 하기 위해서다.
-import { listPosts } from "../api.js";
+import { listPosts, listSchools } from "../api.js";
 import { renderHeader } from "../auth.js";
 import { t } from "../i18n.js";
 import { showInstallGuide } from "../pwa.js";
@@ -18,7 +18,7 @@ import {
 import { createWishlistButton } from "../wishlist-button.js";
 
 const PAGE_SIZE = 10;
-const FILTER_KEYS = ["q", "status", "course_name", "min_price", "max_price"];
+const FILTER_KEYS = ["q", "school_id", "status", "course_name", "min_price", "max_price"];
 // "필터" 버튼 안에 접어 두는 조건. 검색어(q)는 항상 보이는 한 줄 검색창에 있다.
 const FOLDED_KEYS = FILTER_KEYS.filter((key) => key !== "q");
 
@@ -33,6 +33,14 @@ const filterCount = el("span", { className: "count-badge filter-form__count", at
 
 // 응답이 늦게 도착한 이전 요청이 최신 결과를 덮어쓰지 않도록 요청마다 번호를 붙인다.
 let latestRequestId = 0;
+
+// 학교 선택 목록. 주소의 school_id를 칸에 채우기 전에 목록이 있어야 하므로 load가 이것을 기다린다.
+// 학교 이름은 번역하지 않는다. 목록을 받지 못하면 "전체"만 남는다(글 목록은 그대로 보인다).
+const schoolsReady = listSchools()
+  .then(({ items }) => {
+    form.elements.school_id.append(...items.map((school) => el("option", { value: String(school.id), text: school.name })));
+  })
+  .catch(() => {});
 
 // 로그인한 사용자(없으면 null). 내 글에는 하트를 그리지 않으려고 쓴다.
 const mePromise = renderHeader(document.getElementById("site-header"));
@@ -122,6 +130,9 @@ async function load() {
   const { filters, page } = readUrl();
   const requestId = ++latestRequestId;
 
+  // 학교 칸은 목록이 채워진 뒤에야 주소의 school_id를 고를 수 있다.
+  await schoolsReady;
+  if (requestId !== latestRequestId) return;
   fillForm(filters);
   showFilterCount(filters);
   clearFormErrors(form, filterError);

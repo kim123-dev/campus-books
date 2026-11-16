@@ -60,6 +60,18 @@
           <li>
             <a class="settings-row" href="/static/blocks.html"><span data-i18n="term.block_list">차단 목록</span></a>
           </li>
+          <!-- 학교: 오른쪽에 지금 학교, 누르면 아래에 학교 목록이 펼쳐져 하나를 고른다. (7일에 한 번) -->
+          <li id="school-row">
+            <button id="school-toggle" type="button" class="settings-row" aria-expanded="false" aria-controls="school-panel">
+              <span id="school-title" data-i18n="term.school">학교</span>
+              <span id="school-current" class="settings-row__value"></span>
+            </button>
+            <div id="school-panel" class="account-form" hidden>
+              <p id="school-hint" class="field-hint" data-i18n="me.school_hint">정해 두면 새 글을 쓸 때 이 학교가 미리 선택돼요. 7일에 한 번 바꿀 수 있어요.</p>
+              <div id="school-options" class="school-options" role="group" aria-labelledby="school-title"></div>
+              <p id="school-error" class="form-error" role="alert" hidden></p>
+            </div>
+          </li>
           <li>
             <button id="nickname-toggle" type="button" class="settings-row" aria-expanded="false" aria-controls="nickname-form">
               <span data-i18n="me.change_nickname">닉네임 변경</span>

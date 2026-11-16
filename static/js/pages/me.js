@@ -2,7 +2,18 @@
 // (알림·차단 목록 링크, 닉네임·비밀번호 변경, 본인 확인 질문, 언어, 관리, 탈퇴, 로그아웃).
 // 예전의 "내 글"(my-posts.html)과 "찜"(wishlist.html) 화면을 이 화면 하나로 모았다. 로그인이 필요하다.
 // 고른 탭과 페이지는 주소창(?tab=wishlist&page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 목록이 나오게 하기 위해서다.
-import { changePassword, getProfile, listMyPosts, listWishlist, setSecurityQuestion, updateMe, withdraw } from "../api.js";
+import {
+  changePassword,
+  getMySchool,
+  getProfile,
+  listMyPosts,
+  listSchools,
+  listWishlist,
+  setSecurityQuestion,
+  updateMe,
+  updateMySchool,
+  withdraw,
+} from "../api.js";
 import { logout, redirectToLogin, renderHeader } from "../auth.js";
 import { LANG, LANGUAGES, t } from "../i18n.js";
 import { languageOptions } from "../lang-picker.js";
@@ -84,6 +95,7 @@ async function init() {
   loadManner(me.id);
   setUpAccount(me);
   setUpLanguage();
+  setUpSchool();
   setUpTabs();
   // 뒤로 가기/앞으로 가기로 주소가 바뀌면 그 탭·페이지를 다시 불러온다.
   window.addEventListener("popstate", load);
@@ -372,6 +384,82 @@ function setUpLanguage() {
     if (!panel.hidden) panel.querySelector("[aria-current]")?.focus();
   });
   row.hidden = false;
+}
+
+// ---------- 학교 ----------
+
+// 행 오른쪽에 지금 학교, 누르면 아래에 학교 목록(+ "선택 안 함")이 펼쳐진다. 고르면 바로 저장한다.
+// 7일 제한 중이면 언제부터 바꿀 수 있는지 알리고 목록 버튼을 잠근다. (눌러 보고 400을 받기 전에)
+async function setUpSchool() {
+  const toggle = document.getElementById("school-toggle");
+  const panel = document.getElementById("school-panel");
+  const current = document.getElementById("school-current");
+  const hint = document.getElementById("school-hint");
+  const options = document.getElementById("school-options");
+  const errorBox = document.getElementById("school-error");
+  const notice = document.getElementById("account-notice");
+
+  toggle.addEventListener("click", () => {
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute("aria-expanded", String(!panel.hidden));
+    if (!panel.hidden) options.querySelector("button:not(:disabled)")?.focus();
+  });
+
+  let mine;
+  let schools;
+  try {
+    [mine, schools] = await Promise.all([getMySchool(), listSchools()]);
+  } catch {
+    // 보조 설정이라 받지 못하면 행만 숨긴다.
+    document.getElementById("school-row").hidden = true;
+    return;
+  }
+
+  const render = () => {
+    const chosenId = mine.school?.id ?? null;
+    current.textContent = mine.school?.name ?? t("school.none");
+    const locked = mine.changeable_at !== null;
+    hint.textContent = locked ? t("me.school_hint_until", { date: formatMonthDayTime(mine.changeable_at) }) : t("me.school_hint");
+    const choices = [{ id: null, name: t("school.none") }, ...schools.items];
+    options.replaceChildren(
+      ...choices.map((school) => {
+        const pressed = school.id === chosenId;
+        const button = el("button", {
+          type: "button",
+          className: "button school-options__item",
+          text: school.name,
+          disabled: locked || pressed,
+          attrs: { "aria-pressed": String(pressed) },
+        });
+        button.addEventListener("click", () => choose(school.id));
+        return button;
+      }),
+    );
+  };
+
+  async function choose(schoolId) {
+    errorBox.hidden = true;
+    try {
+      mine = await updateMySchool(schoolId);
+    } catch (error) {
+      if (error.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      // 7일 제한·비활성 학교 등 서버 문장을 그대로 보여준다. (다른 언어는 원문을 아래에 붙인다)
+      setErrorText(errorBox, error.message, error.original);
+      errorBox.hidden = false;
+      return;
+    }
+    render();
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+    notice.textContent = t("me.school_changed");
+    notice.hidden = false;
+    toggle.focus();
+  }
+
+  render();
 }
 
 // ---------- 탭: 내 글 | 찜 목록 ----------

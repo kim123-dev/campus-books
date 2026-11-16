@@ -339,6 +339,8 @@ export function renderPostCard(post, { action = null } = {}) {
           el("span", { className: "post-card__condition", text: t("card.condition", { condition: CONDITION_LABELS[post.condition] ?? post.condition }) }),
           time,
         ),
+        // 학교가 있는 글만: 학교 이름(번역하지 않음)을 작은 회색 한 줄로
+        post.school ? el("p", { className: "post-card__school", text: post.school.name }) : null,
       ),
     ),
     action,

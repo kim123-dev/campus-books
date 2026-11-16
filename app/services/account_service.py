@@ -22,6 +22,7 @@ from app.services import (
     image_storage,
     pending_image_service,
     post_service,
+    school_service,
     security_question_service,
     user_service,
 )
@@ -91,7 +92,7 @@ def change_password(db: Session, user: User, data: PasswordChange) -> str:
 def withdraw(db: Session, user: User, data: WithdrawRequest) -> None:
     """회원 탈퇴. 순서: 400 관리자 → 400 비밀번호 틀림.
 
-    - 지운다: 내 글(사진 파일 포함), 내 찜, 내가 한·받은 차단, 찾는 교재 조건과 알림, 닉네임 변경 기록, 본인 확인 질문, 재설정 안내
+    - 지운다: 내 글(사진 파일·학교 연결 포함), 내 찜, 내가 한·받은 차단, 찾는 교재 조건과 알림, 닉네임 변경 기록, 내 학교, 본인 확인 질문, 재설정 안내
     - 남긴다: 쪽지 대화방(상대 화면에는 "탈퇴한 사용자"), 신고 기록(내 id만 비운다)
 
     사용자 행은 지우지 않고 개인정보를 지운 "탈퇴 표시"로 남긴다. 대화방·쪽지가 사용자 id를
@@ -122,6 +123,8 @@ def erase_account(db: Session, user: User) -> list[str]:
     db.execute(delete(Wishlist).where(Wishlist.user_id == user.id))
     # 예전 닉네임도 개인정보라 함께 지운다.
     db.execute(delete(NicknameChange).where(NicknameChange.user_id == user.id))
+    # 내 학교 설정도 지운다. (내 글의 학교 연결은 위의 글 삭제가 함께 지운다)
+    school_service.delete_for_user(db, user.id)
     # 본인 확인 질문과 재설정 안내도 지운다. (이메일이 바뀌어 어차피 쓸 수 없지만 남겨 둘 이유가 없다)
     security_question_service.delete_for_user(db, user.id)
     alert_service.delete_for_user(db, user.id)

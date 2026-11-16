@@ -25,6 +25,7 @@ from app.core.static_assets import StaticAssets
 from app.routers import (
     admin,
     admin_content,
+    admin_schools,
     admin_users,
     alerts,
     auth,
@@ -36,10 +37,11 @@ from app.routers import (
     profiles,
     reports,
     reviews,
+    schools,
     users,
     wishlist,
 )
-from app.services import pending_image_service
+from app.services import pending_image_service, school_service
 from app.services.image_service import MAX_IMAGE_BYTES
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             pending_image_service.purge_expired(db)
     except Exception:
         logger.warning("오래된 임시 사진을 정리하지 못했습니다.", exc_info=True)
+    # 기본 학교(울산과학대학교)를 넣는다. 이미 있으면 건너뛴다. 실패해도 서버는 뜬다.
+    try:
+        with SessionLocal() as db:
+            school_service.seed_default(db)
+    except Exception:
+        logger.warning("기본 학교를 넣지 못했습니다.", exc_info=True)
     yield
 
 
@@ -93,6 +101,8 @@ app.include_router(admin.router)
 app.include_router(admin_users.router)
 app.include_router(admin_content.router)
 app.include_router(alerts.router)
+app.include_router(schools.router)
+app.include_router(admin_schools.router)
 app.include_router(profiles.router)
 app.include_router(reviews.router)
 

@@ -19,6 +19,7 @@ from app.models.report import (
     ReportTargetType,
 )
 from app.models.review import Review, ReviewRating
+from app.models.school import PostSchool, School, UserSchool
 from app.models.trade import Trade
 from app.models.user import User, UserRole
 from app.models.wishlist import Wishlist
@@ -39,6 +40,9 @@ __all__ = [
     "MessageImage",
     "MessageReportSnapshot",
     "NicknameChange",
+    "PostSchool",
+    "School",
+    "UserSchool",
     "PendingImage",
     "PasswordResetAttempt",
     "PasswordResetMethod",

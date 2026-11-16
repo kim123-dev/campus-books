@@ -13,6 +13,7 @@ export const ADMIN_PAGES = [
   { href: "/static/admin-users.html", label: "사용자" },
   { href: "/static/admin-posts.html", label: "글" },
   { href: "/static/admin-reviews.html", label: "후기" },
+  { href: "/static/admin-schools.html", label: "학교" },
   { href: "/static/admin-log.html", label: "기록" },
 ];
 
