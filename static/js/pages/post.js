@@ -12,6 +12,7 @@ import {
   unblockUser,
 } from "../api.js";
 import { LOGIN_PAGE, authPageUrl, redirectToLogin, renderHeader } from "../auth.js";
+import { t, tNodes } from "../i18n.js";
 import {
   REPORT_DONE_TEXT,
   UNBLOCK_DONE_TEXT,
@@ -28,6 +29,7 @@ import {
   formatPrice,
   readPostIdFromUrl,
   safeImageUrl,
+  setErrorText,
   statusBadge,
 } from "../ui.js";
 import { openBuyerDialog } from "../trade.js";
@@ -49,12 +51,12 @@ const ALLOWED_TRANSITIONS = {
 
 // "판매 완료으로"처럼 조사가 틀리지 않도록 버튼 문구를 따로 둔다.
 const STATUS_BUTTON_LABELS = {
-  ON_SALE: "판매 중으로 변경",
-  RESERVED: "예약 중으로 변경",
-  SOLD: "판매 완료로 변경",
+  ON_SALE: t("post.status_to.ON_SALE"),
+  RESERVED: t("post.status_to.RESERVED"),
+  SOLD: t("post.status_to.SOLD"),
 };
 // 판매 완료에서 판매 중으로 가는 버튼은 "변경"이 아니라 실수를 되돌리는 동작이라 문구와 색을 따로 둔다.
-const REVERT_SOLD_LABEL = "판매 중으로 되돌리기";
+const REVERT_SOLD_LABEL = t("post.revert_sold");
 
 const pageStatus = document.getElementById("page-status");
 const pageError = document.getElementById("page-error");
@@ -72,7 +74,7 @@ let currentUser = null;
 // PC(768px 이상)로 바뀌면 원래 자리로 되돌린다.
 const mobileQuery = window.matchMedia(MOBILE_QUERY);
 const contactBarRow = el("div", { className: "contact-bar__row" });
-const contactBar = el("section", { className: "contact-bar", attrs: { "aria-label": "가격과 문의" }, hidden: true }, contactBarRow);
+const contactBar = el("section", { className: "contact-bar", attrs: { "aria-label": t("post.contact_bar_aria") }, hidden: true }, contactBarRow);
 document.body.append(contactBar);
 // 바에 넣을 것들. 바가 필요 없는 글(내 글·판매 완료·차단)이면 null.
 let barParts = null;
@@ -83,7 +85,7 @@ const mePromise = renderHeader(document.getElementById("site-header"));
 const postId = readPostIdFromUrl();
 
 if (postId === null) {
-  showPageError("글 주소가 올바르지 않습니다.");
+  showPageError(t("post.bad_url"));
 } else {
   load(postId);
 }
@@ -95,8 +97,8 @@ async function load(id) {
   try {
     post = await getPost(id);
   } catch (error) {
-    // 404 "게시글을 찾을 수 없습니다." 같은 서버 메시지를 그대로 보여준다.
-    showPageError(error.message);
+    // 404 "게시글을 찾을 수 없습니다." 같은 서버 메시지를 그대로 보여준다. (다른 언어는 상태 코드별 문장 + 원문)
+    showPageError(error.message, error.original);
     return;
   }
   currentUser = await mePromise;
@@ -104,11 +106,11 @@ async function load(id) {
   render(post);
 }
 
-function showPageError(message) {
+function showPageError(message, original = null) {
   pageStatus.hidden = true;
   detail.hidden = true;
   ownerPanel.hidden = true;
-  pageErrorText.textContent = message;
+  setErrorText(pageErrorText, message, original);
   pageError.hidden = false;
 }
 
@@ -138,16 +140,16 @@ function renderDetail(post) {
   // value: 글자 또는 요소(판매자 프로필 링크)
   const addInfo = (label, value) =>
     info.append(el("dt", { text: label }), typeof value === "string" ? el("dd", { text: value }) : el("dd", {}, value));
-  addInfo("교재명", post.book_title);
-  if (post.course_name) addInfo("과목명", post.course_name);
-  addInfo("책 상태", CONDITION_LABELS[post.condition] ?? post.condition);
+  addInfo(t("field.book_title"), post.book_title);
+  if (post.course_name) addInfo(t("field.course"), post.course_name);
+  addInfo(t("field.condition"), CONDITION_LABELS[post.condition] ?? post.condition);
   // 판매자 이름을 누르면 프로필(매너 학점·받은 후기)로 간다.
   // 이름 옆에 매너 학점을 붙여, 프로필에 들어가지 않아도 어떤 판매자인지 보이게 한다.
   // 서버는 상세 조회에서만 학점을 준다. 상태 변경 응답으로 다시 그릴 때는 처음 받은 값을 그대로 쓴다.
   if (post.seller_manner) sellerManner = post.seller_manner;
   const manner = sellerManner;
   addInfo(
-    "판매자",
+    t("term.seller"),
     el(
       "span",
       { className: "post-detail__seller" },
@@ -156,16 +158,16 @@ function renderDetail(post) {
         href: `/static/user.html?id=${encodeURIComponent(post.seller.id)}`,
         text: post.seller.nickname,
       }),
-      manner && el("span", { className: "post-detail__seller-gpa", text: `매너 학점 ${manner.gpa.toFixed(1)} (${manner.grade})` }),
+      manner && el("span", { className: "post-detail__seller-gpa", text: t("post.seller_gpa", { gpa: manner.gpa.toFixed(1), grade: manner.grade }) }),
     ),
   );
-  addInfo("작성", created);
+  addInfo(t("post.created"), created);
   // 분 단위로 같으면 작성 직후라 수정 표시를 하지 않는다.
-  if (updated !== created) addInfo("수정됨", updated);
+  if (updated !== created) addInfo(t("post.updated"), updated);
 
   const description = post.description
     ? el("p", { className: "post-detail__description", text: post.description })
-    : el("p", { className: "post-detail__description post-detail__description--empty", text: "설명이 없습니다." });
+    : el("p", { className: "post-detail__description post-detail__description--empty", text: t("post.no_description") });
 
   const heart = renderWishlistButton(post);
   const contact = renderContact(post);
@@ -178,7 +180,7 @@ function renderDetail(post) {
       el("p", { className: "post-detail__price", text: formatPrice(post.price) }),
       info,
       contact,
-      el("h2", { className: "post-detail__subtitle", text: "설명" }),
+      el("h2", { className: "post-detail__subtitle", text: t("post.description") }),
       description,
       renderSafety(post),
     ].filter(Boolean),
@@ -214,7 +216,7 @@ function setupContactBar(post, heart, contact) {
       // 가격은 글 영역에도 있으므로 화면 낭독기에는 한 번만 읽히게 숨긴다.
       price: el("p", { className: "contact-bar__price", text: formatPrice(post.price), attrs: { "aria-hidden": "true" } }),
       primary:
-        inquiry ?? el("a", { className: "button button--primary", href: authPageUrl(LOGIN_PAGE), text: "로그인하고 문의하기" }),
+        inquiry ?? el("a", { className: "button button--primary", href: authPageUrl(LOGIN_PAGE), text: t("post.login_to_inquire") }),
       moved,
       contact,
     };
@@ -251,24 +253,24 @@ function renderSafety(post) {
   if (currentUser === null || currentUser.id === post.seller.id) return null;
   const nickname = post.seller.nickname;
 
-  const reportButton = el("button", { type: "button", className: "link-button", text: "이 글 신고" });
+  const reportButton = el("button", { type: "button", className: "link-button", text: t("post.report_post") });
   reportButton.addEventListener("click", async () => {
     const reported = await openReportDialog({
-      heading: "이 글 신고",
-      targetText: `${post.title} (판매자 ${nickname})`,
+      heading: t("post.report_post"),
+      targetText: t("post.report_target", { title: post.title, nickname }),
       send: (data) => reportPost(post.id, data),
     });
     if (reported) showSafetyNotice(REPORT_DONE_TEXT);
   });
 
   const blockButton = post.is_seller_blocked
-    ? el("button", { type: "button", className: "link-button", text: "판매자 차단 해제" })
-    : el("button", { type: "button", className: "link-button link-button--danger", text: "판매자 차단" });
+    ? el("button", { type: "button", className: "link-button", text: t("post.unblock_seller") })
+    : el("button", { type: "button", className: "link-button link-button--danger", text: t("post.block_seller") });
   blockButton.addEventListener("click", () => (post.is_seller_blocked ? onUnblock(post) : onBlock(post)));
 
   return el(
     "section",
-    { className: "post-detail__safety", attrs: { "aria-label": "신고·차단" } },
+    { className: "post-detail__safety", attrs: { "aria-label": t("post.safety_aria") } },
     el("div", { className: "post-detail__safety-actions" }, reportButton, blockButton),
     el("p", { className: "safety-notice", attrs: { id: "safety-notice", role: "status" }, hidden: true }),
   );
@@ -301,8 +303,11 @@ async function runSafetyAction(task) {
       redirectToLogin();
       return;
     }
-    // 404(그사이 탈퇴·삭제) 등은 서버 메시지를 그대로 보여준다.
-    showSafetyNotice(error.message);
+    // 404(그사이 탈퇴·삭제) 등은 서버 메시지를 그대로 보여준다. (다른 언어는 상태 코드별 문장 + 원문)
+    const notice = document.getElementById("safety-notice");
+    if (notice === null) return;
+    setErrorText(notice, error.message, error.original);
+    notice.hidden = false;
   }
 }
 
@@ -340,7 +345,7 @@ function renderGallery(post) {
     el("img", {
       className: "gallery__main",
       src: safeImageUrl(image.url),
-      alt: `${post.book_title} 사진 ${index + 1}/${images.length}`,
+      alt: t("post.photo_alt", { title: post.book_title, index: index + 1, total: images.length }),
       decoding: "async",
     }),
   );
@@ -381,7 +386,7 @@ function renderGallery(post) {
       {
         type: "button",
         className: "gallery__thumb",
-        attrs: { "aria-label": `사진 ${index + 1} 크게 보기`, "aria-pressed": String(index === 0) },
+        attrs: { "aria-label": t("post.photo_thumb_aria", { index: index + 1 }), "aria-pressed": String(index === 0) },
       },
       el("img", { src: safeImageUrl(image.thumbnail_url), alt: "", loading: "lazy" }),
     );
@@ -410,7 +415,7 @@ function renderContact(post) {
     return contactSection(
       el("p", {
         className: "post-detail__contact-login",
-        text: "차단한 사용자의 글입니다. 차단을 해제하기 전까지 쪽지를 보낼 수 없어요.",
+        text: t("post.blocked_seller"),
       }),
     );
   }
@@ -428,7 +433,7 @@ function renderContact(post) {
         href: url,
         target: "_blank",
         rel: "noopener noreferrer",
-        text: "오픈채팅으로 연락하기",
+        text: t("post.open_chat"),
       }),
     );
   }
@@ -438,8 +443,7 @@ function renderContact(post) {
       el(
         "p",
         { className: "post-detail__contact-login" },
-        "로그인하면 쪽지로 문의하거나 연락 방법을 볼 수 있어요. ",
-        el("a", { href: authPageUrl(LOGIN_PAGE), text: "로그인" }),
+        ...tNodes("post.login_hint", { login: el("a", { href: authPageUrl(LOGIN_PAGE), text: t("term.login") }) }),
       ),
     );
   }
@@ -455,7 +459,7 @@ function renderInquiryButton(post) {
   const button = el("button", {
     type: "button",
     className: "button button--primary",
-    text: "쪽지로 문의하기",
+    text: t("post.inquire"),
     attrs: { id: "inquiry-button" },
   });
   button.addEventListener("click", async () => {
@@ -470,8 +474,8 @@ function renderInquiryButton(post) {
         redirectToLogin();
         return;
       }
-      // 400(내 글, 그사이 판매 완료됨), 404(그사이 삭제됨)는 서버 메시지를 그대로 보여준다.
-      errorText.textContent = error.message;
+      // 400(내 글, 그사이 판매 완료됨), 404(그사이 삭제됨)는 서버 메시지를 그대로 보여준다. (다른 언어는 상태 코드별 문장 + 원문)
+      setErrorText(errorText, error.message, error.original);
       errorText.hidden = false;
       button.disabled = false;
     }
@@ -482,8 +486,8 @@ function renderInquiryButton(post) {
 function contactSection(...content) {
   return el(
     "section",
-    { className: "post-detail__contact", attrs: { "aria-label": "연락 방법" } },
-    el("h2", { className: "post-detail__subtitle", text: "연락하기" }),
+    { className: "post-detail__contact", attrs: { "aria-label": t("post.contact_aria") } },
+    el("h2", { className: "post-detail__subtitle", text: t("post.contact_title") }),
     ...content,
   );
 }
@@ -494,7 +498,7 @@ function renderOwnerActions(post) {
   // 판매 완료된 글은 서버가 수정을 막으므로(400) 수정 버튼을 보여주지 않는다.
   const editLink =
     post.status !== "SOLD"
-      ? el("a", { className: "button", href: `/static/post-form.html?id=${encodeURIComponent(post.id)}`, text: "수정" })
+      ? el("a", { className: "button", href: `/static/post-form.html?id=${encodeURIComponent(post.id)}`, text: t("common.edit") })
       : null;
 
   const statusButtons = nextStatuses.map((status) => {
@@ -508,7 +512,7 @@ function renderOwnerActions(post) {
     return button;
   });
 
-  const deleteButton = el("button", { type: "button", className: "button button--danger", text: "삭제" });
+  const deleteButton = el("button", { type: "button", className: "button button--danger", text: t("common.delete") });
   deleteButton.addEventListener("click", () => onDelete(post));
 
   // 후기가 있어 되돌릴 수 없는 경우에도 버튼은 숨기지 않고, 누르면 서버의 409 메시지를 보여준다.
@@ -516,7 +520,7 @@ function renderOwnerActions(post) {
     post.status === "SOLD"
       ? el("p", {
           className: "owner-panel__notice",
-          text: "판매 완료된 글은 수정할 수 없어요. 후기를 남기기 전이면 판매 중으로 되돌릴 수 있어요.",
+          text: t("post.sold_notice"),
         })
       : null;
 
@@ -542,14 +546,14 @@ async function loadBuyerLine(post, line) {
     line.remove();
     return;
   }
-  const name = info.buyer === null ? "선택 안 함" : info.buyer.nickname;
-  const parts = [el("span", { text: `거래한 사람: ${name}` })];
+  const name = info.buyer === null ? t("buyer.none_short") : info.buyer.nickname;
+  const parts = [el("span", { text: t("post.buyer_line", { name }) })];
   if (info.changeable) {
-    const button = el("button", { type: "button", className: "link-button", text: "구매자 변경" });
+    const button = el("button", { type: "button", className: "link-button", text: t("post.change_buyer") });
     button.addEventListener("click", () => onChangeBuyer(post, info));
     parts.push(button);
   } else if (info.buyer !== null) {
-    parts.push(el("span", { className: "owner-panel__buyer-note", text: "후기가 있어 바꿀 수 없어요." }));
+    parts.push(el("span", { className: "owner-panel__buyer-note", text: t("post.buyer_locked") }));
   }
   line.replaceChildren(...parts);
 }
@@ -564,7 +568,7 @@ function onChangeStatus(post, status) {
   // 되돌리면 거래 기록이 지워져 구매자가 후기를 남길 수 없게 되므로 한 번 확인한다.
   if (
     post.status === "SOLD" &&
-    !window.confirm("판매 중으로 되돌릴까요? 거래한 사람 기록이 지워져 서로 후기를 남길 수 없게 돼요.")
+    !window.confirm(t("post.confirm_revert"))
   ) {
     return;
   }
@@ -580,12 +584,12 @@ function onSell(post) {
   runAction(async () => {
     const info = await getPostBuyer(post.id);
     const updated = await openBuyerDialog({
-      heading: "판매 완료로 변경",
-      intro: "후기가 남은 뒤에는 판매 중으로 되돌릴 수 없어요. 거래한 사람은 후기를 남기기 전까지 바꿀 수 있어요.",
+      heading: t("post.status_to.SOLD"),
+      intro: t("post.sell_intro"),
       candidates: info.candidates,
       currentBuyer: null,
       preselect: false,
-      submitText: "판매 완료",
+      submitText: t("post.sell_submit"),
       send: (buyerId) => changePostStatus(post.id, "SOLD", buyerId),
     });
     // 취소했으면 그대로 두고 버튼만 다시 켠다.
@@ -601,12 +605,12 @@ function onSell(post) {
 function onChangeBuyer(post, info) {
   runAction(async () => {
     const changed = await openBuyerDialog({
-      heading: "구매자 변경",
-      intro: "후기를 남기기 전까지만 바꿀 수 있어요. 후기를 쓸 수 있는 기간은 처음 판매 완료한 날부터 계산돼요.",
+      heading: t("post.change_buyer"),
+      intro: t("post.change_buyer_intro"),
       candidates: info.candidates,
       currentBuyer: info.buyer,
       preselect: true,
-      submitText: "변경",
+      submitText: t("post.change_submit"),
       send: (buyerId) => changePostBuyer(post.id, buyerId),
     });
     if (changed === null) {
@@ -618,7 +622,7 @@ function onChangeBuyer(post, info) {
 }
 
 function onDelete(post) {
-  if (!window.confirm("이 글을 삭제할까요? 삭제한 글은 되돌릴 수 없습니다.")) return;
+  if (!window.confirm(t("post.confirm_delete"))) return;
 
   runAction(async () => {
     await deletePost(post.id);
@@ -643,7 +647,8 @@ async function runAction(task) {
       return;
     }
     // 400(바꿀 수 없는 상태), 403(남의 글), 404(이미 삭제된 글), 409(후기가 있어 되돌릴 수 없음)는 서버 메시지를 그대로 보여준다.
-    actionError.textContent = error.message;
+    // 다른 언어 화면에서는 상태 코드별 문장 + 한국어 원문이다.
+    setErrorText(actionError, error.message, error.original);
     actionError.hidden = false;
     setBusy(false);
   }

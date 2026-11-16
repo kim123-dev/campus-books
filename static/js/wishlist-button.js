@@ -2,8 +2,9 @@
 // ui.js는 auth.js가 불러오는 공통 부품이라, 로그인 이동(auth.js)을 쓰는 이 버튼은 순환 참조를 피하려고 따로 둔다.
 import { addWishlist, removeWishlist } from "./api.js";
 import { redirectToLogin } from "./auth.js";
+import { t } from "./i18n.js";
 import { getToken } from "./token.js";
-import { el } from "./ui.js";
+import { el, setErrorText } from "./ui.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const HEART_PATH =
@@ -24,7 +25,7 @@ export function createWishlistButton(post, { className = "" } = {}) {
   const paint = () => {
     button.setAttribute("aria-pressed", String(wished));
     // 카드 안에는 제목이 여러 개라 어떤 글의 버튼인지 이름에 글 제목을 넣는다.
-    button.setAttribute("aria-label", `${post.title} ${wished ? "찜 해제" : "찜하기"}`);
+    button.setAttribute("aria-label", wished ? t("wish.remove_aria", { title: post.title }) : t("wish.add_aria", { title: post.title }));
   };
   paint();
 
@@ -48,8 +49,8 @@ export function createWishlistButton(post, { className = "" } = {}) {
         redirectToLogin();
         return;
       }
-      // 400(내 글, 그사이 판매 완료됨), 404(그사이 삭제됨)는 서버 메시지를 그대로 보여준다.
-      showWishlistError(error.message);
+      // 400(내 글, 그사이 판매 완료됨), 404(그사이 삭제됨)는 서버 메시지를 그대로 보여준다. (다른 언어는 상태 코드별 문장 + 원문)
+      showWishlistError(error.message, error.original);
     } finally {
       button.disabled = false;
     }
@@ -73,12 +74,12 @@ function heartIcon() {
 let errorToast = null;
 let hideTimer = 0;
 
-function showWishlistError(message) {
+function showWishlistError(message, original) {
   if (errorToast === null) {
     errorToast = el("p", { className: "toast", attrs: { role: "alert" }, hidden: true });
     document.body.append(errorToast);
   }
-  errorToast.textContent = message;
+  setErrorText(errorToast, message, original);
   errorToast.hidden = false;
   clearTimeout(hideTimer);
   hideTimer = setTimeout(() => {

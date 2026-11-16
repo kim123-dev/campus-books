@@ -275,6 +275,97 @@ try {
   check("ko 질문 저장 + 틀린 비밀번호: 예전 문구 그대로", pw.text === "현재 비밀번호가 올바르지 않습니다.", JSON.stringify(pw));
   check("ko 내 정보: 가입일 예전 형식", /· \d{4}\.\d{2}\.\d{2} 가입$/.test(await evaluate("document.getElementById('profile-meta').textContent")));
 
+  // ---------- 3단계: 거래 화면 (상세·작성·프로필·신고 창·구매자 고르기) ----------
+  // 한국어 검색창 안내 문구도 375px에서 칸 안에 다 보여야 한다.
+  await goto("/static/index.html?lang=ko", homeReady);
+  const koSearch = await evaluate(`(() => {
+    const i = document.getElementById('q'), cs = getComputedStyle(i), c = document.createElement('canvas').getContext('2d');
+    c.font = cs.font;
+    return { placeholder: i.placeholder, text: c.measureText(i.placeholder).width, room: i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
+  })()`);
+  check("ko 목록: 검색 안내 문구가 칸 안에 다 보임", koSearch.text <= koSearch.room, JSON.stringify(koSearch));
+
+  // 남은 한국어: 사용자가 쓴 글·교재 제목·닉네임·후기·서버 원문 자리를 빼고 한글이 보이면 번역이 빠진 것이다.
+  const USER_TEXT = ".post-detail__title, .post-detail__description, .post-detail__info dd, .report-dialog__target, .profile__name, .post-card, .review, .error-original, .site-header, .tab-bar";
+  const leftoverKorean = () =>
+    evaluate(`(() => {
+      const out = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const p = n.parentElement;
+        // 가격 단위 "원"은 모든 언어에서 그대로 쓴다. 구매자 고르기 창의 닉네임(값이 숫자인 칸)도 사용자 글이다.
+        const nickname = p.closest('label')?.querySelector('input[name=buyer]:not([value=none])');
+        if (!/[가-힣]/.test(n.textContent.replace(/원/g, '')) || !p || nickname || p.closest(${JSON.stringify(USER_TEXT)}) || p.closest('[hidden]') || p.closest('script')) continue;
+        out.push(n.textContent.trim().slice(0, 30));
+      }
+      return out;
+    })()`);
+  const detailReady = `${settled} && !document.getElementById('post-detail').hidden`;
+  for (const lang of ["en", "zh-CN"]) {
+    const en = lang === "en";
+    // 남의 글 (판매자로 로그인해 구매자의 글을 본다): 정보 칸 이름, 연락·신고·차단 버튼
+    await goto(`/static/post.html?id=${seed.p3}&lang=${lang}`, detailReady);
+    let left = await leftoverKorean();
+    let o = await overflow();
+    const dts = await texts(".post-detail__info dt");
+    check(`${lang} 상세(남의 글): 정보 칸·버튼 번역, 한국어 안 남음, 화면 안 넘침`, left.length === 0 && o.ok && dts[0] === (en ? "Textbook title" : "教材名称"), `${dts.join("|")} ${left.join(" / ")} ${o.bad}`);
+    await screenshot(`i18n-${W}-${lang}-post.png`);
+    // 신고 창: 사유는 영문 값, 이름은 번역
+    await evaluate("[...document.querySelectorAll('.post-detail__safety .link-button')][0].click()");
+    await waitUntil("!!document.querySelector('.report-dialog[open]')");
+    const report = await evaluate(`({
+      legend: document.querySelector('.report-dialog legend').textContent,
+      values: [...document.querySelectorAll('.report-dialog input[name=reason]')].map((n) => n.value).join(','),
+      first: document.querySelector('.report-dialog__reason span').textContent,
+    })`);
+    left = await leftoverKorean();
+    o = await overflow();
+    check(
+      `${lang} 신고 창: 사유 번역(값은 영문), 한국어 안 남음`,
+      report.legend === (en ? "Reason" : "举报原因") && report.values === "SPAM,FRAUD,ABUSE,INAPPROPRIATE,OTHER" && report.first === (en ? "Spam or flooding" : "广告·刷屏") && left.length === 0,
+      `${JSON.stringify(report)} ${left.join(" / ")}`,
+    );
+    await screenshot(`i18n-${W}-${lang}-report.png`);
+    await evaluate("document.querySelector('.report-dialog[open]').close()");
+
+    // 내 글: 관리 버튼, 판매 완료 창(구매자 고르기)
+    await goto(`/static/post.html?id=${seed.p1}&lang=${lang}`, `${detailReady} && !document.getElementById('owner-panel').hidden`);
+    left = await leftoverKorean();
+    o = await overflow();
+    const owner = await texts("#owner-actions button, #owner-actions a");
+    check(`${lang} 상세(내 글): 관리 버튼 번역, 한국어 안 남음, 화면 안 넘침`, left.length === 0 && o.ok && owner.includes(en ? "Mark as sold" : "改为已售出"), `${owner.join("|")} ${left.join(" / ")} ${o.bad}`);
+    await evaluate(`[...document.querySelectorAll('#owner-actions button')].find((n) => n.textContent === ${JSON.stringify(en ? "Mark as sold" : "改为已售出")}).click()`);
+    await waitUntil("!!document.querySelector('.report-dialog[open]')");
+    left = await leftoverKorean();
+    const buyer = await text(".report-dialog legend");
+    check(`${lang} 판매 완료 창: 구매자 고르기 번역`, buyer === (en ? "Trade partner" : "交易对象") && left.length === 0, `${buyer} ${left.join(" / ")}`);
+    await evaluate("document.querySelector('.report-dialog[open]').close()");
+
+    // 없는 글: 상태 코드별 번역 문장 + 한국어 원문
+    await goto(`/static/post.html?id=999999&lang=${lang}`, `${settled} && !document.getElementById('page-error').hidden`);
+    const missing = await evaluate("(() => { const n = document.getElementById('page-error-text'); return { text: n.firstChild?.textContent, original: n.querySelector('.error-original')?.textContent }; })()");
+    check(`${lang} 없는 글: 번역 문장 + 한국어 원문`, !!missing.original && !/[가-힣]/.test(missing.text ?? "가"), JSON.stringify(missing));
+
+    // 수정 화면 (내 글)
+    await goto(`/static/post-form.html?id=${seed.p1}&lang=${lang}`, `${settled} && !document.getElementById('form-card').hidden`);
+    left = await leftoverKorean();
+    o = await overflow();
+    const formTitle = await text("#form-title");
+    check(`${lang} 수정 화면: 칸 이름·안내 번역, 한국어 안 남음, 화면 안 넘침`, formTitle === (en ? "Edit listing" : "编辑帖子") && left.length === 0 && o.ok, `${formTitle} ${left.join(" / ")} ${o.bad}`);
+    await screenshot(`i18n-${W}-${lang}-post-form.png`);
+
+    // 프로필: 매너 학점(중국어 礼仪绩点), 판매 중인 글·후기 수
+    await goto(`/static/user.html?id=1&lang=${lang}`, `${settled} && !document.getElementById('profile').hidden && document.getElementById('posts-summary').textContent !== ''`);
+    left = await leftoverKorean();
+    o = await overflow();
+    const manner = await text(".manner-gpa__label");
+    check(`${lang} 프로필: 매너 학점·목록 번역, 한국어 안 남음, 화면 안 넘침`, manner === (en ? "Manner GPA" : "礼仪绩点") && left.length === 0 && o.ok, `${manner} ${left.join(" / ")} ${o.bad}`);
+    await screenshot(`i18n-${W}-${lang}-user.png`);
+  }
+  await goto(`/static/post.html?id=${seed.p3}&lang=ko`, detailReady);
+  const koDts = await texts(".post-detail__info dt");
+  check("ko 상세: 정보 칸 예전 문구", koDts[0] === "교재명" && koDts.includes("판매자"), koDts.join("|"));
+
   // ---------- 기능 플래그를 켰을 때 (lang-boot.js를 바꿔 받아 확인. 저장소의 파일은 그대로) ----------
   await send("Network.enable");
   await send("Network.setBypassServiceWorker", { bypass: true });
@@ -359,8 +450,8 @@ try {
   await waitUntil(`document.documentElement.lang === 'en' && ${meReady}`);
   check("내 정보에서 English 고르면 영어", (await evaluate("document.documentElement.lang")) === "en" && (await evaluate("document.getElementById('language-title').textContent")) === "Language");
 
-  // 일부러 낸 401·400 응답은 콘솔에 "Failed to load resource"로 남으므로 빼고 본다.
-  const errors = exceptions.filter((text) => !/^Failed to load resource: the server responded with a status of 40[01]/.test(text ?? ""));
+  // 일부러 낸 401·400·404(없는 글) 응답은 콘솔에 "Failed to load resource"로 남으므로 빼고 본다.
+  const errors = exceptions.filter((text) => !/^Failed to load resource: the server responded with a status of 40[014]/.test(text ?? ""));
   check("자바스크립트 오류 없음", errors.length === 0, errors.join(" / "));
 } catch (error) {
   results.push(`ERROR ${error.stack}`);

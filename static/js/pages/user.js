@@ -2,9 +2,10 @@
 // 글과 후기는 각자 페이지를 넘긴다. 둘을 함께 주소에 담으면 복잡해지므로 페이지 번호는 화면 안에서만 기억한다.
 import { getProfile, listProfilePosts, listProfileReviews, reportReview } from "../api.js";
 import { renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
 import { REPORT_DONE_TEXT, openReportDialog } from "../safety.js";
 import { RATING_LABELS, REVIEWEE_ROLE_LABELS } from "../trade.js";
-import { el, formatDate, readPostIdFromUrl, renderPagination, renderPostCard } from "../ui.js";
+import { el, formatDate, readPostIdFromUrl, renderPagination, renderPostCard, setErrorText } from "../ui.js";
 
 const PAGE_SIZE = 10;
 // 매너 학점의 만점. 서버(review_service.MANNER_GPA_MAX)와 같은 값이어야 한다. (tests/test_static.py가 확인)
@@ -19,7 +20,7 @@ renderHeader(document.getElementById("site-header"));
 // 주소의 ?id=는 글 상세와 같은 형식(양의 정수)이라 같은 검사 함수를 쓴다.
 const userId = readPostIdFromUrl();
 if (userId === null) {
-  showPageError("프로필 주소가 올바르지 않습니다.");
+  showPageError(t("user.bad_url"));
 } else {
   init(userId);
 }
@@ -33,11 +34,11 @@ async function init(id) {
   try {
     data = await getProfile(id);
   } catch (error) {
-    // 404 "사용자를 찾을 수 없습니다."(없거나 탈퇴) 같은 서버 메시지를 그대로 보여준다.
-    showPageError(error.message);
+    // 404 "사용자를 찾을 수 없습니다."(없거나 탈퇴) 같은 서버 메시지를 그대로 보여준다. (다른 언어는 상태 코드별 문장 + 원문)
+    showPageError(error.message, error.original);
     return;
   }
-  document.title = `${data.nickname}님의 프로필 | Campus Books`; // document.title은 글자로만 처리되어 안전하다.
+  document.title = t("title.profile_of", { nickname: data.nickname }); // document.title은 글자로만 처리되어 안전하다.
   document.getElementById("profile-name").textContent = data.nickname;
   renderManner(data.manner);
   pageStatus.hidden = true;
@@ -57,14 +58,14 @@ function renderManner({ good, bad, total, gpa, grade }) {
     el(
       "p",
       { className: "manner-gpa" },
-      el("span", { className: "manner-gpa__label", text: "매너 학점" }),
+      el("span", { className: "manner-gpa__label", text: t("term.manner_grade") }),
       el("strong", { className: "manner-gpa__score", text: gpa.toFixed(1) }),
       el("span", { className: "manner-gpa__max", text: ` / ${MAX_GPA.toFixed(1)}` }),
       el("span", { className: "manner-gpa__grade", text: grade }),
     ),
     bar,
     total === 0
-      ? el("p", { className: "profile__manner-note", text: "아직 받은 거래 후기가 없어 기본 학점이에요." })
+      ? el("p", { className: "profile__manner-note", text: t("user.manner_default") })
       : el(
           "p",
           { className: "profile__counts" },
@@ -80,17 +81,17 @@ async function loadPosts(page) {
   const summary = document.getElementById("posts-summary");
   const list = document.getElementById("post-list");
   const pagination = document.getElementById("posts-pagination");
-  summary.textContent = "불러오는 중…";
+  summary.textContent = t("common.loading");
   try {
     const data = await listProfilePosts(userId, { page, size: PAGE_SIZE });
-    summary.textContent = data.total === 0 ? "판매 중인 글이 없어요." : `${data.total}개`;
+    summary.textContent = data.total === 0 ? t("user.no_posts") : t("user.posts_count", { count: data.total });
     list.replaceChildren(...data.items.map((post) => renderPostCard(post)));
     renderPagination(pagination, data.page, Math.max(1, Math.ceil(data.total / data.size)), (next) => {
       loadPosts(next);
       document.getElementById("posts-title").scrollIntoView();
     });
   } catch (error) {
-    summary.textContent = error.message;
+    setErrorText(summary, error.message, error.original);
   }
 }
 
@@ -100,17 +101,17 @@ async function loadReviews(page) {
   const summary = document.getElementById("reviews-summary");
   const list = document.getElementById("review-list");
   const pagination = document.getElementById("reviews-pagination");
-  summary.textContent = "불러오는 중…";
+  summary.textContent = t("common.loading");
   try {
     const data = await listProfileReviews(userId, { page, size: PAGE_SIZE });
-    summary.textContent = data.total === 0 ? "받은 후기가 없어요." : `${data.total}개`;
+    summary.textContent = data.total === 0 ? t("user.no_reviews") : t("user.reviews_count", { count: data.total });
     list.replaceChildren(...data.items.map(renderReview));
     renderPagination(pagination, data.page, Math.max(1, Math.ceil(data.total / data.size)), (next) => {
       loadReviews(next);
       document.getElementById("reviews-title").scrollIntoView();
     });
   } catch (error) {
-    summary.textContent = error.message;
+    setErrorText(summary, error.message, error.original);
   }
 }
 
@@ -120,11 +121,11 @@ function renderReview(review) {
   const notice = el("p", { className: "safety-notice", attrs: { role: "status" }, hidden: true });
   let reportButton = null;
   if (review.is_mine === false) {
-    reportButton = el("button", { type: "button", className: "link-button review__report", text: "신고" });
+    reportButton = el("button", { type: "button", className: "link-button review__report", text: t("user.report") });
     reportButton.addEventListener("click", async () => {
       const reported = await openReportDialog({
-        heading: "후기 신고",
-        targetText: `${review.reviewer_nickname}님이 남긴 후기`,
+        heading: t("user.report_review"),
+        targetText: t("user.review_target", { nickname: review.reviewer_nickname }),
         send: (data) => reportReview(review.id, data),
       });
       if (reported) {
@@ -152,9 +153,9 @@ function renderReview(review) {
   );
 }
 
-function showPageError(message) {
+function showPageError(message, original = null) {
   pageStatus.hidden = true;
   profile.hidden = true;
-  pageErrorText.textContent = message;
+  setErrorText(pageErrorText, message, original);
   pageError.hidden = false;
 }

@@ -4,9 +4,10 @@
 // 글을 쓰는 동안 업로드가 끝나므로 저장 버튼을 누른 뒤 기다리는 시간이 거의 없다.
 import { createPost, deletePendingImage, getPost, updatePost, uploadPendingImage } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
 import { preparePhoto } from "../photo-resize.js";
 import { getToken } from "../token.js";
-import { clearFormErrors, el, readPostIdFromUrl, safeImageUrl, showFormErrors } from "../ui.js";
+import { clearFormErrors, el, readPostIdFromUrl, safeImageUrl, setErrorText, showFormErrors } from "../ui.js";
 
 const HOME_PAGE = "/static/index.html";
 const TEXT_FIELDS = ["title", "book_title", "course_name", "description", "open_chat_url"];
@@ -23,7 +24,7 @@ const NO_PREVIEW_IMAGE = "/static/img/book-placeholder.svg";
 
 const isEdit = new URLSearchParams(window.location.search).has("id");
 const postId = isEdit ? readPostIdFromUrl() : null;
-const submitLabel = isEdit ? "저장하기" : "등록하기";
+const submitLabel = isEdit ? t("form.save") : t("form.create");
 
 // 이미 올라간 사진: {id, url, thumbnail_url, removed}. removed면 저장할 때 지운다.
 let existingPhotos = [];
@@ -71,7 +72,7 @@ async function init() {
     if (!getToken()) {
       redirectToLogin();
     } else {
-      showPageError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.", HOME_PAGE, "목록으로");
+      showPageError(t("err.network"), HOME_PAGE, t("common.back_to_list"));
     }
     return;
   }
@@ -81,7 +82,7 @@ async function init() {
     return;
   }
   if (postId === null) {
-    showPageError("글 주소가 올바르지 않습니다.", HOME_PAGE, "목록으로");
+    showPageError(t("post.bad_url"), HOME_PAGE, t("common.back_to_list"));
     return;
   }
 
@@ -89,8 +90,8 @@ async function init() {
   try {
     post = await getPost(postId);
   } catch (error) {
-    // 404 "게시글을 찾을 수 없습니다." 같은 서버 메시지를 그대로 보여준다.
-    showPageError(error.message, HOME_PAGE, "목록으로");
+    // 404 "게시글을 찾을 수 없습니다." 같은 서버 메시지를 그대로 보여준다. (다른 언어는 상태 코드별 문장 + 원문)
+    showPageError(error.message, HOME_PAGE, t("common.back_to_list"), error.original);
     return;
   }
 
@@ -99,11 +100,11 @@ async function init() {
   // 상황이 바뀌면, 저장할 때 서버의 403·400 메시지가 폼 아래에 표시된다.
   const detailUrl = postDetailUrl(post.id);
   if (post.seller.id !== me.id) {
-    showPageError("본인이 작성한 글만 수정할 수 있습니다.", detailUrl, "상세 화면으로");
+    showPageError(t("form.not_owner"), detailUrl, t("form.to_detail"));
     return;
   }
   if (post.status === "SOLD") {
-    showPageError("판매 완료된 글은 수정할 수 없습니다.", detailUrl, "상세 화면으로");
+    showPageError(t("form.sold"), detailUrl, t("form.to_detail"));
     return;
   }
 
@@ -112,7 +113,7 @@ async function init() {
 }
 
 function showForm() {
-  const title = isEdit ? "판매글 수정" : "판매글 작성";
+  const title = isEdit ? t("form.title_edit") : t("form.title_new");
   document.title = `${title} | Campus Books`;
   document.getElementById("form-title").textContent = title;
   submitButton.textContent = submitLabel;
@@ -124,10 +125,10 @@ function showForm() {
   form.elements.title.focus();
 }
 
-function showPageError(message, linkHref, linkText) {
+function showPageError(message, linkHref, linkText, original = null) {
   pageStatus.hidden = true;
   formCard.hidden = true;
-  pageErrorText.textContent = message;
+  setErrorText(pageErrorText, message, original);
   pageErrorLink.href = linkHref;
   pageErrorLink.textContent = linkText;
   pageError.hidden = false;
@@ -161,9 +162,9 @@ async function onPhotosSelected() {
   const accepted = [];
   for (const file of files) {
     if (!PHOTO_TYPES.includes(file.type) && !HEIC_NAME.test(file.name)) {
-      problems.push(`${file.name}: JPG, PNG, WebP, HEIC 사진만 올릴 수 있습니다.`);
+      problems.push(t("form.photo_type", { name: file.name }));
     } else if (photoTotal() + accepted.length >= MAX_PHOTOS) {
-      problems.push(`사진은 ${MAX_PHOTOS}장까지 올릴 수 있어 ${file.name}은(는) 빼었습니다.`);
+      problems.push(t("form.photo_limit", { max: MAX_PHOTOS, name: file.name }));
     } else {
       accepted.push(file);
     }
@@ -171,10 +172,10 @@ async function onPhotosSelected() {
 
   setPreparing(true);
   for (const [index, file] of accepted.entries()) {
-    showPhotoStatus(`사진 줄이는 중… (${index + 1}/${accepted.length})`);
+    showPhotoStatus(t("form.photo_resizing", { index: index + 1, total: accepted.length }));
     const prepared = await preparePhoto(file);
     if (prepared.file.size > MAX_PHOTO_BYTES) {
-      problems.push(`${file.name}: 사진은 한 장에 25MB까지 올릴 수 있습니다.`);
+      problems.push(t("form.photo_too_big", { name: file.name }));
       continue;
     }
     const previewUrl = prepared.previewable ? URL.createObjectURL(prepared.file) : null;
@@ -209,7 +210,7 @@ function startUpload(photo) {
         return;
       }
       photo.state = "failed";
-      if (newPhotos.includes(photo)) showPhotosError(error.message);
+      if (newPhotos.includes(photo)) showPhotosError(error.message, error.original);
     })
     .finally(() => {
       if (newPhotos.includes(photo)) renderPhotos();
@@ -251,10 +252,10 @@ function showPhotoStatus(step) {
 function renderPhotos() {
   const tiles = [
     ...existingPhotos.map((photo, index) =>
-      photoTile(safeImageUrl(photo.thumbnail_url), `올린 사진 ${index + 1}`, photo.removed, () => {
+      photoTile(safeImageUrl(photo.thumbnail_url), t("form.photo_existing", { index: index + 1 }), photo.removed, () => {
         // 이미 올린 사진은 바로 지우지 않고 표시만 해 두었다가 저장할 때 지운다. 다시 누르면 되돌린다.
         if (photo.removed && photoTotal() >= MAX_PHOTOS) {
-          showPhotosError(`사진은 ${MAX_PHOTOS}장까지라 되돌리려면 새 사진을 먼저 빼 주세요.`);
+          showPhotosError(t("form.photo_restore_full", { max: MAX_PHOTOS }));
           return;
         }
         photo.removed = !photo.removed;
@@ -262,7 +263,7 @@ function renderPhotos() {
         renderPhotos();
       }),
     ),
-    ...newPhotos.map((photo, index) => newPhotoTile(photo, `새 사진 ${index + 1}`)),
+    ...newPhotos.map((photo, index) => newPhotoTile(photo, t("form.photo_new", { index: index + 1 }))),
   ];
   photoList.replaceChildren(...tiles);
   photoList.hidden = tiles.length === 0;
@@ -279,8 +280,8 @@ function photoTile(src, label, removed, onToggle) {
   const button = el("button", {
     type: "button",
     className: "photo-tile__button",
-    text: removed ? "되돌리기" : "빼기",
-    attrs: { "aria-label": `${label} ${removed ? "되돌리기" : "빼기"}` },
+    text: removed ? t("form.photo_restore") : t("form.photo_remove"),
+    attrs: { "aria-label": removed ? t("form.photo_restore_aria", { label }) : t("form.photo_remove_aria", { label }) },
   });
   button.addEventListener("click", onToggle);
   return el(
@@ -290,7 +291,7 @@ function photoTile(src, label, removed, onToggle) {
     el(
       "div",
       { className: "photo-tile__frame" },
-      el("img", { className: "photo-tile__image", src, alt: removed ? `${label} (저장하면 삭제됨)` : label }),
+      el("img", { className: "photo-tile__image", src, alt: removed ? t("form.photo_removed_alt", { label }) : label }),
     ),
     button,
   );
@@ -306,18 +307,18 @@ function newPhotoTile(photo, label) {
   tile.classList.add(failed ? "photo-tile--failed" : "photo-tile--uploading");
   // 칸이 좁아(375px 화면에서 약 100px) 올리는 중에는 %만 보여준다.
   // 화면 낭독기에는 "올리는 중"만 읽히고, 자주 바뀌는 %는 읽지 않는다.
-  const badge = el("span", { className: "photo-tile__state", text: failed ? "실패" : null });
+  const badge = el("span", { className: "photo-tile__state", text: failed ? t("form.photo_failed") : null });
   if (!failed) {
     photo.progressText = el("span", { text: "0%", attrs: { "aria-hidden": "true" } });
-    badge.append(el("span", { className: "visually-hidden", text: "올리는 중" }), photo.progressText);
+    badge.append(el("span", { className: "visually-hidden", text: t("form.photo_uploading") }), photo.progressText);
   }
   tile.querySelector(".photo-tile__frame").append(badge);
   if (failed) {
     const retry = el("button", {
       type: "button",
       className: "photo-tile__button",
-      text: "다시 시도",
-      attrs: { "aria-label": `${label} 다시 올리기` },
+      text: t("common.retry"),
+      attrs: { "aria-label": t("form.photo_retry_aria", { label }) },
     });
     retry.addEventListener("click", () => {
       showPhotosError("");
@@ -329,8 +330,9 @@ function newPhotoTile(photo, label) {
   return tile;
 }
 
-function showPhotosError(message) {
-  photosError.textContent = message;
+// original: 다른 언어 화면에서 서버가 보낸 한국어 원문 (setErrorText가 아래에 붙인다)
+function showPhotosError(message, original = null) {
+  setErrorText(photosError, message, original);
   photosError.hidden = message === "";
 }
 
@@ -372,13 +374,13 @@ async function onSubmit(event) {
 
   // 아직 올라가는 사진이 있으면 끝날 때까지만 기다린다. (보통은 글을 쓰는 동안 이미 끝나 있다)
   if (newPhotos.some((photo) => photo.state === "uploading")) {
-    submitButton.textContent = "사진 올리는 중…";
+    submitButton.textContent = t("form.uploading_photos");
     await Promise.all(newPhotos.map((photo) => photo.done));
-    submitButton.textContent = "저장 중…";
+    submitButton.textContent = t("form.saving");
   }
   // 올리지 못한 사진을 빼고 저장하면 사진이 빠진 글이 올라가므로, 어떻게 할지 사용자가 정하게 한다.
   if (newPhotos.some((photo) => photo.state !== "done")) {
-    showPhotosError("올리지 못한 사진이 있습니다. 다시 시도하거나 빼 주세요.");
+    showPhotosError(t("form.photo_failed_remain"));
     setSubmitting(false);
     return;
   }
@@ -408,7 +410,7 @@ async function onSubmit(event) {
 function setSubmitting(isSubmitting) {
   submitting = isSubmitting;
   submitButton.disabled = isSubmitting;
-  submitButton.textContent = isSubmitting ? "저장 중…" : submitLabel;
+  submitButton.textContent = isSubmitting ? t("form.saving") : submitLabel;
   // 저장하는 동안 사진을 바꾸면 무엇이 저장되는지 헷갈리므로 사진 추가·빼기를 막는다.
   renderPhotos();
 }
