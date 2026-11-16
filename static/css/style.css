@@ -2810,8 +2810,14 @@ a.button {
   overflow-wrap: anywhere;
 }
 
-/* 상세 화면의 판매자 이름(프로필로 가는 링크) */
+/* 상세 화면의 판매자 이름(프로필로 가는 링크)
+   모바일에서 누르기 쉽게 누르는 곳은 44px로 키우되, 위아래 음수 여백으로 정보 줄 간격은 그대로 둔다. */
 .post-detail__seller-link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -9px 0;
   font-weight: var(--weight-bold);
 }
 
