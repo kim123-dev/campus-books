@@ -1,0 +1,92 @@
+{
+  "term.home": "Home",
+  "term.sell": "Sell",
+  "term.messages": "Messages",
+  "term.me": "My page",
+  "term.admin": "Admin",
+  "term.login": "Log in",
+  "term.signup": "Sign up",
+  "term.logout": "Log out",
+  "term.on_sale": "For sale",
+  "term.reserved": "Reserved",
+  "term.sold": "Sold",
+  "term.free": "Free",
+  "term.condition": "Condition",
+  "term.condition_good": "Good",
+  "term.condition_fair": "Fair",
+  "term.condition_poor": "Poor",
+  "term.wishlist": "Wishlist",
+  "term.book_alerts": "Book alerts",
+  "term.manner_grade": "Manner GPA",
+  "term.review": "Trade review",
+  "term.report": "Report",
+  "term.block": "Block",
+  "term.suspension": "Suspension",
+  "term.security_question": "Security question",
+
+  "enum.status.ON_SALE": "{@term.on_sale}",
+  "enum.status.RESERVED": "{@term.reserved}",
+  "enum.status.SOLD": "{@term.sold}",
+  "enum.condition.GOOD": "{@term.condition_good}",
+  "enum.condition.FAIR": "{@term.condition_fair}",
+  "enum.condition.POOR": "{@term.condition_poor}",
+
+  "format.price": "{price}원",
+  "format.page": "Page {page} of {total}",
+
+  "common.prev": "Prev",
+  "common.next": "Next",
+  "common.ok": "OK",
+
+  "card.condition": "{@term.condition}: {condition}",
+
+  "nav.main_aria": "Main menu",
+  "nav.tab_aria": "Bottom menu",
+  "nav.me_aria": "{@term.me}, {nickname}",
+  "nav.alerts_unread_aria": {
+    "one": "{@term.book_alerts}, {count} new alert",
+    "other": "{@term.book_alerts}, {count} new alerts"
+  },
+  "nav.messages_unread_aria": {
+    "one": "{@term.messages}, {count} unread message",
+    "other": "{@term.messages}, {count} unread messages"
+  },
+
+  "notice.suspended": "Your account is suspended until {date}. You can't post, edit, send messages, add to your wishlist, or report.",
+  "notice.reset": "Your password was reset ({date}, {how}). If you didn't do this, change your password and security question right away.",
+  "notice.reset_by_server": "by a server admin command",
+  "notice.reset_by_question": "using your security question",
+
+  "lang.button_aria": "Language",
+  "lang.title": "Language",
+  "lang.hint": "Changes the language of menus and labels. Posts and messages written by others stay as written.",
+
+  "err.network": "Can't connect to the server. Please try again in a moment.",
+  "err.generic": "Couldn't process your request. Please try again in a moment.",
+  "err.status.400": "This request can't be completed right now.",
+  "err.status.401": "Your login details are incorrect or have expired. Please log in again.",
+  "err.status.403": "You don't have permission to do this.",
+  "err.status.404": "Not found. It may have been deleted.",
+  "err.status.409": "This conflicts with the current state, so it wasn't processed.",
+  "err.status.413": "The file is too large.",
+  "err.status.422": "Please check your input.",
+  "err.status.429": "Too many requests. Please try again shortly.",
+  "err.wrong_password": "Your current password is incorrect.",
+
+  "val.required": "This field is required.",
+  "val.min": "Must be {min} or more.",
+  "val.max": "Must be {max} or less.",
+  "val.integer": "Please enter a whole number.",
+  "val.empty": "Please fill this in.",
+  "val.min_length": {
+    "one": "Enter at least {count} character.",
+    "other": "Enter at least {count} characters."
+  },
+  "val.max_length": {
+    "one": "Enter {count} character or fewer.",
+    "other": "Enter {count} characters or fewer."
+  },
+  "val.enum": "That option isn't available.",
+  "val.email": "Please enter a valid email address.",
+  "val.invalid": "Please check your input."
+}

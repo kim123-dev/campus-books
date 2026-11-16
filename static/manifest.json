@@ -2,7 +2,7 @@
   "id": "/static/index.html",
   "name": "Campus Books",
   "short_name": "Campus Books",
-  "description": "같은 학교 학생끼리 전공 교재를 사고파는 중고 교재 게시판",
+  "description": "A used textbook marketplace for students at the same school",
   "lang": "ko",
   "start_url": "/static/index.html",
   "scope": "/static/",

@@ -2,6 +2,8 @@
 // HTML 문자열을 해석해 요소를 만드는 API는 쓰지 않고, 값은 항상 textContent로 넣는다.
 // 글 제목처럼 사용자가 입력한 값에 <script>가 들어 있어도 글자로만 보이고 실행되지 않기 때문이다.
 // (tests/test_static.py가 이 규칙을 검사한다)
+// 화면 문구는 i18n.js의 t()로 언어에 맞게 가져온다.
+import { LANG, formatDateWith, formatNumber, t } from "./i18n.js";
 
 /**
  * DOM 요소를 만든다.
@@ -37,6 +39,7 @@ const ICON_PATHS = {
   bell: "M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0",
   filter: "M4 7h16M7 12h10M10 17h4",
   share: "M12 3.5v11M8 7.5l4-4 4 4M8 10.5H6v10h12v-10h-2", // iOS Safari의 공유 버튼 모양 (설치 안내)
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3.5 9h17M3.5 15h17M12 3c-2.4 2.5-3.6 5.5-3.6 9s1.2 6.5 3.6 9c2.4-2.5 3.6-5.5 3.6-9S14.4 5.5 12 3z", // 언어 선택
 };
 
 /** 선 아이콘(svg). HTML 문자열 없이 createElementNS로 만든다. 꾸밈용이라 화면 낭독기에서는 숨긴다. */
@@ -52,28 +55,44 @@ export function icon(name) {
   return svg;
 }
 
+// 서버가 주는 값(ON_SALE 등)의 화면 이름. i18n.js가 사전을 받은 뒤에 이 모듈이 실행되므로 바로 t()를 쓸 수 있다.
 export const STATUS_LABELS = {
-  ON_SALE: "판매 중",
-  RESERVED: "예약 중",
-  SOLD: "판매 완료",
+  ON_SALE: t("enum.status.ON_SALE"),
+  RESERVED: t("enum.status.RESERVED"),
+  SOLD: t("enum.status.SOLD"),
 };
 
 export const CONDITION_LABELS = {
-  GOOD: "상",
-  FAIR: "중",
-  POOR: "하",
+  GOOD: t("enum.condition.GOOD"),
+  FAIR: t("enum.condition.FAIR"),
+  POOR: t("enum.condition.POOR"),
 };
 
+// 가격은 모든 언어에서 "12,000원"으로 쓴다. 원화만 다루는 서비스라 단위를 바꾸지 않고, 숫자 형식만 언어에 맞춘다.
 export function formatPrice(price) {
-  return price === 0 ? "무료 나눔" : `${price.toLocaleString("ko-KR")}원`;
+  return price === 0 ? t("term.free") : t("format.price", { price: formatNumber(price) });
 }
 
 // 서버(SQLite)는 UTC 시간을 시간대 표시 없이 돌려준다.
 // 그대로 Date에 넣으면 브라우저가 현지 시간으로 오해하므로, 시간대가 없으면 UTC(Z)로 본다.
+// 한국어는 예전 형식("2026.11.06 14:20")을 그대로 쓰고, 다른 언어는 그 언어의 날짜 형식("Nov 6, 2026, 14:20")을 쓴다.
 export function formatDate(isoText) {
   const date = parseServerDate(isoText);
   if (date === null) return "";
-  return `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  if (LANG !== "ko") return formatDateWith(date, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return `${formatDateOnlyKo(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+/** 날짜만 ("2026.11.06", "Nov 6, 2026"). 가입일·차단일처럼 시각이 필요 없는 곳에 쓴다. */
+export function formatDateOnly(isoText) {
+  const date = parseServerDate(isoText);
+  if (date === null) return "";
+  if (LANG !== "ko") return formatDateWith(date, { year: "numeric", month: "short", day: "numeric" });
+  return formatDateOnlyKo(date);
+}
+
+function formatDateOnlyKo(date) {
+  return `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())}`;
 }
 
 /**
@@ -86,7 +105,10 @@ export function formatShortDate(isoText) {
   const now = new Date();
   const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
   if (date.toDateString() === now.toDateString()) return time;
-  if (date.getFullYear() === now.getFullYear()) return `${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} ${time}`;
+  if (date.getFullYear() === now.getFullYear()) {
+    if (LANG !== "ko") return formatDateWith(date, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    return `${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} ${time}`;
+  }
   return formatDate(isoText);
 }
 
@@ -94,11 +116,15 @@ export function formatShortDate(isoText) {
 export function formatMonthDayTime(isoText) {
   const date = parseServerDate(isoText);
   if (date === null) return "";
-  const year = date.getFullYear() !== new Date().getFullYear() ? `${date.getFullYear()}년 ` : "";
+  const otherYear = date.getFullYear() !== new Date().getFullYear();
+  if (LANG !== "ko") {
+    return formatDateWith(date, { ...(otherYear ? { year: "numeric" } : {}), month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  const year = otherYear ? `${date.getFullYear()}년 ` : "";
   return `${year}${date.getMonth() + 1}월 ${date.getDate()}일 ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-function parseServerDate(isoText) {
+export function parseServerDate(isoText) {
   if (typeof isoText !== "string") return null;
   const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(isoText);
   const date = new Date(hasZone ? isoText : `${isoText}Z`);
@@ -132,25 +158,50 @@ export function clearFormErrors(form, generalErrorEl) {
 /**
  * ApiError를 폼에 표시한다.
  * 해당 입력칸이 있는 필드 에러는 칸 아래에, 나머지는 공통 에러 영역에 보여준다.
+ * 한국어가 아닌 화면에서 서버의 한국어 문장을 번역 문장으로 바꿨으면, 원문을 아래에 작게 붙인다.
  */
 export function showFormErrors(form, generalErrorEl, error) {
   const leftover = [];
+  const leftoverOriginals = [];
+  const originals = error.fieldOriginals ?? {};
   for (const [field, message] of Object.entries(error.fieldErrors ?? {})) {
     const slot = form.querySelector(`[data-error-for="${CSS.escape(field)}"]`);
     if (slot) {
-      slot.textContent = message;
+      setErrorText(slot, message, originals[field]);
       slot.hidden = false;
       form.elements.namedItem(field)?.setAttribute("aria-invalid", "true");
     } else {
       leftover.push(message);
+      if (originals[field]) leftoverOriginals.push(originals[field]);
     }
   }
   const hasFieldErrors = Object.keys(error.fieldErrors ?? {}).length > 0;
-  const general = leftover.length > 0 ? leftover.join(" ") : hasFieldErrors ? "" : error.message;
+  let general = "";
+  let generalOriginal = null;
+  if (leftover.length > 0) {
+    general = leftover.join(" ");
+    generalOriginal = leftoverOriginals.join(" ") || null;
+  } else if (!hasFieldErrors) {
+    general = error.message;
+    generalOriginal = error.original ?? null;
+  }
   if (generalErrorEl && general) {
-    generalErrorEl.textContent = general;
+    setErrorText(generalErrorEl, general, generalOriginal);
     generalErrorEl.hidden = false;
   }
+}
+
+/**
+ * 오류 문구를 넣는다. original(서버가 보낸 한국어 원문)이 있으면 그 아래에 작은 회색 글씨로 붙인다.
+ * 번역 문장은 상태 코드로만 고른 일반 문장이라, 원문이 있어야 정확한 사유를 알 수 있기 때문이다.
+ * 화면별 오류 표시는 각 화면을 번역할 때(2~5단계) 이 함수로 바꾼다.
+ */
+export function setErrorText(node, message, original = null) {
+  if (!original) {
+    node.textContent = message;
+    return;
+  }
+  node.replaceChildren(message, el("small", { className: "error-original", text: original, attrs: { lang: "ko" } }));
 }
 
 /**
@@ -244,7 +295,7 @@ export function renderPostCard(post, { action = null } = {}) {
           "div",
           { className: "post-card__top" },
           statusBadge(post.status),
-          el("span", { className: "post-card__condition", text: `책 상태 ${CONDITION_LABELS[post.condition] ?? post.condition}` }),
+          el("span", { className: "post-card__condition", text: t("card.condition", { condition: CONDITION_LABELS[post.condition] ?? post.condition }) }),
         ),
         el("h2", { className: "post-card__title", text: post.title }),
         el("p", { className: "post-card__book", text: `${post.book_title}${courseText}` }),
@@ -267,14 +318,14 @@ export function renderPagination(container, page, totalPages, onPageChange) {
     return;
   }
 
-  const prev = el("button", { type: "button", className: "button", text: "이전", disabled: page <= 1 });
-  const next = el("button", { type: "button", className: "button", text: "다음", disabled: page >= totalPages });
+  const prev = el("button", { type: "button", className: "button", text: t("common.prev"), disabled: page <= 1 });
+  const next = el("button", { type: "button", className: "button", text: t("common.next"), disabled: page >= totalPages });
   prev.addEventListener("click", () => onPageChange(Math.min(page - 1, totalPages)));
   next.addEventListener("click", () => onPageChange(page + 1));
 
   container.replaceChildren(
     prev,
-    el("span", { className: "pagination__info", text: `${page} / ${totalPages} 페이지` }),
+    el("span", { className: "pagination__info", text: t("format.page", { page, total: totalPages }) }),
     next,
   );
 }

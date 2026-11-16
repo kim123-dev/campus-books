@@ -41,6 +41,9 @@ export async function startBrowser(OUT, { width, height = 812, mobile = true, po
     "--no-first-run",
     "--no-default-browser-check",
     "--hide-scrollbars",
+    // 화면 언어가 브라우저 언어를 따를 수 있으므로, 확인 스크립트(한국어 문구로 요소를 찾음)가 PC 언어 설정에 흔들리지 않게 고정한다.
+    "--lang=ko-KR",
+    "--accept-lang=ko-KR",
     "about:blank",
   ]);
   let wsUrl;

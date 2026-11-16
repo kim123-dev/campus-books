@@ -3,6 +3,8 @@
 // 고른 탭과 페이지는 주소창(?tab=wishlist&page=2)에 저장한다. 새로고침과 뒤로 가기에도 같은 목록이 나오게 하기 위해서다.
 import { changePassword, getProfile, listMyPosts, listWishlist, setSecurityQuestion, updateMe, withdraw } from "../api.js";
 import { logout, redirectToLogin, renderHeader } from "../auth.js";
+import { t } from "../i18n.js";
+import { languageOptions } from "../lang-picker.js";
 import { renderSecurityQuestionFields } from "../security-question.js";
 import { clearToken, getToken, setToken } from "../token.js";
 import {
@@ -10,8 +12,9 @@ import {
   el,
   EMPTY_POSTS_IMAGE,
   EMPTY_WISHLIST_IMAGE,
-  formatDate,
+  formatDateOnly,
   formatMonthDayTime,
+  parseServerDate,
   renderEmptyState,
   renderPagination,
   renderPostCard,
@@ -77,6 +80,7 @@ async function init() {
   renderProfile(me);
   loadManner(me.id);
   setUpAccount(me);
+  setUpLanguage();
   setUpTabs();
   // 뒤로 가기/앞으로 가기로 주소가 바뀌면 그 탭·페이지를 다시 불러온다.
   window.addEventListener("popstate", load);
@@ -87,8 +91,8 @@ async function init() {
 
 function renderProfile(me) {
   document.getElementById("profile-nickname").textContent = `${me.nickname}님`;
-  // 가입일은 날짜만 보여준다. (formatDate는 "2026.11.06 14:20" 형식)
-  document.getElementById("profile-meta").textContent = `${me.email} · ${formatDate(me.created_at).slice(0, 10)} 가입`;
+  // 가입일은 날짜만 보여준다.
+  document.getElementById("profile-meta").textContent = `${me.email} · ${formatDateOnly(me.created_at)} 가입`;
   document.getElementById("profile-public-link").href = `/static/user.html?id=${encodeURIComponent(me.id)}`;
   // 모바일에서는 헤더 메뉴 대신 하단 탭 바를 쓰므로, 헤더에 있던 "관리"·"로그아웃"을 이 화면에 둔다.
   // PC에서는 헤더에 그대로 있으므로 CSS(mobile-only)가 숨긴다.
@@ -263,6 +267,8 @@ function setUpSecurityQuestion(me, { form, toggle, open, close }) {
     return;
   }
   const fields = renderSecurityQuestionFields(document.getElementById("question-fields"), { idPrefix: "me" });
+  // 저장할 때마다 서버가 준 최신 내 정보로 바꾼다. 400이 어떤 사유인지 판단할 때 쓴다.
+  let current = me;
   updateQuestionStatus(me);
   toggle.addEventListener("click", open);
 
@@ -285,6 +291,7 @@ function setUpSecurityQuestion(me, { form, toggle, open, close }) {
     try {
       const updated = await setSecurityQuestion(password.value, fields.value());
       fields.reset();
+      current = updated;
       updateQuestionStatus(updated);
       close(form, "본인 확인 질문을 저장했어요.");
     } catch (error) {
@@ -293,8 +300,10 @@ function setUpSecurityQuestion(me, { form, toggle, open, close }) {
         return;
       }
       // 비밀번호 틀림(400)만 비밀번호 칸 아래에 보여준다. 7일 제한(400)은 비밀번호와 관계없어 공통 영역에 보여준다.
-      if (error.status === 400 && error.message.startsWith("현재 비밀번호")) {
-        showFormErrors(form, errorBox, { fieldErrors: { password: error.message } });
+      // 서버 문구 내용으로 구분하면 화면 언어를 바꿨을 때(문구가 번역됨) 동작이 달라지므로,
+      // 이미 알고 있는 7일 제한 여부로 구분한다. 제한 중이 아닌데 400이면 비밀번호가 틀린 것이다.
+      if (error.status === 400 && !questionChangeLocked(current)) {
+        showFormErrors(form, errorBox, { fieldErrors: { password: t("err.wrong_password") } });
       } else {
         showFormErrors(form, errorBox, error);
       }
@@ -302,6 +311,12 @@ function setUpSecurityQuestion(me, { form, toggle, open, close }) {
       submit.disabled = false;
     }
   });
+}
+
+// 질문으로 비밀번호를 재설정한 뒤 7일 동안은 질문을 바꿀 수 없다. 서버가 그 끝 시각을 내 정보에 담아 준다.
+function questionChangeLocked(me) {
+  const until = parseServerDate(me.security_question_changeable_at);
+  return until !== null && until > new Date();
 }
 
 // 지금 등록된 질문과, 없으면 등록하라는 안내. 답은 서버도 보여주지 않는다.
@@ -333,6 +348,17 @@ function showPasswordError(form, errorBox, error, field) {
   } else {
     showFormErrors(form, errorBox, error);
   }
+}
+
+// ---------- 언어 ----------
+
+// 화면 언어 고르기. 기능 플래그가 꺼져 있으면 languageOptions()가 null이라 칸을 숨긴 채로 둔다.
+function setUpLanguage() {
+  const options = languageOptions();
+  if (options === null) return;
+  const section = document.getElementById("language");
+  section.append(options);
+  section.hidden = false;
 }
 
 // ---------- 탭: 내 글 | 찜 목록 ----------

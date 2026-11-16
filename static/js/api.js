@@ -1,5 +1,6 @@
 // 서버 API 호출은 모두 이 파일을 거친다.
 // 화면 코드(pages/*.js)가 fetch, 토큰 헤더, 에러 형식을 직접 다루지 않게 하기 위해서다.
+import { LANG, t } from "./i18n.js";
 import { clearToken, getToken } from "./token.js";
 
 /** API 실패를 화면에서 한 가지 형식으로 다루기 위한 에러. */
@@ -14,6 +15,12 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
     this.fieldErrors = fieldErrors;
+    /**
+     * 한국어가 아닌 화면에서 서버의 한국어 문장을 상태 코드별 번역 문장으로 바꿨을 때의 원문. 그 밖에는 null.
+     * 화면은 번역 문장 아래에 원문을 작게 붙인다(ui.js의 setErrorText). fieldOriginals는 필드별 원문이다.
+     */
+    this.original = null;
+    this.fieldOriginals = {};
     /** 429일 때 서버가 알려준 재시도 대기 시간(초). 그 밖에는 null. */
     this.retryAfter = null;
   }
@@ -47,7 +54,7 @@ export async function request(path, { method = "GET", query, json, form } = {}) 
   try {
     response = await fetch(url, { method, headers, body });
   } catch {
-    throw new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    throw new ApiError(0, t("err.network"));
   }
 
   if (response.status === 204) return null;
@@ -89,11 +96,11 @@ function uploadWithProgress(path, formData, onProgress, signal) {
       if (xhr.status >= 200 && xhr.status < 300) resolve(data);
       else reject(failure(xhr.status, data, xhr.getResponseHeader("Retry-After")));
     });
-    const offline = () => reject(new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."));
+    const offline = () => reject(new ApiError(0, t("err.network")));
     xhr.addEventListener("error", offline);
     xhr.addEventListener("abort", () => {
       // 사용자가 사진을 빼서 멈춘 것과 연결이 끊긴 것을 화면이 구분할 수 있게 표시해 둔다.
-      const error = new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      const error = new ApiError(0, t("err.network"));
       error.aborted = signal?.aborted === true;
       reject(error);
     });
@@ -118,7 +125,7 @@ async function requestBlob(path, query = {}) {
   try {
     response = await fetch(url, { headers });
   } catch {
-    throw new ApiError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    throw new ApiError(0, t("err.network"));
   }
   if (!response.ok) {
     const data = await response.json().catch(() => null);
@@ -496,53 +503,81 @@ function toApiError(status, data) {
   const detail = data?.detail;
 
   // 400/401/403/404/409/413, 사진 형식 422: 서버가 보낸 한국어 메시지를 그대로 보여준다.
-  if (typeof detail === "string") return new ApiError(status, detail);
+  // 다른 언어 화면에서는 상태 코드별 번역 문장을 보여주고, 원문은 error.original로 넘긴다.
+  // (서버 오류를 코드로 주는 작업은 아직 하지 않았다. 그때까지는 정확한 사유를 원문으로 알린다)
+  if (typeof detail === "string") {
+    if (LANG === "ko") return new ApiError(status, detail);
+    const error = new ApiError(status, statusMessage(status));
+    error.original = detail;
+    return error;
+  }
 
   // 422: [{loc: ["query", "min_price"], msg, type, ctx}, ...]
   if (Array.isArray(detail)) {
     const fieldErrors = {};
+    const fieldOriginals = {};
     const general = [];
+    const generalOriginals = [];
     for (const item of detail) {
       const loc = item.loc ?? [];
       // loc의 마지막 값이 필드 이름이다. ["query"]처럼 필드가 없으면 여러 필드를 함께 본 검사다.
       const field = loc.length > 1 ? String(loc[loc.length - 1]) : null;
-      const message = translateValidation(item);
-      if (field && !(field in fieldErrors)) fieldErrors[field] = message;
-      else if (!field) general.push(message);
+      const { message, original } = translateValidation(item);
+      if (field && !(field in fieldErrors)) {
+        fieldErrors[field] = message;
+        if (original) fieldOriginals[field] = original;
+      } else if (!field) {
+        general.push(message);
+        if (original) generalOriginals.push(original);
+      }
     }
-    return new ApiError(status, general.join(" ") || "입력값을 확인해 주세요.", fieldErrors);
+    const error = new ApiError(status, general.join(" ") || t("val.invalid"), fieldErrors);
+    error.fieldOriginals = fieldOriginals;
+    error.original = generalOriginals.join(" ") || null;
+    return error;
   }
 
-  return new ApiError(status, "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  return new ApiError(status, t("err.generic"));
 }
 
-// Pydantic 기본 메시지는 영어라서 자주 나오는 종류만 한국어로 바꾼다.
+// 서버 문장을 대신할 상태 코드별 번역 문장. 목록에 없는 코드(500 등)는 일반 문장.
+const STATUS_MESSAGE_CODES = [400, 401, 403, 404, 409, 413, 422, 429];
+function statusMessage(status) {
+  return STATUS_MESSAGE_CODES.includes(status) ? t(`err.status.${status}`) : t("err.generic");
+}
+
+// Pydantic 기본 메시지는 영어라서 자주 나오는 종류만 화면 언어로 바꾼다. 돌려주는 값: { message, original }
 // 서버가 직접 만든 메시지(ValueError)는 "Value error, " 앞부분만 떼고 그대로 쓴다.
-function translateValidation({ type, msg, ctx = {} }) {
+// 다른 언어 화면에서는 그 한국어 문장 대신 일반 문장을 보여주고 원문(original)을 함께 넘긴다.
+function translateValidation({ type, msg, ctx = {}, input }) {
+  const plain = (message) => ({ message, original: null });
   switch (type) {
     case "missing":
-      return "필수 항목입니다.";
+      return plain(t("val.required"));
     case "greater_than_equal":
-      return `${ctx.ge} 이상이어야 합니다.`;
+      return plain(t("val.min", { min: ctx.ge }));
     case "less_than_equal":
-      return `${ctx.le} 이하여야 합니다.`;
+      return plain(t("val.max", { max: ctx.le }));
     case "int_parsing":
     case "int_type":
     case "int_from_float":
-      return "정수로 입력해 주세요.";
+      return plain(t("val.integer"));
     case "string_too_short":
-      return ctx.min_length === 1 ? "내용을 입력해 주세요." : `${ctx.min_length}자 이상 입력해 주세요.`;
+      return plain(ctx.min_length === 1 ? t("val.empty") : t("val.min_length", { count: ctx.min_length }));
     case "string_too_long":
-      return `${ctx.max_length}자 이하로 입력해 주세요.`;
+      return plain(t("val.max_length", { count: ctx.max_length }));
     case "enum":
-      return "선택할 수 없는 값입니다.";
-    case "value_error":
+      return plain(t("val.enum"));
+    case "value_error": {
       // 이메일 형식 검사(EmailStr)는 라이브러리의 영어 메시지가 오므로 따로 바꾼다.
-      if (String(msg).startsWith("value is not a valid email address")) return "올바른 이메일 형식이 아닙니다.";
+      if (String(msg).startsWith("value is not a valid email address")) return plain(t("val.email"));
       // 수정 화면에서 가격·책 상태를 비우면 null을 보내는데, 서버 문구는 개발자용이라 화면용으로 바꾼다.
-      if (String(msg).includes("null로 바꿀 수 없습니다")) return "필수 항목입니다.";
-      return String(msg).replace(/^Value error, /, "");
+      // 서버 문구 내용이 아니라 "보낸 값이 null"인지로 판단한다. 문구가 바뀌어도 동작이 그대로이게 하기 위해서다.
+      if (input === null) return plain(t("val.required"));
+      const serverText = String(msg).replace(/^Value error, /, "");
+      return LANG === "ko" ? plain(serverText) : { message: t("val.invalid"), original: serverText };
+    }
     default:
-      return "입력값을 확인해 주세요.";
+      return plain(t("val.invalid"));
   }
 }

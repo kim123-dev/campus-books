@@ -4,7 +4,7 @@ import { listBlocks, unblockUser } from "../api.js";
 import { redirectToLogin, renderHeader } from "../auth.js";
 import { confirmUnblock } from "../safety.js";
 import { getToken } from "../token.js";
-import { el, formatDate, renderPagination } from "../ui.js";
+import { el, formatDateOnly, renderPagination } from "../ui.js";
 
 const PAGE_SIZE = 20;
 
@@ -118,7 +118,7 @@ function renderBlockItem({ user, created_at: createdAt }) {
       "div",
       { className: "block-item__info" },
       el("p", { className: "block-item__name", text: user.nickname }),
-      el("p", { className: "block-item__meta", text: `${formatDate(createdAt).slice(0, 10)} 차단` }),
+      el("p", { className: "block-item__meta", text: `${formatDateOnly(createdAt)} 차단` }),
     ),
     button,
     status,

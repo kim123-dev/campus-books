@@ -1,6 +1,8 @@
 // 로그인 상태 처리: 공통 헤더, 로그인 후 돌아갈 주소, 로그아웃.
 // 토큰 보관 자체는 token.js가 맡는다.
 import { dismissResetNotice, getAlertUnreadCount, getMe, getUnreadCount } from "./api.js";
+import { t } from "./i18n.js";
+import { languageMenu } from "./lang-picker.js";
 import { clearToken, getToken } from "./token.js";
 import { el, formatMonthDayTime, icon } from "./ui.js";
 
@@ -79,7 +81,7 @@ export function redirectToLogin() {
  * @returns {Promise<object|null>} 로그인한 사용자 정보 (다른 화면에서 "내 글인지" 판단할 때 쓰도록)
  */
 export async function renderHeader(container) {
-  const nav = el("nav", { className: "site-nav", attrs: { "aria-label": "주요 메뉴" } });
+  const nav = el("nav", { className: "site-nav", attrs: { "aria-label": t("nav.main_aria") } });
   // 알림 종은 메뉴(nav) 밖에 둔다. 모바일에서는 로그인 메뉴가 숨겨져도(하단 탭 바가 대신) 종은 보여야 하기 때문이다.
   const bellSlot = el("span", { className: "site-header__bell" });
   container.replaceChildren(
@@ -94,7 +96,8 @@ export async function renderHeader(container) {
         el("img", { className: "site-logo__mark", src: LOGO_IMAGE, alt: "", width: 128, height: 128, decoding: "async" }),
         "Campus Books",
       ),
-      el("div", { className: "site-header__right" }, nav, bellSlot),
+      // 언어 버튼은 로그인 여부와 관계없이 모든 화면에 둔다. (기능 플래그가 꺼져 있으면 null이라 그리지 않는다)
+      el("div", { className: "site-header__right" }, nav, bellSlot, languageMenu()),
     ),
   );
   // 모바일 하단 탭 바는 로그인 확인을 기다리지 않고 바로 그려, 화면이 뜬 뒤 아래가 밀리지 않게 한다.
@@ -135,7 +138,7 @@ export async function renderHeader(container) {
 // 비밀번호가 재설정된 뒤 처음 로그인했을 때 한 번 보여준다. 본인이 하지 않은 재설정을 알아챌 수 있게 하기 위해서다.
 // "확인"을 누르면 서버에 기록하고 다시 보여주지 않는다.
 function resetNotice({ reset_at: resetAt, method }) {
-  const how = method === "SERVER" ? "서버 관리 명령으로" : "본인 확인 질문으로";
+  const how = method === "SERVER" ? t("notice.reset_by_server") : t("notice.reset_by_question");
   const box = el(
     "p",
     { className: "site-notice site-notice--action", attrs: { role: "status" } },
@@ -143,11 +146,11 @@ function resetNotice({ reset_at: resetAt, method }) {
       "span",
       { className: "container" },
       el("span", {
-        text: `비밀번호가 재설정됐어요. (${formatMonthDayTime(resetAt)}, ${how}) 직접 하지 않았다면 바로 비밀번호와 본인 확인 질문을 바꿔 주세요.`,
+        text: t("notice.reset", { date: formatMonthDayTime(resetAt), how }),
       }),
     ),
   );
-  const button = el("button", { type: "button", className: "button button--small", text: "확인" });
+  const button = el("button", { type: "button", className: "button button--small", text: t("common.ok") });
   button.addEventListener("click", async () => {
     button.disabled = true;
     try {
@@ -164,26 +167,26 @@ function resetNotice({ reset_at: resetAt, method }) {
 
 function loggedOutLinks() {
   return [
-    el("a", { href: authPageUrl(LOGIN_PAGE), text: "로그인" }),
-    el("a", { href: authPageUrl(SIGNUP_PAGE), text: "회원가입" }),
+    el("a", { href: authPageUrl(LOGIN_PAGE), text: t("term.login") }),
+    el("a", { href: authPageUrl(SIGNUP_PAGE), text: t("term.signup") }),
   ];
 }
 
 function loggedInItems(me) {
-  const logoutButton = el("button", { type: "button", className: "link-button", text: "로그아웃" });
+  const logoutButton = el("button", { type: "button", className: "link-button", text: t("term.logout") });
   logoutButton.addEventListener("click", logout);
   return [
-    el("a", { href: POST_FORM_PAGE, text: "글쓰기" }),
+    el("a", { href: POST_FORM_PAGE, text: t("term.sell") }),
     el(
       "a",
       { href: CONVERSATIONS_PAGE, className: "site-nav__messages", attrs: { id: "nav-messages" } },
-      "쪽지",
+      t("term.messages"),
       el("span", { className: "nav-badge", attrs: { id: "nav-unread", "aria-hidden": "true" }, hidden: true }),
     ),
     // 관리자에게만 보인다. 링크를 숨기는 것은 편의일 뿐이고, 실제 권한은 서버가 /admin API마다 확인한다.
     // 닉네임은 따로 보여주지 않고 "내 정보" 링크 이름에 담는다. (화면 낭독기: "내 정보, 책벌레님")
-    el("a", { href: ME_PAGE, className: "site-nav__me", text: "내 정보", attrs: { "aria-label": `내 정보, ${me.nickname}님` } }),
-    ...(me.role === "ADMIN" ? [el("a", { href: ADMIN_PAGE, text: "관리" })] : []),
+    el("a", { href: ME_PAGE, className: "site-nav__me", text: t("term.me"), attrs: { "aria-label": t("nav.me_aria", { nickname: me.nickname }) } }),
+    ...(me.role === "ADMIN" ? [el("a", { href: ADMIN_PAGE, text: t("term.admin") })] : []),
     logoutButton,
   ];
 }
@@ -195,7 +198,7 @@ function alertBell() {
     {
       className: "site-bell",
       href: ALERTS_PAGE,
-      attrs: { id: "nav-alerts", "aria-label": "찾는 교재 알림", ...(window.location.pathname === ALERTS_PAGE ? { "aria-current": "page" } : {}) },
+      attrs: { id: "nav-alerts", "aria-label": t("term.book_alerts"), ...(window.location.pathname === ALERTS_PAGE ? { "aria-current": "page" } : {}) },
     },
     icon("bell"),
     el("span", { className: "nav-badge site-bell__badge", attrs: { id: "nav-alerts-unread", "aria-hidden": "true" }, hidden: true }),
@@ -206,11 +209,12 @@ function alertBell() {
 
 // also: 이 탭에서 들어가는 화면. 그 화면에서도 이 탭을 현재 탭으로 표시한다. alsoPrefix는 주소 앞부분이 같은 화면들.
 // 찜은 내 정보 화면의 탭으로 옮겨 4칸으로 줄였다. 칸이 넓어져 누르기 쉽다.
+// labelKey: 탭 이름의 사전 키 (헤더 메뉴와 같은 용어 term.*을 쓴다)
 const TABS = [
-  { href: HOME_PAGE, label: "홈", icon: "home" },
-  { href: POST_FORM_PAGE, label: "글쓰기", icon: "plus", modifier: "write" },
-  { href: CONVERSATIONS_PAGE, label: "쪽지", icon: "chat", id: "tab-messages", badgeId: "tab-unread" },
-  { href: ME_PAGE, label: "내 정보", icon: "user", also: [BLOCKS_PAGE, ALERTS_PAGE, ...LEGACY_ME_PAGES], alsoPrefix: ADMIN_PAGE_PREFIX },
+  { href: HOME_PAGE, labelKey: "term.home", icon: "home" },
+  { href: POST_FORM_PAGE, labelKey: "term.sell", icon: "plus", modifier: "write" },
+  { href: CONVERSATIONS_PAGE, labelKey: "term.messages", icon: "chat", id: "tab-messages", badgeId: "tab-unread" },
+  { href: ME_PAGE, labelKey: "term.me", icon: "user", also: [BLOCKS_PAGE, ALERTS_PAGE, ...LEGACY_ME_PAGES], alsoPrefix: ADMIN_PAGE_PREFIX },
 ];
 
 /**
@@ -231,13 +235,13 @@ function renderTabBar() {
       "a",
       { className: `tab-bar__item${tab.modifier ? ` tab-bar__item--${tab.modifier}` : ""}`, href: tab.href, attrs },
       el("span", { className: "tab-bar__icon" }, icon(tab.icon)),
-      el("span", { className: "tab-bar__label", text: tab.label }),
+      el("span", { className: "tab-bar__label", text: t(tab.labelKey) }),
       tab.badgeId
         ? el("span", { className: "nav-badge tab-bar__badge", attrs: { id: tab.badgeId, "aria-hidden": "true" }, hidden: true })
         : null,
     );
   });
-  document.body.append(el("nav", { className: "tab-bar", attrs: { "aria-label": "하단 메뉴" } }, ...items));
+  document.body.append(el("nav", { className: "tab-bar", attrs: { "aria-label": t("nav.tab_aria") } }, ...items));
   // 탭 바 높이만큼 화면 아래 여백을 둔다. (CSS가 모바일에서만 적용)
   document.body.classList.add("has-tab-bar");
 }
@@ -245,7 +249,7 @@ function renderTabBar() {
 /** 정지 중이면 안내 문구, 아니면 null. 서버는 기간이 지난 정지를 null로 보내므로 날짜만 확인한다. */
 export function suspensionText(me) {
   if (!me?.suspended_until) return null;
-  return `${formatMonthDayTime(me.suspended_until)}까지 이용이 정지된 상태입니다. 글쓰기·수정·쪽지·찜·신고를 할 수 없어요.`;
+  return t("notice.suspended", { date: formatMonthDayTime(me.suspended_until) });
 }
 
 /**
@@ -264,7 +268,7 @@ export async function refreshAlertBadge() {
   }
   badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
   badge.hidden = count === 0;
-  link.setAttribute("aria-label", count > 0 ? `찾는 교재 알림, 새 알림 ${count}개` : "찾는 교재 알림");
+  link.setAttribute("aria-label", count > 0 ? t("nav.alerts_unread_aria", { count }) : t("term.book_alerts"));
 }
 
 /**
@@ -292,7 +296,7 @@ export async function refreshUnreadBadge() {
     badge.textContent = count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : String(count);
     badge.hidden = count === 0;
     // 배지 숫자는 화면 낭독기에서 숨기고, 링크 이름에 뜻을 담아 읽어 준다.
-    link.setAttribute("aria-label", count > 0 ? `쪽지, 안 읽은 메시지 ${count}개` : "쪽지");
+    link.setAttribute("aria-label", count > 0 ? t("nav.messages_unread_aria", { count }) : t("term.messages"));
   }
 }
 

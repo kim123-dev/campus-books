@@ -417,7 +417,10 @@ def test_tab_bar_links_to_main_pages() -> None:
     tabs = re.search(r"const TABS = \[(.*?)\n\];", source, re.S)
     assert tabs, "auth.js에서 TABS를 찾지 못했습니다."
 
-    labels = re.findall(r'label: "([^"]+)"', tabs.group(1))
+    # 탭 이름은 사전 키로 적고, 한국어 사전에서 예전 이름 그대로 나와야 한다. (번역 규칙은 test_i18n.py)
+    keys = re.findall(r'labelKey: "([^"]+)"', tabs.group(1))
+    ko = json.loads((STATIC_DIR / "i18n" / "ko.json").read_text(encoding="utf-8"))
+    labels = [ko[key] for key in keys]
     assert labels == ["홈", "글쓰기", "쪽지", "내 정보"]
     for page in ["HOME_PAGE", "POST_FORM_PAGE", "CONVERSATIONS_PAGE", "ME_PAGE"]:
         assert f"href: {page}" in tabs.group(1)
