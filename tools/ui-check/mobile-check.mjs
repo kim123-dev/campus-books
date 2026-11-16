@@ -19,6 +19,7 @@ const SMALL_OK = [
   ".conversation-card__time", ".conversation-card__role",
   ".message__time", ".chat__count", ".profile-card__meta", ".block-item__meta",
   ".report-card__type", ".report-card__status", ".report-card__meta", ".gallery__counter", ".chat__role",
+  ".chat__empty-hint", // 빈 대화의 한 줄 개인정보 안내(작은 회색)
 ].join(", ");
 
 // 화면에 보이는 요소 중 규칙에 어긋나는 것을 모은다.

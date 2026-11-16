@@ -1906,6 +1906,18 @@ a.button {
   overflow-wrap: anywhere;
 }
 
+/* 상대 닉네임 줄: 이름은 남는 폭, 오른쪽 끝에 ⋯(더보기) */
+.chat__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chat__title-row .chat__partner {
+  flex: 1;
+  min-width: 0;
+}
+
 .chat__post {
   display: flex;
   flex-wrap: wrap;
@@ -1993,6 +2005,18 @@ a.button {
 .chat__empty {
   margin: 40px 0;
   color: var(--color-muted);
+  text-align: center;
+}
+
+/* 빈 대화에서만: "아직 메시지가 없습니다" 아래 작은 회색 한 줄 개인정보 안내 */
+.chat__empty:not([hidden]) + .chat__empty-hint {
+  margin-top: calc(-1 * var(--space-5));
+}
+
+.chat__empty-hint {
+  margin: 0 0 40px;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
   text-align: center;
 }
 
@@ -2142,10 +2166,41 @@ a.button {
   margin: 8px auto 0;
 }
 
-/* 입력창 아래 "사진" 버튼. 보내기 버튼 바로 왼쪽에 붙인다. */
+/* 입력칸 왼쪽 "+"(사진 추가) 아이콘 버튼: 44px 원형 */
 .chat__photo-button {
-  min-height: 44px;
-  margin-left: auto;
+  display: inline-flex;
+  grid-area: photo;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-fill);
+  color: var(--color-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chat__photo-button:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+}
+
+.chat__photo-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.chat__photo-button .icon {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .message__menu {
@@ -2205,25 +2260,35 @@ a.button {
   font-size: var(--text-sm);
 }
 
+/* 입력 영역: [+] [입력칸(남는 폭 전부)] [보내기] 한 줄. 그 아래 오류, 사진 보내는 중·글자 수, 전송 오류.
+   숨겨진 줄이 빈틈을 만들지 않게 줄 간격은 각 줄의 여백으로 준다. (PC·모바일 같은 구조) */
 .chat__form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "blocked blocked blocked"
+    "photo input send"
+    "field-error field-error field-error"
+    "bottom bottom bottom"
+    "send-error send-error send-error";
+  align-items: end;
+  gap: 0 var(--space-2);
   padding: 14px 16px 16px;
   border-top: 1px solid var(--color-divider);
 }
 
-.chat__privacy {
-  margin: 0;
-  padding: 8px 12px;
-  border-radius: var(--radius-control);
-  background: var(--color-fill);
-  color: var(--color-sub);
-  font-size: var(--text-sm);
-  line-height: 1.5;
+.chat__form .chat__blocked {
+  grid-area: blocked;
+  margin: 0 0 var(--space-2);
+}
+
+.chat__send {
+  grid-area: send;
+  min-height: 48px;
 }
 
 .chat__form textarea {
+  grid-area: input;
   width: 100%;
   min-height: 64px;
   max-height: 160px;
@@ -2247,11 +2312,14 @@ a.button {
   box-shadow: inset 0 0 0 2px var(--color-danger);
 }
 
+/* 입력 줄 아래 오른쪽: 사진 보내는 중(준비 중·%)과 글자 수 */
 .chat__form-bottom {
   display: flex;
+  grid-area: bottom;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
 }
 
 .chat__count {
@@ -2259,9 +2327,14 @@ a.button {
   font-size: var(--text-sm);
 }
 
-.chat__form .form-error,
 .chat__form .field-error {
-  margin: 0;
+  grid-area: field-error;
+  margin: var(--space-1) 0 0;
+}
+
+.chat__form .form-error {
+  grid-area: send-error;
+  margin: var(--space-1) 0 0;
 }
 
 /* ---------- 신고·차단 ---------- */
@@ -2323,12 +2396,11 @@ a.button {
   font-weight: var(--weight-bold);
 }
 
+/* 닉네임 줄 오른쪽 끝의 ⋯ 버튼 자리. 버튼 안쪽 여백만큼 오른쪽으로 붙인다. */
 .chat__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  margin-top: 8px;
-  font-size: var(--text-sm);
+  flex: none;
+  margin-right: calc(-1 * var(--space-2));
 }
 
 .chat__actions:empty {
@@ -3531,8 +3603,7 @@ a.button {
   .conversation-card__post,
   .report-card__snapshot-content,
   .report-card__snapshot-hint,
-  .chat__post,
-  .chat__privacy {
+  .chat__post {
     font-size: var(--text-md);
   }
   /* ----- 상세: 사진 좌우로 넘기기 ----- */
@@ -3638,85 +3709,27 @@ a.button {
     padding: 12px 14px 8px;
   }
 
-  /* 입력창 오른쪽에 보내기 버튼을 두어 한 줄을 아낀다. 숨겨진 줄이 빈틈을 만들지 않게 줄 간격은 여백으로 준다. */
+  /* 입력 줄 구조는 공통 구역과 같다. 모바일은 여백과 입력칸 높이만 줄인다. */
   .chat__form {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      "privacy privacy privacy"
-      "blocked blocked blocked"
-      "photo input send"
-      "field-error field-error field-error"
-      "count count count"
-      "send-error send-error send-error";
-    gap: 0 8px;
     padding: 10px 12px;
   }
 
-  .chat__privacy {
-    grid-area: privacy;
-    margin-bottom: 8px;
-  }
-
-  .chat__blocked {
-    grid-area: blocked;
-    margin-bottom: 8px;
-  }
-
   .chat__form textarea {
-    grid-area: input;
     min-height: 48px;
     max-height: 120px;
     resize: none;
   }
 
-  .chat__form-bottom {
-    display: contents;
-  }
-
-  .chat__form-bottom .chat__photo-button {
-    grid-area: photo;
-    align-self: end;
-    min-height: 48px;
-    margin-left: 0;
-    padding: 0 10px;
-  }
-
-  .chat__form-bottom .button[type="submit"] {
-    grid-area: send;
-    align-self: end;
-    min-height: 48px;
+  .chat__send {
     padding: 0 16px;
   }
 
-  .chat__count {
-    grid-area: count;
-    margin-top: 4px;
-    text-align: right;
-  }
-
-  .chat__form .field-error {
-    grid-area: field-error;
-    margin-top: 4px;
-  }
-
-  .chat__form .form-error {
-    grid-area: send-error;
-    margin-top: 4px;
-  }
-
-  /* 입력 중(키보드가 올라옴): 좁아진 화면을 메시지에 쓰도록 위쪽 줄을 접고, 개인정보 안내는 한 줄로 줄인다. */
+  /* 입력 중(키보드가 올라옴): 좁아진 화면을 메시지에 쓰도록 위쪽 줄(헤더·뒤로 가기·⋯·안내)을 접는다. */
   .chat-body.is-typing .site-header,
   .chat-body.is-typing .back-link,
   .chat-body.is-typing .chat__actions,
   .chat-body.is-typing .chat__header .safety-notice {
     display: none;
-  }
-
-  .chat-body.is-typing .chat__privacy {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .chat-body.is-typing main {

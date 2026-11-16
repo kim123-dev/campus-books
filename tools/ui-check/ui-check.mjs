@@ -148,7 +148,7 @@ try {
   check("대화: 맨 아래로 스크롤됨", await evaluate("(() => { const s = document.getElementById('chat-scroll'); return s.scrollHeight - s.scrollTop - s.clientHeight < 2; })()"));
   check("대화: 내/상대 말풍선 구분", await evaluate("document.querySelectorAll('.message--mine').length > 0 && document.querySelectorAll('.message--theirs').length > 0"));
   check("대화: 줄바꿈 유지", await evaluate("[...document.querySelectorAll('.message__bubble')].some(b => b.textContent.includes('\\n'))"));
-  check("대화: 개인정보 안내 표시", (await evaluate("document.querySelector('.chat__privacy').textContent")).includes("개인정보"));
+  check("대화: 입력창 위 개인정보 안내 박스 없음, 메시지가 있으면 한 줄 안내도 숨김", await evaluate("!document.querySelector('.chat__privacy') && document.getElementById('chat-empty-hint').hidden && document.getElementById('chat-empty-hint').textContent.includes('개인정보')"));
   await waitUntil("document.getElementById('nav-unread')?.textContent === '1'");
   check("대화: 읽은 뒤 헤더 배지 4 → 1 (다른 방 1개 남음)", (await evaluate("document.getElementById('nav-unread').textContent")) === "1");
   check(`${W}px: 가로 스크롤 없음 (대화)`, await noHorizontalScroll());

@@ -39,6 +39,7 @@ import {
   el,
   formatMonthDayTime,
   formatShortDate,
+  icon,
   readPostIdFromUrl,
   setErrorText,
   showBlobImage,
@@ -61,6 +62,7 @@ const chat = document.getElementById("chat");
 const scrollBox = document.getElementById("chat-scroll");
 const list = document.getElementById("message-list");
 const emptyText = document.getElementById("chat-empty");
+const emptyHint = document.getElementById("chat-empty-hint");
 const olderButton = document.getElementById("older-button");
 const olderSentinel = document.getElementById("older-sentinel");
 const newMessageButton = document.getElementById("new-message-button");
@@ -70,6 +72,7 @@ const textarea = form.elements.content;
 const counter = document.getElementById("content-count");
 const submitButton = form.querySelector('button[type="submit"]');
 const photoInput = document.getElementById("photo-input");
+const photoProgress = document.getElementById("photo-progress");
 const photoButton = document.getElementById("photo-button");
 const sendError = document.getElementById("send-error");
 const chatActions = document.getElementById("chat-actions");
@@ -180,6 +183,8 @@ async function init() {
 
 function bindEvents() {
   form.addEventListener("submit", onSubmit);
+  // "+" 아이콘 버튼. 이름은 aria-label("사진 추가")이 맡는다.
+  photoButton.replaceChildren(icon("plus"));
   photoButton.addEventListener("click", () => photoInput.click());
   photoInput.addEventListener("change", onPhotoChosen);
   textarea.addEventListener("input", updateCounter);
@@ -352,20 +357,38 @@ function applyBlockState(conversation) {
     return;
   }
 
-  const reportButton = el("button", { type: "button", className: "link-button", text: t("term.report") });
-  reportButton.addEventListener("click", async () => {
-    const reported = await openReportDialog({
-      heading: t("safety.report_user"),
-      targetText: t("chat.report_target", { nickname: partner.nickname }),
-      send: (data) => reportUser(partner.id, data),
-    });
-    if (reported) showSafetyNotice(REPORT_DONE_TEXT);
+  // 닉네임 줄 오른쪽 끝의 ⋯(더보기). 메시지마다 있는 ⋯와 같은 모양·같은 메뉴 창(openActionMenu)을 쓴다.
+  // 메뉴 창은 Esc나 바깥을 누르면 닫힌다. 이미 차단한 상대면 "차단" 대신 "차단 해제"가 나온다.
+  const moreButton = el("button", {
+    type: "button",
+    className: "message__menu chat__more",
+    text: "⋯",
+    attrs: { "aria-label": t("chat.more_aria"), "aria-haspopup": "dialog" },
   });
-  const blockButton = conversation.blocked_by_me
-    ? el("button", { type: "button", className: "link-button", text: t("term.unblock") })
-    : el("button", { type: "button", className: "link-button link-button--danger", text: t("term.block") });
-  blockButton.addEventListener("click", () => onToggleBlock(conversation));
-  chatActions.replaceChildren(reportButton, blockButton);
+  moreButton.addEventListener("click", async () => {
+    const choice = await openActionMenu({
+      heading: t("chat.report_target", { nickname: partner.nickname }),
+      items: [
+        { key: "report", label: t("term.report") },
+        conversation.blocked_by_me
+          ? { key: "unblock", label: t("term.unblock") }
+          : { key: "block", label: t("term.block"), danger: true },
+      ],
+    });
+    if (choice === "report") {
+      const reported = await openReportDialog({
+        heading: t("safety.report_user"),
+        targetText: t("chat.report_target", { nickname: partner.nickname }),
+        send: (data) => reportUser(partner.id, data),
+      });
+      if (reported) showSafetyNotice(REPORT_DONE_TEXT);
+    } else if (choice === "block" || choice === "unblock") {
+      await onToggleBlock(conversation);
+    }
+    // 메뉴를 그사이 다시 그렸으면(차단 상태 변경) 새 버튼으로 돌아간다.
+    (moreButton.isConnected ? moreButton : chatActions.querySelector("button"))?.focus();
+  });
+  chatActions.replaceChildren(moreButton);
 }
 
 async function onToggleBlock(conversation) {
@@ -441,6 +464,7 @@ function addMessages(messages) {
     added.push(message);
   }
   emptyText.hidden = shownIds.size > 0;
+  emptyHint.hidden = emptyText.hidden; // 짧은 개인정보 안내는 빈 대화에서만
   return added;
 }
 
@@ -731,7 +755,7 @@ async function onPhotoChosen() {
       return;
     }
     const message = await sendMessageImage(conversationId, prepared.file, (ratio) => {
-      photoButton.textContent = `${Math.round(ratio * 100)}%`;
+      photoProgress.textContent = `${Math.round(ratio * 100)}%`;
     });
     if (!checkSameAccount()) return;
     addNewerMessages([message]);
@@ -763,12 +787,15 @@ function handleSendError(error) {
   }
 }
 
-/** 보내는 동안에는 글·사진 버튼을 함께 잠근다. photoText: 사진을 보낼 때 사진 버튼에 보일 글자 */
+/** 보내는 동안에는 글·사진 버튼을 함께 잠근다. photoText: 사진을 보낼 때 입력 줄 아래에 보일 글자(준비 중·%) */
 function setSending(isSending, photoText = null) {
   sending = isSending;
   updateSendButtons();
   submitButton.textContent = isSending && photoText === null ? t("chat.sending") : t("chat.send");
-  photoButton.textContent = isSending && photoText !== null ? photoText : t("term.photo");
+  const photoSending = isSending && photoText !== null;
+  photoProgress.textContent = photoSending ? photoText : "";
+  photoProgress.hidden = !photoSending;
+  photoButton.setAttribute("aria-busy", String(photoSending));
 }
 
 function updateSendButtons() {

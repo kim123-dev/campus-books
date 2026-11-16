@@ -424,10 +424,17 @@ try {
       role: document.querySelector('.chat__role')?.textContent,
       placeholder: document.getElementById('content').placeholder,
       send: document.querySelector('#message-form [type=submit]').textContent,
+      photo: document.getElementById('photo-button').getAttribute('aria-label'),
+      more: document.querySelector('#chat-actions .chat__more').getAttribute('aria-label'),
     })`);
+    await evaluate("document.querySelector('#chat-actions .chat__more').click()");
+    await waitUntil("document.querySelector('dialog.action-menu')?.open");
+    chatInfo.menu = await evaluate("[...document.querySelectorAll('dialog.action-menu .action-menu__item')].map((b) => b.textContent).join('|')");
+    await evaluate("document.querySelector('.action-menu[open]').close()");
     check(
-      `${lang} 대화: 역할·입력창·버튼 번역, 한국어 안 남음, 화면 안 넘침`,
-      chatInfo.title.includes("구매자지은") && chatInfo.role === (en ? "Inquiry about your listing" : "对我帖子的咨询") && chatInfo.send === (en ? "Send" : "发送") && left.length === 0 && o.ok,
+      `${lang} 대화: 역할·입력창·버튼·사진 추가·더보기·⋯ 메뉴 번역, 한국어 안 남음, 화면 안 넘침`,
+      chatInfo.title.includes("구매자지은") && chatInfo.role === (en ? "Inquiry about your listing" : "对我帖子的咨询") && chatInfo.send === (en ? "Send" : "发送") &&
+        chatInfo.photo === (en ? "Add photo" : "添加照片") && chatInfo.more === (en ? "More" : "更多") && chatInfo.menu === (en ? "Report|Block|Cancel" : "举报|屏蔽|取消") && left.length === 0 && o.ok,
       `${JSON.stringify(chatInfo)} ${left.join(" / ")} ${o.bad}`,
     );
     await screenshot(`i18n-${W}-${lang}-chat.png`);

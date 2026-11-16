@@ -26,7 +26,8 @@ try {
   const photoBtn = await rect("#photo-button");
   const textareaBox = await rect("#content");
   const sendBox = await rect('#message-form button[type="submit"]');
-  check("입력줄: 사진 버튼 44px 이상", photoBtn[2] >= 44 && photoBtn[3] >= 44, JSON.stringify(photoBtn));
+  check("입력줄: '+' 사진 추가 버튼 44px 이상, 이름 '사진 추가'", photoBtn[2] >= 44 && photoBtn[3] >= 44 && (await b.evaluate("document.getElementById('photo-button').getAttribute('aria-label') === '사진 추가' && !!document.querySelector('#photo-button svg')")), JSON.stringify(photoBtn));
+  check("입력줄: 입력칸이 남는 폭을 모두 씀(버튼 사이 간격 8px)", textareaBox[0] - photoBtn[1] <= 9 && sendBox[0] - textareaBox[1] <= 9, JSON.stringify([photoBtn, textareaBox, sendBox]));
   check(`${W}px: 사진·입력칸·보내기가 한 줄`, photoBtn[1] <= textareaBox[0] && textareaBox[1] <= sendBox[0], JSON.stringify([photoBtn, textareaBox, sendBox]));
   check(`${W}px: 대화 가로 스크롤 없음`, await noScroll());
   await b.screenshot(`message-photo-input-${W}.png`);
@@ -38,7 +39,7 @@ try {
   check("보내기: 사진 메시지가 내 말풍선 쪽에 나타남", await b.waitUntil("document.querySelector('.message--mine .message__photo')", 15000));
   check("보내기: 썸네일을 받아 보여줌", await b.waitUntil("document.querySelector('.message--mine .message__photo.is-loaded img')?.naturalWidth > 0", 8000));
   check("보내기: 썸네일 주소는 blob:이고 받은 뒤 해제", await b.evaluate(`(() => { const img = document.querySelector('.message--mine .message__photo img'); return img.src.startsWith('blob:'); })()`));
-  check("보내기: 버튼이 '사진'으로 돌아오고 다시 누를 수 있음", await b.waitUntil("document.getElementById('photo-button').textContent === '사진' && !document.getElementById('photo-button').disabled"));
+  check("보내기: 보내는 중 표시가 사라지고 '+' 버튼을 다시 누를 수 있음", await b.waitUntil("document.getElementById('photo-progress').hidden && !document.getElementById('photo-button').disabled && document.getElementById('photo-button').getAttribute('aria-busy') === 'false'"));
   const thumb = await rect(".message--mine .message__photo");
   check(`${W}px: 썸네일이 화면 안`, thumb[0] >= 0 && thumb[1] <= W, JSON.stringify(thumb));
   check(`${W}px: 사진 보낸 뒤 가로 스크롤 없음`, await noScroll());

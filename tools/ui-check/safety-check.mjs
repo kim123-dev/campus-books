@@ -116,6 +116,13 @@ try {
   const buyerId = (await getJson("/users/me", seed.buyer_token)).id;
   const detailReady = "!document.getElementById('post-detail').hidden";
   const chatActions = "document.getElementById('chat-actions')";
+  // 대화 헤더의 ⋯(더보기)를 눌러 메뉴 창을 연다. 메뉴 항목 이름 목록을 돌려준다.
+  const openChatMenu = async () => {
+    await evaluate(`${chatActions}.querySelector('.chat__more').click()`);
+    await waitUntil("document.querySelector('dialog.action-menu')?.open");
+    return evaluate("[...document.querySelectorAll('dialog.action-menu .action-menu__item:not(.action-menu__cancel)')].map((b) => b.textContent)");
+  };
+  const pickChatMenu = (label) => evaluate(`${buttonByText(label, "document.querySelector('dialog.action-menu')")}.click()`);
   // 브라우저 확인 창은 헤드리스에서 멈추므로 항상 "확인"을 누른 것으로 바꾼다. (페이지를 열 때마다 다시)
   const autoConfirm = () => evaluate("window.confirm = (m) => { window.lastConfirm = m; return true; }");
 
@@ -187,18 +194,31 @@ try {
   await autoConfirm();
   check("대화: 내가 차단 → 입력창·전송 잠김, 안내", (await evaluate("document.getElementById('content').disabled && document.querySelector('#message-form button[type=submit]').disabled")) && (await text("#chat-blocked")) === "차단한 사용자입니다. 차단을 해제하면 다시 쪽지를 보낼 수 있어요.");
   check("대화: 지난 메시지는 그대로 보임", (await evaluate("document.querySelectorAll('#message-list li').length")) > 0);
-  check("대화: '신고'·'차단 해제' 버튼", await evaluate(`!!${buttonByText("신고", chatActions)} && !!${buttonByText("차단 해제", chatActions)}`));
+  const more = await evaluate(`(() => { const b = ${chatActions}.querySelector('.chat__more'), r = b.getBoundingClientRect(), name = document.getElementById('chat-partner').getBoundingClientRect(); return { label: b.getAttribute('aria-label'), w: r.width, h: r.height, sameRow: Math.abs((r.top + r.bottom) / 2 - (name.top + name.bottom) / 2) < 12, buttons: ${chatActions}.querySelectorAll('button').length }; })()`);
+  check("대화: 닉네임 줄 오른쪽 끝에 ⋯ '더보기' 44px 하나(신고·차단 버튼 줄 없음)", more.label === "더보기" && more.w >= 44 && more.h >= 44 && more.sameRow && more.buttons === 1, JSON.stringify(more));
+  const items = await openChatMenu();
+  check("대화 ⋯ 메뉴: 이미 차단한 상대 → '신고'·'차단 해제', 항목 44px", items.join() === "신고,차단 해제" && (await evaluate("[...document.querySelectorAll('dialog.action-menu .action-menu__item')].every((b) => b.getBoundingClientRect().height >= 44)")), items.join());
+  for (const type of ["keyDown", "keyUp"]) await send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  check("대화 ⋯ 메뉴: Esc로 닫힘", await waitUntil("!document.querySelector('dialog.action-menu')"));
+  await openChatMenu();
+  await evaluate("(() => { const d = document.querySelector('dialog.action-menu'); d.dispatchEvent(new MouseEvent('click', { bubbles: true })); })()");
+  check("대화 ⋯ 메뉴: 바깥(배경)을 누르면 닫힘", await waitUntil("!document.querySelector('dialog.action-menu')"));
   check(`${W}px: 대화 가로 스크롤 없음`, await noHorizontalScroll());
   await screenshot("12-5-chat-blocked.png");
-  await evaluate(`${buttonByText("신고", chatActions)}.click()`);
-  await waitUntil("document.querySelector('dialog.report-dialog')?.open");
+  await openChatMenu();
+  await pickChatMenu("신고");
+  await waitUntil("document.querySelector('dialog.report-dialog:not(.action-menu)')?.open");
   check("대화: 사용자 신고 창 (상대 닉네임)", (await text(".report-dialog__title")) === "사용자 신고" && (await text(".report-dialog__target")) === "판매자민수님");
   await evaluate("document.querySelector('.report-dialog input[value=ABUSE]').click()");
   await evaluate(`${buttonByText("신고하기")}.click()`);
   await waitUntil("document.querySelector('.report-dialog') === null");
   check("대화: 사용자 신고 접수 안내", ((await text("#chat-safety-notice")) ?? "").startsWith("신고가 접수되었습니다."));
-  await evaluate(`${buttonByText("차단 해제", chatActions)}.click()`);
+  await openChatMenu();
+  await pickChatMenu("차단 해제");
   await waitUntil("!document.getElementById('content').disabled");
+  check("대화 ⋯ 메뉴: 차단 해제 뒤에는 '차단'", (await openChatMenu()).join() === "신고,차단");
+  await pickChatMenu("취소");
+  await waitUntil("!document.querySelector('dialog.action-menu')");
   check("대화: 차단 해제 → 입력창 풀림, 안내", !(await evaluate("document.getElementById('content').disabled")) && (await text("#chat-safety-notice")) === "차단을 해제했습니다." && (await evaluate("document.getElementById('chat-blocked').hidden")));
 
   // 상대가 대화 중에 나를 차단: 전송하면 400 안내 + 입력창 잠김 (누가 차단했는지는 말하지 않음)
