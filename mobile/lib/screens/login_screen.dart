@@ -100,6 +100,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 onPressed: _busy ? null : () => context.go('/signup'),
                 child: const Text('처음이신가요? 회원가입'),
               ),
+              // 웹처럼 글 목록과 상세는 로그인 없이 볼 수 있다.
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () {
+                        ref.read(sessionProvider).clearExpired();
+                        context.go('/home');
+                      },
+                child: const Text('로그인 없이 둘러보기'),
+              ),
             ],
           ),
         ),

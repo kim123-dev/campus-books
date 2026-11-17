@@ -31,6 +31,13 @@ class Session extends ChangeNotifier {
   }
 
   void expire() => signOut(expired: true);
+
+  /// 만료 안내를 보고 로그인 없이 둘러보기로 한 경우
+  void clearExpired() {
+    if (!_expired) return;
+    _expired = false;
+    notifyListeners();
+  }
 }
 
 class AuthService {
@@ -40,6 +47,9 @@ class AuthService {
   final TokenStorage storage;
   final Session session;
 
+  // 내 사용자 번호. 상세에서 내 글인지 볼 때마다 /users/me를 부르지 않도록 한 번만 받아 둔다.
+  int? _myId;
+
   Future<void> login(String email, String password) async {
     final response = await dio.post<dynamic>(
       '/auth/token',
@@ -47,6 +57,7 @@ class AuthService {
       options: Options(contentType: Headers.formUrlEncodedContentType, extra: {skipAuth: true}),
     );
     await storage.save(TokenPair.fromJson(response.data as Map<String, dynamic>));
+    _myId = null;
     session.signIn();
   }
 
@@ -57,6 +68,18 @@ class AuthService {
       await login(input.email, input.password);
     } on DioException catch (e) {
       throw SignedUpButLoginFailed(e);
+    }
+  }
+
+  /// 로그인한 사용자의 번호. 로그인하지 않았거나 확인하지 못하면 null(그래도 화면은 그대로 보여준다).
+  Future<int?> myId() async {
+    if (!session.signedIn || await storage.read() == null) return null;
+    if (_myId != null) return _myId;
+    try {
+      final response = await dio.get<dynamic>('/users/me');
+      return _myId = (response.data as Map)['id'] as int;
+    } on DioException {
+      return null;
     }
   }
 
@@ -83,6 +106,7 @@ class AuthService {
   Future<void> logout() async {
     final tokens = await storage.read();
     await storage.clear();
+    _myId = null;
     session.signOut();
     if (tokens == null) return;
     try {

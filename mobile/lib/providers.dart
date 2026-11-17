@@ -5,6 +5,7 @@ import 'api/api_client.dart';
 import 'api/token_storage.dart';
 import 'auth/auth_service.dart';
 import 'config.dart';
+import 'posts/post_api.dart';
 
 /// main()에서 저장된 토큰을 읽은 뒤 덮어쓴다. (첫 화면을 로그인/홈 중 무엇으로 할지 정하려고)
 final tokenStorageProvider = Provider<TokenStorage>((ref) => throw UnimplementedError());
@@ -24,3 +25,5 @@ final authServiceProvider = Provider<AuthService>((ref) => AuthService(
       storage: ref.watch(tokenStorageProvider),
       session: ref.watch(sessionProvider),
     ));
+
+final postApiProvider = Provider<PostApi>((ref) => PostApi(ref.watch(dioProvider)));
