@@ -6,19 +6,25 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models import User
 from app.schemas.security_question import (
+    PRESET_QUESTIONS,
     PasswordResetQuestionRequest,
     PasswordResetQuestionResponse,
     PasswordResetVerifyResponse,
+    SecurityQuestionItem,
+    SecurityQuestionListResponse,
 )
 from app.schemas.user import (
+    AppLoginForm,
     LoginForm,
     PasswordResetRequest,
     PasswordResetVerifyRequest,
+    RefreshRequest,
+    TokenPairResponse,
     TokenResponse,
     UserCreate,
     UserResponse,
 )
-from app.services import auth_service, password_reset_service
+from app.services import auth_service, password_reset_service, token_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,6 +52,61 @@ def login(
     data: Annotated[LoginForm, Form()], db: Annotated[Session, Depends(get_db)]
 ) -> TokenResponse:
     return TokenResponse(access_token=auth_service.login(db, data))
+
+
+# ---------- 앱(안드로이드) 로그인 유지 ----------
+# 웹은 위의 /auth/login만 쓴다. 앱은 액세스 토큰(60분)이 만료되면 갱신 토큰으로 새로 받는다.
+# 로그인 시도 횟수 제한은 /auth/login에도 없어, 같은 규칙(제한 없음)을 따른다.
+
+
+@router.post(
+    "/token",
+    response_model=TokenPairResponse,
+    summary="앱 로그인 (액세스 토큰 + 갱신 토큰)",
+    responses={401: {"description": "이메일 또는 비밀번호 불일치"}, 403: {"description": "이용 정지 중"}},
+)
+def app_login(
+    data: Annotated[AppLoginForm, Form()], db: Annotated[Session, Depends(get_db)]
+) -> TokenPairResponse:
+    return token_service.login(db, data)
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenPairResponse,
+    summary="토큰 갱신 (갱신 토큰은 쓸 때마다 새 값으로 바뀜)",
+    responses={
+        401: {
+            "description": "없는·만료·폐기된 갱신 토큰, 재사용(그 사용자의 갱신 토큰 모두 폐기), "
+            "비밀번호 변경·탈퇴, 이용 정지 중"
+        }
+    },
+)
+def refresh_token(data: RefreshRequest, db: Annotated[Session, Depends(get_db)]) -> TokenPairResponse:
+    return token_service.refresh(db, data.refresh_token)
+
+
+# 갱신 토큰 자체가 자격 증명이라 액세스 토큰 없이 부른다. (액세스 토큰이 만료된 뒤에도 로그아웃할 수 있게)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="앱 로그아웃 (이 기기의 갱신 토큰 폐기, 여러 번 불러도 204)",
+)
+def app_logout(data: RefreshRequest, db: Annotated[Session, Depends(get_db)]) -> Response:
+    token_service.logout(db, data.refresh_token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# 가입 화면의 질문 목록. 웹은 화면에 같은 목록을 갖고 있고, 앱은 이 API로 받는다. (질문 문구는 한국어 원문)
+@router.get(
+    "/security-questions",
+    response_model=SecurityQuestionListResponse,
+    summary="본인 확인 질문 목록 (가입용, 로그인 불필요)",
+)
+def list_security_questions() -> SecurityQuestionListResponse:
+    return SecurityQuestionListResponse(
+        items=[SecurityQuestionItem(key=key, text=text) for key, text in PRESET_QUESTIONS.items()]
+    )
 
 
 def _client_ip(request: Request) -> str:

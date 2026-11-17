@@ -16,6 +16,7 @@ from app.models.pending_image import PendingImage
 from app.models.post import BookCondition, Post, PostStatus
 from app.models.post_image import MAX_IMAGES_PER_POST, PostImage
 from app.models.recovery import PasswordResetAttempt
+from app.models.refresh_token import RefreshToken
 from app.models.security_question import PasswordResetMethod, PasswordResetNotice, SecurityQuestion
 from app.models.report import (
     MessageReportSnapshot,
@@ -57,6 +58,7 @@ __all__ = [
     "UserSchool",
     "PendingImage",
     "PasswordResetAttempt",
+    "RefreshToken",
     "PasswordResetMethod",
     "PasswordResetNotice",
     "Post",

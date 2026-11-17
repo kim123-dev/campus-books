@@ -59,6 +59,14 @@ def signup(db: Session, data: UserCreate) -> User:
 
 def login(db: Session, data: LoginForm) -> str:
     """로그인. 성공하면 액세스 토큰을, 실패하면 InvalidCredentialsError를 던진다."""
+    user = authenticate(db, data)
+    return create_access_token(user.id, user.password_hash)
+
+
+def authenticate(db: Session, data: LoginForm) -> User:
+    """이메일·비밀번호 확인과 정지 검사. 웹 로그인(/auth/login)과 앱 로그인(/auth/token)이 같은 규칙을 쓴다.
+    순서: 401 이메일·비밀번호 불일치 → 403 정지 중.
+    """
     user = db.scalar(select(User).where(User.email == data.username))
     # 이메일이 없는 경우와 비밀번호가 틀린 경우를 같은 에러로 처리한다.
     if user is None or not verify_password(data.password, user.password_hash):
@@ -67,4 +75,4 @@ def login(db: Session, data: LoginForm) -> str:
     end = user_service.active_suspension_end(user)
     if end is not None:
         raise SuspendedUserError(user_service.suspension_message(end))
-    return create_access_token(user.id, user.password_hash)
+    return user

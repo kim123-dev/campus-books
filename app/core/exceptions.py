@@ -439,6 +439,16 @@ class InvalidTokenError(AuthenticationError):
     message = "인증 정보가 유효하지 않거나 만료되었습니다."
 
 
+class InvalidRefreshTokenError(AuthenticationError):
+    """갱신 토큰이 없거나·만료·폐기·재사용됨, 또는 비밀번호가 바뀌었거나 탈퇴함. 앱은 로그인 화면으로 보낸다."""
+
+    message = "로그인이 만료되었습니다. 다시 로그인해 주세요."
+
+
+class SuspendedRefreshError(AuthenticationError):
+    """정지 중에는 갱신 토큰으로 새 토큰을 받을 수 없다(401). 메시지는 정지 종료 시각 안내로 바꿔 넣는다."""
+
+
 class SchoolNotFoundError(NotFoundError):
     message = "학교를 찾을 수 없습니다."
 

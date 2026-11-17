@@ -24,6 +24,7 @@ from app.services import (
     post_service,
     school_service,
     security_question_service,
+    token_service,
     user_service,
 )
 
@@ -85,6 +86,8 @@ def change_password(db: Session, user: User, data: PasswordChange) -> str:
     """
     _check_password(user, data.current_password)
     user.password_hash = hash_password(data.new_password)
+    # 앱의 갱신 토큰도 모두 폐기한다. (앱은 다시 로그인해야 한다)
+    token_service.revoke_all(db, user.id)
     db.commit()
     return create_access_token(user.id, user.password_hash)
 
@@ -143,6 +146,7 @@ def erase_account(db: Session, user: User) -> list[str]:
     user.nickname = f"withdrawn-{token}"
     user.password_hash = user_service.WITHDRAWN_PASSWORD_HASH
     user.suspended_until = None
+    token_service.revoke_all(db, user.id)
     return image_names
 
 

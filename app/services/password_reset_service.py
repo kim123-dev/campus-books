@@ -46,7 +46,7 @@ from app.models import (
 )
 from app.schemas.security_question import PRESET_QUESTIONS, PasswordResetNoticeResponse, PasswordResetVerifyResponse
 from app.schemas.user import PasswordResetRequest, PasswordResetVerifyRequest
-from app.services import admin_log_service, email_ban_service, security_question_service, user_service
+from app.services import admin_log_service, email_ban_service, security_question_service, token_service, user_service
 
 LOCK_WINDOW = timedelta(hours=24)
 MAX_FAILURES_PER_EMAIL = 5
@@ -189,6 +189,8 @@ def _decoy_question(email: str) -> str:
 def _apply_reset(db: Session, user: User, new_password: str, method: PasswordResetMethod) -> None:
     """비밀번호를 바꾸고 안내·관리 기록을 남긴다(커밋은 호출한 쪽)."""
     user.password_hash = hash_password(new_password)
+    # 본인 확인 질문 재설정과 서버 명령(python -m app.cli reset-password) 모두 여기를 지난다. 앱 로그인도 모두 끊는다.
+    token_service.revoke_all(db, user.id)
     db.add(PasswordResetNotice(user_id=user.id, method=method))
     action = (
         AdminActionType.RESET_PASSWORD_BY_QUESTION

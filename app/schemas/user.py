@@ -119,6 +119,30 @@ class TokenResponse(BaseModel):
     token_type: Literal["bearer"] = "bearer"
 
 
+class AppLoginForm(LoginForm):
+    """앱 로그인 요청(form). 웹 로그인과 같은 필드에 기기 이름(선택)만 더한다."""
+
+    device_name: str | None = Field(default=None, max_length=100, description="기기 이름 (예: Galaxy S24)")
+
+
+class TokenPairResponse(TokenResponse):
+    """앱용 토큰 두 개. 액세스 토큰이 만료(401)되면 refresh_token으로 /auth/refresh를 불러 새로 받는다."""
+
+    # 액세스 토큰 유효 시간(초)
+    expires_in: int
+    # 쓸 때마다 새 값으로 바뀐다. 받은 새 값으로 저장해 두어야 한다(옛 값을 다시 쓰면 모든 기기 로그아웃).
+    refresh_token: str
+    refresh_expires_at: datetime
+
+
+class RefreshRequest(BaseModel):
+    """갱신·로그아웃 요청. 토큰은 본문으로 받아 서버 접속 기록(주소)에 남지 않게 한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: str = Field(min_length=1, max_length=200)
+
+
 class PasswordChange(BaseModel):
     """비밀번호 변경 요청. 새 비밀번호는 가입 때와 같은 규칙으로 검사한다."""
 

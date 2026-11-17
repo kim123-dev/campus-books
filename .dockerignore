@@ -16,3 +16,6 @@ __pycache__/
 .claude/
 tests/
 docs/
+
+# Flutter 앱(mobile/)은 서버 이미지에 필요 없다. 빌드 컨텍스트에서도 뺀다.
+mobile/

@@ -129,3 +129,14 @@ class PasswordResetNoticeResponse(BaseModel):
 
     reset_at: datetime
     method: str
+
+
+class SecurityQuestionItem(BaseModel):
+    key: str
+    text: str
+
+
+class SecurityQuestionListResponse(BaseModel):
+    """가입할 때 고를 수 있는 질문. 가입 요청의 question_key에 key를 보낸다(직접 만든 질문도 가능)."""
+
+    items: list[SecurityQuestionItem]
