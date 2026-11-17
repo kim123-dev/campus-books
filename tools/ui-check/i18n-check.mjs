@@ -150,10 +150,11 @@ try {
       options: [...document.getElementById('status').options].map((o) => o.textContent).join('|'),
       course: document.querySelector('label[for=course_name]').textContent,
       buttons: [...document.querySelectorAll('#filter-more .form-actions button')].map((b) => b.textContent).join('|'),
+      showSold: document.querySelector('label[for=show_sold]').textContent.trim(),
     })`);
     const filtersOk = en
-      ? filters.status === "Status" && filters.options === "All|For sale|Reserved|Sold" && filters.course === "Course (exact match)" && filters.buttons === "Search|Reset"
-      : filters.options === "全部|在售|已预订|已售出" && filters.buttons === "搜索|重置";
+      ? filters.status === "Status" && filters.options === "All|For sale|Reserved|Sold" && filters.course === "Course (exact match)" && filters.buttons === "Search|Reset" && filters.showSold === "Show sold items too"
+      : filters.options === "全部|在售|已预订|已售出" && filters.buttons === "搜索|重置" && filters.showSold === "也显示已售出的";
     let o = await overflow();
     check(`${lang} 목록: 필터 펼침 문구, 화면 안 넘침`, filtersOk && o.ok, `${JSON.stringify(filters)} ${o.bad}`);
     await screenshot(`i18n-${W}-${lang}-home-filter.png`);

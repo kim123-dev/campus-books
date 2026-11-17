@@ -23,6 +23,8 @@ const FILTER_KEYS = ["q", "school_id", "status", "course_name", "min_price", "ma
 const SCHOOL_HINT_KEY = "campus-books.school-hint-dismissed";
 // "필터" 버튼 안에 접어 두는 조건. 검색어(q)는 항상 보이는 한 줄 검색창에 있다.
 const FOLDED_KEYS = FILTER_KEYS.filter((key) => key !== "q");
+// "판매 완료 글도 보기" 체크(주소에는 켰을 때만 show_sold=1). 기본은 꺼짐이라 필터 개수에는 세지 않는다.
+const SHOW_SOLD_KEY = "show_sold";
 
 const form = document.getElementById("filter-form");
 const filterError = document.getElementById("filter-error");
@@ -103,6 +105,7 @@ function readUrl() {
     const value = params.get(key);
     if (value) filters[key] = value;
   }
+  if (params.get(SHOW_SOLD_KEY) === "1") filters[SHOW_SOLD_KEY] = "1";
   // page는 서버가 검증한다. (0이나 문자이면 422 메시지를 보여준다)
   return { filters, page: params.get("page") ?? "1" };
 }
@@ -113,11 +116,19 @@ function readForm() {
     const value = String(form.elements.namedItem(key).value).trim();
     if (value) filters[key] = value;
   }
+  if (form.elements.namedItem(SHOW_SOLD_KEY).checked) filters[SHOW_SOLD_KEY] = "1";
   return filters;
 }
 
 function fillForm(filters) {
   for (const key of FILTER_KEYS) form.elements.namedItem(key).value = filters[key] ?? "";
+  form.elements.namedItem(SHOW_SOLD_KEY).checked = filters[SHOW_SOLD_KEY] === "1";
+}
+
+// 화면 조건 → API 조건. 서버 기본은 판매 완료 포함이므로, 홈은 체크가 꺼져 있으면 include_sold=false를 보낸다.
+function toApiParams(filters) {
+  const { [SHOW_SOLD_KEY]: showSold, ...rest } = filters;
+  return { ...rest, include_sold: showSold === "1" ? "true" : "false" };
 }
 
 function navigate(filters, page) {
@@ -198,7 +209,7 @@ async function load() {
 
   try {
     // 헤더의 로그인 확인은 실패해도 null을 돌려주므로 함께 기다려도 목록이 막히지 않는다.
-    const [data, me] = await Promise.all([listPosts({ ...filters, page, size: PAGE_SIZE }), mePromise]);
+    const [data, me] = await Promise.all([listPosts({ ...toApiParams(filters), page, size: PAGE_SIZE }), mePromise]);
     if (requestId !== latestRequestId) return;
     render(data, filters, me);
   } catch (error) {

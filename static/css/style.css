@@ -1039,6 +1039,28 @@ a.button {
   padding: 0 6px;
 }
 
+/* "판매 완료 글도 보기" 체크: 글자까지 누를 수 있게 label 전체를 44px 줄로 둔다. 긴 번역은 줄바꿈 */
+.filter-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.filter-check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.filter-check span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* 펼친 칸은 상자를 만들지 않아(contents) 검색 카드의 격자(PC 4칸)에 그대로 놓인다. */
 .filter-form__more {
   display: contents;
@@ -2502,6 +2524,7 @@ a.button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
+    "quick quick quick"
     "blocked blocked blocked"
     "photo input send"
     "field-error field-error field-error"
@@ -2511,6 +2534,39 @@ a.button {
   gap: 0 var(--space-1);
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--color-divider);
+}
+
+/* 빠른 문장 칩: 입력 줄 위에 가로로 놓고, 칸이 모자라면 다음 줄로 넘긴다. 칩 안 글자도 줄바꿈 허용 */
+.chat__quick {
+  grid-area: quick;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.chat__quick[hidden] {
+  display: none;
+}
+
+.chat__quick-chip {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.chat__quick-chip:hover {
+  border-color: var(--color-primary);
 }
 
 .chat__form .chat__blocked {
@@ -4051,6 +4107,18 @@ a.button {
 
   .chat-body.is-typing .chat__scroll {
     min-height: 96px;
+  }
+
+  /* 키보드가 열려 대화 영역이 좁을 때 칩은 한 줄로 두고 가로로 밀어 본다. */
+  .chat-body.is-typing .chat__quick {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .chat-body.is-typing .chat__quick-chip {
+    flex: none;
+    white-space: nowrap;
   }
 }
 

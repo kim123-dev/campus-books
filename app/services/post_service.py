@@ -292,6 +292,9 @@ def _search_conditions(search: PostSearchParams) -> list[ColumnElement[bool]]:
         )
     if search.status is not None:
         conditions.append(Post.status == search.status)
+    elif not search.include_sold:
+        # 기존 status 필터와 같은 열을 쓰는 조건이라, 전체 글 수(total)도 숨긴 뒤의 개수가 된다.
+        conditions.append(Post.status != PostStatus.SOLD)
     if search.course_name is not None:
         # 부분 검색은 q가 담당하므로, 과목 필터는 정확히 일치하는 글만 고른다.
         conditions.append(func.lower(Post.course_name) == search.course_name.lower())

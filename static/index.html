@@ -64,6 +64,12 @@
           <p class="field-error" data-error-for="status" hidden></p>
         </div>
 
+        <!-- 판매 완료 글은 홈·검색에서 기본으로 숨긴다. 켜면 주소에 show_sold=1이 남는다. (판매 상태를 직접 고르면 그 선택이 우선) -->
+        <label class="filter-check field--wide" for="show_sold">
+          <input id="show_sold" name="show_sold" type="checkbox" value="1" />
+          <span data-i18n="home.show_sold">판매 완료 글도 보기</span>
+        </label>
+
         <div class="field">
           <label for="course_name" data-i18n="home.course_label">과목명 (정확히 일치)</label>
           <input id="course_name" name="course_name" type="text" maxlength="100" placeholder="예: 자료구조" data-i18n-attr="placeholder:home.course_placeholder" />

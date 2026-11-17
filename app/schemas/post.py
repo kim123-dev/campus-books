@@ -171,6 +171,11 @@ class PostSearchParams(BaseModel):
     min_price: int | None = Field(default=None, ge=0, le=MAX_PRICE, description="최소 가격 (포함)")
     max_price: int | None = Field(default=None, ge=0, le=MAX_PRICE, description="최대 가격 (포함)")
     school_id: int | None = Field(default=None, ge=1, description="학교 (그 학교로 등록된 글만, 학교 없는 글은 빠짐)")
+    # 기본값 true로 기존 클라이언트의 결과를 바꾸지 않는다. 홈 화면만 false를 보내 판매 완료를 숨긴다.
+    # status를 직접 고른 경우에는 그 선택을 따른다(status=SOLD면 이 값과 상관없이 판매 완료 글을 준다).
+    include_sold: bool = Field(
+        default=True, description="false면 판매 완료(SOLD) 글을 뺀다. status를 지정하면 무시된다."
+    )
 
     # ?q= 처럼 빈 값이나 공백만 보내면 조건을 걸지 않은 것으로 본다.
     @field_validator("q", "course_name", mode="before")

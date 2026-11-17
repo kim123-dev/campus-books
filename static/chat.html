@@ -67,6 +67,8 @@
         <p id="connection-status" class="chat__connection" role="status" hidden></p>
 
         <form id="message-form" class="chat__form" novalidate>
+          <!-- 빠른 문장: 빈 대화 + 내가 문의한 쪽(구매자)일 때만 보인다. 누르면 입력칸에 채우기만 한다(chat.js) -->
+          <div id="quick-replies" class="chat__quick" role="group" aria-label="빠른 문장" data-i18n-attr="aria-label:chat.quick_aria" hidden></div>
           <!-- 차단 관계라 보낼 수 없을 때 입력창 대신 보이는 안내 -->
           <p id="chat-blocked" class="chat__blocked" hidden></p>
           <label for="content" class="visually-hidden" data-i18n="chat.input_label">보낼 메시지</label>

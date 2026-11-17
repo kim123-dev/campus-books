@@ -1,4 +1,4 @@
-// 목록 화면(홈) 확인: 배너(비로그인 큰 배너 / 로그인 얇은 띠), 학교가 빈 사용자의 학교 안내, 한 줄 검색과 필터 펼치기, 글이 없을 때의 "첫 교재 올리기".
+// 목록 화면(홈) 확인: 배너(비로그인 큰 배너 / 로그인 얇은 띠), 학교가 빈 사용자의 학교 안내, 한 줄 검색과 필터 펼치기, 판매 완료 기본 숨김·토글, 글이 없을 때의 "첫 교재 올리기".
 // 사용: WIDTH=375 tools/ui-check/run.sh home-check   (PC는 WIDTH=1280)
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -99,6 +99,33 @@ try {
   await waitUntil(ready);
   check("필터: 검색하면 접히고 '필터 2' 표시", !(await visible("#status")) && (await evaluate("document.querySelector('.filter-form__count').textContent")) === "2");
   check("필터: 검색 결과가 있으면 빈 화면 버튼 없음", !(await visible("#empty-actions")));
+
+  // ---------- 판매 완료 기본 숨김 + "판매 완료 글도 보기" ----------
+  await api("PATCH", `/posts/${seed.p2}/status`, seed.seller_token, { status: "SOLD" });
+  const titles = () => evaluate("[...document.querySelectorAll('#post-list .post-card__title, #post-list h2, #post-list h3')].map(e => e.textContent)");
+  const totalText = () => evaluate("document.getElementById('result-summary').textContent");
+  const cardCount = () => evaluate("document.querySelectorAll('#post-list > li').length");
+  await goto("/static/index.html", ready);
+  const hiddenTotal = (await api("GET", "/posts?include_sold=false&size=50")).body.total;
+  check("판매 완료: 기본은 숨김(카드 수 = 총 N개 = API 숨김 수)", (await cardCount()) === hiddenTotal && (await totalText()).includes(String(hiddenTotal)) && !(await titles()).includes("운영체제 공룡책"), `${await totalText()} / ${await cardCount()} / ${hiddenTotal}`);
+  await evaluate("document.getElementById('filter-toggle').click()");
+  const sold = await rect(".filter-check");
+  check("판매 완료 토글: 기본 꺼짐, 누르는 줄 44px, 화면 안", (await evaluate("document.getElementById('show_sold').checked")) === false && sold && sold.h >= 44 && sold.right <= W, JSON.stringify(sold));
+  await evaluate("document.getElementById('show_sold').checked = true");
+  await screenshot(`home-filter-sold-${W}.png`);
+  await evaluate("document.getElementById('filter-form').requestSubmit()");
+  await waitUntil(`${ready} && new URLSearchParams(location.search).get('show_sold') === '1'`);
+  await waitUntil(ready);
+  const allTotal = (await api("GET", "/posts?size=50")).body.total;
+  check("판매 완료 토글: 켜면 주소에 show_sold=1, 총 N개·카드에 판매 완료 포함", (await cardCount()) === allTotal && (await totalText()).includes(String(allTotal)) && allTotal === hiddenTotal + 1, `${await totalText()} / ${allTotal}`);
+  check("판매 완료 토글: 필터 개수에는 세지 않음", (await evaluate("document.querySelector('.filter-form__count').hidden")) === true);
+  await goto("/static/index.html?show_sold=1", ready);
+  check("판매 완료 토글: 새로고침해도 켜진 상태 유지", (await evaluate("document.getElementById('show_sold').checked")) === true);
+  await goto(`/static/index.html?q=${encodeURIComponent("운영체제")}`, ready);
+  check("검색: 판매 완료 글은 검색 결과에서도 기본 숨김", (await cardCount()) === 0);
+  await goto(`/static/index.html?q=${encodeURIComponent("운영체제")}&show_sold=1`, ready);
+  check("검색: 토글을 켜면 검색 결과에 판매 완료 포함", (await cardCount()) === 1);
+  check("판매 완료 토글: 가로 스크롤 없음", await noHScroll());
 
   // ---------- 글이 하나도 없을 때 ----------
   for (const id of [seed.p1, seed.p2]) await api("DELETE", `/posts/${id}`, seed.seller_token);

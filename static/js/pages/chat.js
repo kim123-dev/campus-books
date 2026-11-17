@@ -81,9 +81,14 @@ const chatActions = document.getElementById("chat-actions");
 const safetyNotice = document.getElementById("chat-safety-notice");
 const blockedNotice = document.getElementById("chat-blocked");
 const reviewBox = document.getElementById("chat-review");
+const quickReplies = document.getElementById("quick-replies");
+// 빈 대화에서 구매자가 첫 쪽지를 쉽게 시작하도록 보여주는 문장(사전 키).
+const QUICK_REPLY_KEYS = ["chat.quick_available", "chat.quick_price", "chat.quick_meet"];
 
 // 차단 관계면 false. 서버도 전송을 400으로 막지만, 화면은 입력창을 미리 잠근다.
 let canSend = true;
+// 이 대화에서 내 역할(BUYER/SELLER). 빠른 문장은 문의한 쪽에만 보인다.
+let myRole = null;
 
 const conversationId = readPostIdFromUrl(); // ?id=를 1 이상의 정수로 읽는다. (글 번호와 같은 규칙)
 
@@ -163,6 +168,8 @@ async function init() {
   }
   if (!checkSameAccount()) return;
 
+  myRole = conversation.my_role;
+  renderQuickReplies();
   renderChatHeader(conversation);
   applyBlockState(conversation);
   renderReviewState(conversation);
@@ -267,6 +274,9 @@ function bindMobileKeyboard() {
   };
   submitButton.addEventListener("pointerdown", keepTextareaFocus);
   submitButton.addEventListener("mousedown", keepTextareaFocus);
+  // 빠른 문장 칩도 같다. 입력 중에 누르면 포커스가 빠지며 칩 줄이 다시 펼쳐져(한 줄 → 여러 줄) 누른 자리가 어긋난다.
+  quickReplies.addEventListener("pointerdown", keepTextareaFocus);
+  quickReplies.addEventListener("mousedown", keepTextareaFocus);
 }
 
 function renderChatHeader(conversation) {
@@ -360,6 +370,7 @@ function applyBlockState(conversation) {
   }
   textarea.disabled = !canSend;
   updateSendButtons();
+  updateQuickReplies(); // 보낼 수 없게 되면 칩도 숨긴다.
 
   // 탈퇴한 상대는 신고·차단할 대상이 없으므로(서버도 404) 버튼을 두지 않는다.
   if (partner.withdrawn) {
@@ -475,7 +486,37 @@ function addMessages(messages) {
   }
   emptyText.hidden = shownIds.size > 0;
   emptyHint.hidden = emptyText.hidden; // 짧은 개인정보 안내는 빈 대화에서만
+  updateQuickReplies();
   return added;
+}
+
+// ---------- 빠른 문장 ----------
+
+/** 칩 3개를 만든다. 누르면 보내지 않고 입력칸에 채운 뒤 포커스만 옮긴다(내용을 고쳐 보낼 수 있게). */
+function renderQuickReplies() {
+  quickReplies.replaceChildren(
+    ...QUICK_REPLY_KEYS.map((key) => {
+      const chip = el("button", { type: "button", className: "chat__quick-chip", text: t(key) });
+      chip.addEventListener("click", () => fillQuickReply(t(key)));
+      return chip;
+    }),
+  );
+}
+
+/** 이미 쓰던 글이 있으면 지우지 않고 한 칸 띄어 뒤에 붙인다. 최대 글자 수는 넘기지 않는다. */
+function fillQuickReply(text) {
+  const current = textarea.value.trimEnd();
+  textarea.value = (current ? `${current} ${text}` : text).slice(0, MAX_LENGTH);
+  updateCounter();
+  fitTextarea();
+  updateSendButtons();
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+}
+
+/** 빈 대화 + 구매자 + 보낼 수 있는 상태일 때만 보인다. 메시지가 하나라도 생기면 사라진다. */
+function updateQuickReplies() {
+  quickReplies.hidden = !(myRole === "BUYER" && shownIds.size === 0 && canSend);
 }
 
 function renderMessage(message) {

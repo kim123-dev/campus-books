@@ -331,3 +331,69 @@ def test_filter_total_with_status_and_pagination(client: TestClient, sample_post
 def test_invalid_pagination_still_returns_422_with_filters(client: TestClient) -> None:
     assert search(client, q="자료구조", page=0).status_code == 422
     assert search(client, status="ON_SALE", size=101).status_code == 422
+
+
+# ---------- include_sold (홈의 "판매 완료 글도 보기") ----------
+
+NOT_SOLD_TITLES = [p[0] for p in reversed(SAMPLE_POSTS) if p[4] != "SOLD"]
+
+
+def test_include_sold_defaults_to_true(client: TestClient, sample_posts) -> None:
+    # 파라미터를 보내지 않은 기존 클라이언트는 지금처럼 판매 완료 글까지 받는다.
+    assert titles(search(client)) == titles(search(client, include_sold="true"))
+    assert "알고리즘 책" in titles(search(client))
+
+
+def test_include_sold_false_hides_sold_and_total_matches(client: TestClient, sample_posts) -> None:
+    body = search(client, include_sold="false").json()
+
+    assert titles(search(client, include_sold="false")) == NOT_SOLD_TITLES
+    assert body["total"] == len(NOT_SOLD_TITLES)
+
+
+def test_include_sold_false_total_matches_across_pages(client: TestClient, sample_posts) -> None:
+    first = search(client, include_sold="false", size=2, page=1).json()
+    rest = [
+        search(client, include_sold="false", size=2, page=page).json()
+        for page in range(2, 4)
+    ]
+
+    assert first["total"] == len(NOT_SOLD_TITLES)
+    assert sum(len(body["items"]) for body in [first, *rest]) == first["total"]
+
+
+def test_include_sold_false_combines_with_q(client: TestClient, sample_posts) -> None:
+    # "책"은 제목 세 개에 걸리고, 그중 "알고리즘 책"만 판매 완료다.
+    assert titles(search(client, q="책")) == ["자료구조 새책", "알고리즘 책", "운영체제 공룡책"]
+    body = search(client, q="책", include_sold="false").json()
+    assert [item["title"] for item in body["items"]] == ["자료구조 새책", "운영체제 공룡책"]
+    assert body["total"] == 2
+
+
+def test_explicit_status_wins_over_include_sold(client: TestClient, sample_posts) -> None:
+    assert titles(search(client, status="SOLD", include_sold="false")) == ["알고리즘 책"]
+    assert titles(search(client, status="ON_SALE", include_sold="true")) == [
+        p[0] for p in reversed(SAMPLE_POSTS) if p[4] == "ON_SALE"
+    ]
+
+
+def test_invalid_include_sold_returns_422(client: TestClient) -> None:
+    assert search(client, include_sold="maybe").status_code == 422
+
+
+def test_my_posts_and_wishlist_still_show_sold(
+    client: TestClient, auth_headers: dict, make_auth_headers, create_post
+) -> None:
+    # 내 글·찜 목록은 홈의 숨김과 상관없이 판매 완료 글을 그대로 보여준다.
+    buyer = make_auth_headers(email="buyer@campus.ac.kr", nickname="구매자")
+    post = create_post(auth_headers, title="다 팔린 책")
+    client.post(f"/posts/{post['id']}/wishlist", headers=buyer)
+    client.patch(f"/posts/{post['id']}/status", json={"status": "SOLD"}, headers=auth_headers)
+
+    mine = client.get("/users/me/posts", headers=auth_headers).json()
+    wished = client.get("/users/me/wishlist", headers=buyer).json()
+
+    assert [item["title"] for item in mine["items"]] == ["다 팔린 책"]
+    assert [item["title"] for item in wished["items"]] == ["다 팔린 책"]
+    assert client.get(f"/posts/{post['id']}").json()["status"] == "SOLD"
+    assert search(client, include_sold="false").json()["total"] == 0
