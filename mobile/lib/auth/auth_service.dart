@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../api/auth_interceptor.dart';
 import '../api/token_storage.dart';
+import 'signup_rules.dart';
 
 /// 로그인 상태. 라우터가 듣고 있다가 로그아웃·만료 때 로그인 화면으로 보낸다.
 class Session extends ChangeNotifier {
@@ -49,6 +50,34 @@ class AuthService {
     session.signIn();
   }
 
+  /// 가입한 뒤 바로 로그인한다. 가입은 됐는데 로그인이 실패하면(드묾) SignedUpButLoginFailed.
+  Future<void> signup(SignupInput input) async {
+    await dio.post<dynamic>('/auth/signup', data: input.toJson(), options: Options(extra: {skipAuth: true}));
+    try {
+      await login(input.email, input.password);
+    } on DioException catch (e) {
+      throw SignedUpButLoginFailed(e);
+    }
+  }
+
+  /// 가입 화면의 학교 목록(활성 학교만, 로그인 불필요)
+  Future<List<School>> schools() async {
+    final response = await dio.get<dynamic>('/schools', options: Options(extra: {skipAuth: true}));
+    return [
+      for (final item in (response.data as Map)['items'] as List)
+        School(id: (item as Map)['id'] as int, name: item['name'] as String),
+    ];
+  }
+
+  /// 가입 화면의 본인 확인 질문 목록
+  Future<List<SecurityQuestion>> securityQuestions() async {
+    final response = await dio.get<dynamic>('/auth/security-questions', options: Options(extra: {skipAuth: true}));
+    return [
+      for (final item in (response.data as Map)['items'] as List)
+        SecurityQuestion(key: (item as Map)['key'] as String, text: item['text'] as String),
+    ];
+  }
+
   /// 저장된 토큰을 먼저 지운 뒤 서버에 알린다.
   /// 서버 호출이 실패해도(오프라인 등) 이 기기에서는 확실히 로그아웃된다.
   Future<void> logout() async {
@@ -66,4 +95,22 @@ class AuthService {
       // 서버의 refresh 토큰은 30일 뒤 만료된다. 여기서 더 할 일은 없다.
     }
   }
+}
+
+class School {
+  const School({required this.id, required this.name});
+  final int id;
+  final String name;
+}
+
+class SecurityQuestion {
+  const SecurityQuestion({required this.key, required this.text});
+  final String key;
+  final String text;
+}
+
+/// 가입은 성공했지만 이어서 한 로그인이 실패함. 가입 화면을 다시 보여주지 않고 로그인 화면으로 보낸다.
+class SignedUpButLoginFailed implements Exception {
+  const SignedUpButLoginFailed(this.cause);
+  final DioException cause;
 }

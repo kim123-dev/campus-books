@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'api_error.dart';
 import 'auth_interceptor.dart';
 import 'token_storage.dart';
 
@@ -30,12 +31,5 @@ Dio createApiDio({
   return dio;
 }
 
-/// 서버의 {"detail": "..."} 메시지. 없으면 fallback.
-String errorMessage(Object error, {String fallback = '잠시 후 다시 시도해 주세요.'}) {
-  if (error is DioException) {
-    final data = error.response?.data;
-    if (data is Map && data['detail'] is String) return data['detail'] as String;
-    if (error.response == null) return '서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.';
-  }
-  return fallback;
-}
+/// 화면에 보여줄 오류 문구 한 줄. (칸별 오류가 필요하면 ApiError.from을 쓴다)
+String errorMessage(Object error) => ApiError.from(error).message;

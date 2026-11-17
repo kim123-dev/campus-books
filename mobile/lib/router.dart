@@ -5,6 +5,7 @@ import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'screens/me_screen.dart';
 import 'screens/placeholder_screen.dart';
+import 'screens/signup_screen.dart';
 
 GoRouter buildRouter(Session session) {
   return GoRouter(
@@ -12,12 +13,14 @@ GoRouter buildRouter(Session session) {
     // 로그아웃·토큰 만료로 session이 바뀌면 redirect를 다시 계산한다.
     refreshListenable: session,
     redirect: (context, state) {
-      final atLogin = state.matchedLocation == '/login';
-      if (!session.signedIn) return atLogin ? null : '/login';
-      return atLogin ? '/home' : null;
+      // 로그인 전에는 로그인·가입 화면만, 로그인 후에는 그 두 화면을 보여주지 않는다.
+      final atAuth = state.matchedLocation == '/login' || state.matchedLocation == '/signup';
+      if (!session.signedIn) return atAuth ? null : '/login';
+      return atAuth ? '/home' : null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/login', builder: (context, state) => LoginScreen(notice: state.extra as String?)),
+      GoRoute(path: '/signup', builder: (context, state) => const SignupScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => HomeShell(shell: shell),
         branches: [
