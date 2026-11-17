@@ -338,7 +338,7 @@ def test_suspended_user_can_reset_but_stays_suspended(client, db_session) -> Non
     assert login(client, password=NEW_PASSWORD).status_code == 403
 
 
-# ---------- 잠금: 이메일당 24시간 5번, IP당 1시간 30회 ----------
+# ---------- 잠금: 이메일당 24시간 5번, IP당 1시간 300회 ----------
 
 
 def test_fifth_wrong_answer_locks_for_24_hours(client, db_session) -> None:
@@ -379,8 +379,16 @@ def test_correct_answer_clears_earlier_failures(client) -> None:
     assert verify(client, answer="틀린답").json() == wrong(4)
 
 
-def test_ip_limit_30_per_hour_counts_lookups_and_verifies(client) -> None:
-    # 이메일을 바꿔 가며 시도해도 같은 IP에서 질문 받기 + 답 확인이 30번을 넘으면 막는다.
+def test_shared_campus_ip_is_not_blocked_at_old_limit(client) -> None:
+    # 학교 Wi-Fi(공유 IP)에서 여러 학생이 재설정해도 예전 한도(30회)에서 막히지 않는다.
+    statuses = [get_question(client, f"student{i}@campus.ac.kr").status_code for i in range(40)]
+    assert statuses == [200] * 40
+    assert password_reset_service.MAX_REQUESTS_PER_IP == 300
+
+
+def test_ip_limit_counts_lookups_and_verifies(client, monkeypatch) -> None:
+    # 이메일을 바꿔 가며 시도해도 같은 IP에서 질문 받기 + 답 확인이 한도를 넘으면 막는다. (빠르게 보려고 한도를 30으로)
+    monkeypatch.setattr(password_reset_service, "MAX_REQUESTS_PER_IP", 30)
     statuses = [get_question(client, f"user{i}@campus.ac.kr").status_code for i in range(15)]
     statuses += [verify(client, email=f"user{i}@campus.ac.kr").status_code for i in range(15)]
     assert statuses == [200] * 15 + [400] * 15

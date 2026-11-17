@@ -65,13 +65,13 @@ def login(db: Session, data: LoginForm, ip: str) -> str:
 
 def authenticate(db: Session, data: LoginForm, ip: str) -> User:
     """이메일·비밀번호 확인과 정지 검사. 웹 로그인(/auth/login)과 앱 로그인(/auth/token)이 같은 규칙을 쓴다.
-    순서: 429 이 IP의 실패가 너무 많음 → 401 이메일·비밀번호 불일치(실패로 셈) → 403 정지 중.
+    순서: 429 이 이메일(10분 10번)·IP(10분 100번)의 실패가 너무 많음 → 401 불일치(실패로 셈) → 403 정지 중.
     """
-    login_rate_limit.check(ip)
+    login_rate_limit.check(data.username, ip)
     user = db.scalar(select(User).where(User.email == data.username))
     # 이메일이 없는 경우와 비밀번호가 틀린 경우를 같은 에러로 처리한다.
     if user is None or not verify_password(data.password, user.password_hash):
-        login_rate_limit.record_failure(ip)
+        login_rate_limit.record_failure(data.username, ip)
         raise InvalidCredentialsError()
     # 비밀번호가 맞은 뒤에만 정지 여부를 알려준다. 비밀번호를 모르는 사람은 정지 사실을 알 수 없다.
     end = user_service.active_suspension_end(user)

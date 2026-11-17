@@ -49,7 +49,7 @@ def signup(data: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
     summary="로그인 (액세스 토큰 발급)",
     responses={
         401: {"description": "이메일 또는 비밀번호 불일치"},
-        429: {"description": "IP당 10분에 실패 10번 초과 (앱 로그인과 합산)"},
+        429: {"description": "이메일당 10분 실패 10번 또는 IP당 10분 100번 초과 (앱 로그인과 합산)"},
     },
 )
 def login(
@@ -60,7 +60,7 @@ def login(
 
 # ---------- 앱(안드로이드) 로그인 유지 ----------
 # 웹은 위의 /auth/login만 쓴다. 앱은 액세스 토큰(60분)이 만료되면 갱신 토큰으로 새로 받는다.
-# 로그인 실패 횟수 제한(IP당 10분 10번)은 /auth/login과 함께 센다. (login_rate_limit)
+# 로그인 실패 횟수 제한(이메일당 10분 10번, IP당 10분 100번)은 /auth/login과 함께 센다. (login_rate_limit)
 
 
 @router.post(
@@ -70,7 +70,7 @@ def login(
     responses={
         401: {"description": "이메일 또는 비밀번호 불일치"},
         403: {"description": "이용 정지 중"},
-        429: {"description": "IP당 10분에 실패 10번 초과 (웹 로그인과 합산)"},
+        429: {"description": "이메일당 10분 실패 10번 또는 IP당 10분 100번 초과 (웹 로그인과 합산)"},
     },
 )
 def app_login(
@@ -127,7 +127,7 @@ def _client_ip(request: Request) -> str:
     "/password-reset/question",
     response_model=PasswordResetQuestionResponse,
     summary="비밀번호 재설정 1단계: 본인 확인 질문 받기",
-    responses={429: {"description": "IP당 1시간 30회 초과 (질문 받기와 재설정 합산)"}},
+    responses={429: {"description": "IP당 1시간 300회 초과 (질문 받기와 재설정 합산)"}},
 )
 def get_reset_question(
     data: PasswordResetQuestionRequest, request: Request, db: Annotated[Session, Depends(get_db)]
@@ -143,7 +143,7 @@ def get_reset_question(
     summary="비밀번호 재설정 2단계: 답 확인 (맞으면 10분짜리 일회용 확인증)",
     responses={
         400: {"description": "이메일 또는 답 불일치 + 남은 시도 횟수 (가입 여부를 숨기려고 이유를 나누지 않음)"},
-        429: {"description": "이메일당 24시간에 5번 틀려 잠김(남은 시간), IP당 1시간 30회 초과"},
+        429: {"description": "이메일당 24시간에 5번 틀려 잠김(남은 시간), IP당 1시간 300회 초과"},
     },
 )
 def verify_reset_answer(
