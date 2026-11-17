@@ -26,9 +26,9 @@ from app.services import admin_dashboard_service, auth_service, user_service
 REFRESH_TOKEN_DAYS = 30
 
 
-def login(db: Session, data: AppLoginForm, now: datetime | None = None) -> TokenPairResponse:
-    """앱 로그인. 웹 로그인과 같은 검사(401 불일치 → 403 정지)를 거친 뒤 토큰 두 개를 준다."""
-    user = auth_service.authenticate(db, data)
+def login(db: Session, data: AppLoginForm, ip: str, now: datetime | None = None) -> TokenPairResponse:
+    """앱 로그인. 웹 로그인과 같은 검사(429 실패 너무 많음 → 401 불일치 → 403 정지)를 거친 뒤 토큰 두 개를 준다."""
+    user = auth_service.authenticate(db, data, ip)
     response = _issue(db, user, data.device_name, now or user_service.utc_now())
     db.commit()
     return response

@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import client_ip
 from app.core.database import get_db
 from app.models import User
 from app.schemas.security_question import (
@@ -46,29 +47,36 @@ def signup(data: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
     "/login",
     response_model=TokenResponse,
     summary="로그인 (액세스 토큰 발급)",
-    responses={401: {"description": "이메일 또는 비밀번호 불일치"}},
+    responses={
+        401: {"description": "이메일 또는 비밀번호 불일치"},
+        429: {"description": "IP당 10분에 실패 10번 초과 (앱 로그인과 합산)"},
+    },
 )
 def login(
-    data: Annotated[LoginForm, Form()], db: Annotated[Session, Depends(get_db)]
+    data: Annotated[LoginForm, Form()], request: Request, db: Annotated[Session, Depends(get_db)]
 ) -> TokenResponse:
-    return TokenResponse(access_token=auth_service.login(db, data))
+    return TokenResponse(access_token=auth_service.login(db, data, client_ip(request)))
 
 
 # ---------- 앱(안드로이드) 로그인 유지 ----------
 # 웹은 위의 /auth/login만 쓴다. 앱은 액세스 토큰(60분)이 만료되면 갱신 토큰으로 새로 받는다.
-# 로그인 시도 횟수 제한은 /auth/login에도 없어, 같은 규칙(제한 없음)을 따른다.
+# 로그인 실패 횟수 제한(IP당 10분 10번)은 /auth/login과 함께 센다. (login_rate_limit)
 
 
 @router.post(
     "/token",
     response_model=TokenPairResponse,
     summary="앱 로그인 (액세스 토큰 + 갱신 토큰)",
-    responses={401: {"description": "이메일 또는 비밀번호 불일치"}, 403: {"description": "이용 정지 중"}},
+    responses={
+        401: {"description": "이메일 또는 비밀번호 불일치"},
+        403: {"description": "이용 정지 중"},
+        429: {"description": "IP당 10분에 실패 10번 초과 (웹 로그인과 합산)"},
+    },
 )
 def app_login(
-    data: Annotated[AppLoginForm, Form()], db: Annotated[Session, Depends(get_db)]
+    data: Annotated[AppLoginForm, Form()], request: Request, db: Annotated[Session, Depends(get_db)]
 ) -> TokenPairResponse:
-    return token_service.login(db, data)
+    return token_service.login(db, data, client_ip(request))
 
 
 @router.post(
@@ -110,8 +118,8 @@ def list_security_questions() -> SecurityQuestionListResponse:
 
 
 def _client_ip(request: Request) -> str:
-    # 운영(Railway)에서는 프록시가 X-Forwarded-For를 실제 접속 주소로 덮어쓰고, uvicorn --proxy-headers가 그 값을 client로 넣는다.
-    return request.client.host if request.client else "unknown"
+    # 프록시 뒤에서 요청한 사람이 지어낼 수 없는 주소를 고른다. (자세한 이유는 app/core/client_ip.py)
+    return client_ip(request)
 
 
 # 재설정 1단계. 이메일이 서버 접속 기록(주소)에 남지 않게 POST 본문으로 받는다.

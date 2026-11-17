@@ -408,6 +408,10 @@ class ReportRateLimitError(TooManyRequestsError):
     message = "신고를 너무 많이 하고 있습니다. 잠시 후 다시 시도해 주세요."
 
 
+class LoginRateLimitError(TooManyRequestsError):
+    message = "로그인 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요."
+
+
 class PasswordResetRateLimitError(TooManyRequestsError):
     message = "비밀번호 재설정을 너무 많이 시도했습니다. 잠시 후 다시 시도해 주세요."
 

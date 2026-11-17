@@ -12,7 +12,7 @@ from app.core.exceptions import (
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
 from app.schemas.user import LoginForm, UserCreate
-from app.services import email_ban_service, school_service, security_question_service, user_service
+from app.services import email_ban_service, login_rate_limit, school_service, security_question_service, user_service
 
 
 # 미리 중복을 확인해 어떤 값이 겹쳤는지 구분된 에러를 돌려준다.
@@ -57,19 +57,21 @@ def signup(db: Session, data: UserCreate) -> User:
     return user
 
 
-def login(db: Session, data: LoginForm) -> str:
+def login(db: Session, data: LoginForm, ip: str) -> str:
     """로그인. 성공하면 액세스 토큰을, 실패하면 InvalidCredentialsError를 던진다."""
-    user = authenticate(db, data)
+    user = authenticate(db, data, ip)
     return create_access_token(user.id, user.password_hash)
 
 
-def authenticate(db: Session, data: LoginForm) -> User:
+def authenticate(db: Session, data: LoginForm, ip: str) -> User:
     """이메일·비밀번호 확인과 정지 검사. 웹 로그인(/auth/login)과 앱 로그인(/auth/token)이 같은 규칙을 쓴다.
-    순서: 401 이메일·비밀번호 불일치 → 403 정지 중.
+    순서: 429 이 IP의 실패가 너무 많음 → 401 이메일·비밀번호 불일치(실패로 셈) → 403 정지 중.
     """
+    login_rate_limit.check(ip)
     user = db.scalar(select(User).where(User.email == data.username))
     # 이메일이 없는 경우와 비밀번호가 틀린 경우를 같은 에러로 처리한다.
     if user is None or not verify_password(data.password, user.password_hash):
+        login_rate_limit.record_failure(ip)
         raise InvalidCredentialsError()
     # 비밀번호가 맞은 뒤에만 정지 여부를 알려준다. 비밀번호를 모르는 사람은 정지 사실을 알 수 없다.
     end = user_service.active_suspension_end(user)

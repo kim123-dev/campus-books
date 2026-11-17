@@ -20,7 +20,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import User, UserRole  # noqa: E402
-from app.services import image_storage  # noqa: E402
+from app.services import image_storage, login_rate_limit  # noqa: E402
 
 # 인메모리 SQLite는 연결마다 DB가 따로 생기므로, StaticPool로 연결 하나를 공유한다.
 test_engine = create_engine(
@@ -40,6 +40,14 @@ def image_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(image_storage, "get_message_image_dir", lambda: tmp_path / "uploads" / "messages")
     monkeypatch.setattr(image_storage, "get_pending_image_dir", lambda: tmp_path / "uploads" / "pending")
     return directory
+
+
+# 로그인 실패 기록은 서버 메모리에 있어 테스트끼리 섞인다. 테스트마다 비운다.
+@pytest.fixture(autouse=True)
+def clear_login_failures() -> Iterator[None]:
+    login_rate_limit.reset()
+    yield
+    login_rate_limit.reset()
 
 
 # 테스트마다 빈 테이블에서 시작해, 테스트끼리 데이터가 섞이지 않게 한다.
