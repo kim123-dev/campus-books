@@ -26,10 +26,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final api = ref.read(postApiProvider);
     _feed = PostFeed(api.list)..refresh();
     _scroll.addListener(_maybeLoadMore);
+    // 글을 등록·수정하면 목록을 새로 받는다.
+    _postsChanged = ref.read(postsChangedProvider)..addListener(_feed.refresh);
   }
+
+  late final ValueNotifier<int> _postsChanged;
 
   @override
   void dispose() {
+    _postsChanged.removeListener(_feed.refresh);
     _feed.dispose();
     _search.dispose();
     _scroll.dispose();

@@ -66,3 +66,13 @@ Future<void> settle(WidgetTester tester) async {
     await tester.pumpAndSettle();
   }
 }
+
+/// 서버가 status로 거절한 것처럼 만든 오류(화면에 넘겨줄 때)
+DioException dioError(int status, Object body) {
+  final options = RequestOptions(path: '/test');
+  return DioException.badResponse(
+    statusCode: status,
+    requestOptions: options,
+    response: Response<dynamic>(requestOptions: options, statusCode: status, data: body),
+  );
+}

@@ -6,6 +6,7 @@ import 'screens/login_screen.dart';
 import 'screens/me_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/placeholder_screen.dart';
+import 'screens/post_create_screen.dart';
 import 'screens/post_detail_screen.dart';
 import 'screens/signup_screen.dart';
 
@@ -41,7 +42,7 @@ GoRouter buildRouter(Session session) {
             GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/sell', builder: (context, state) => const PlaceholderScreen(title: '글쓰기', stage: '사진 올리기·글쓰기는 5단계')),
+            GoRoute(path: '/sell', builder: (context, state) => const PostCreateScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: '/messages', builder: (context, state) => const PlaceholderScreen(title: '쪽지', stage: '쪽지는 2차 범위')),

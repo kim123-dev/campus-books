@@ -33,6 +33,19 @@ class PostApi {
     return PostPage.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// POST /posts. 만든 글 번호를 돌려준다.
+  Future<int> create(Map<String, dynamic> body) async {
+    final response = await dio.post<dynamic>('/posts', data: body);
+    return (response.data as Map)['id'] as int;
+  }
+
+  /// 내 학교 번호(없으면 null). 글쓰기에서 학교를 미리 고르는 데 쓴다.
+  Future<int?> mySchool() async {
+    final response = await dio.get<dynamic>('/users/me/school');
+    final school = (response.data as Map)['school'] as Map?;
+    return school?['id'] as int?;
+  }
+
   /// GET /posts/{id}. 로그인하지 않아도 볼 수 있다.
   Future<PostDetail> detail(int id) async {
     final response = await dio.get<dynamic>('/posts/$id');
