@@ -1,11 +1,12 @@
 """요청한 사람의 IP. 횟수 제한(로그인, 비밀번호 재설정)이 IP별로 세는 데 쓴다.
 
-운영(Railway)에서는 앱 앞에 프록시가 있어 TCP 접속 주소는 항상 프록시다. 실제 주소는 X-Forwarded-For에 있다.
-- uvicorn --forwarded-allow-ips='*'는 X-Forwarded-For의 "맨 왼쪽" 값을 request.client로 넣는데,
-  맨 왼쪽은 요청한 사람이 헤더에 직접 적어 보낼 수 있는 값이라 그대로 믿으면 요청마다 IP를 바꿔 제한을 피할 수 있다.
-- 프록시는 받은 접속 주소를 헤더 "오른쪽 끝"에 붙인다. 그래서 오른쪽부터 보면서 프록시 내부망 주소(사설·루프백 등)를
-  건너뛰고 처음 나오는 공인 주소를 실제 접속 주소로 쓴다. 그보다 왼쪽은 요청한 사람이 지어낼 수 있으므로 보지 않는다.
-- 헤더가 없거나 공인 주소가 없으면(로컬 개발·테스트) TCP 접속 주소를 쓴다.
+운영(Railway)에서는 앱 앞에 엣지 프록시(와 CDN)가 있어 TCP 접속 주소는 항상 프록시다.
+- X-Real-IP: Railway 엣지가 공개 접속마다 실제 접속 주소로 채운다(Railway 안내). 있으면 이것을 쓴다.
+- X-Forwarded-For는 쓰지 않는 쪽을 우선한다. 맨 왼쪽은 요청한 사람이 지어낼 수 있고(uvicorn --forwarded-allow-ips='*'가
+  request.client에 넣는 값), 오른쪽 끝에는 CDN 노드의 공인 주소가 붙어 요청마다 바뀔 수 있다.
+  (실제로 "오른쪽 첫 공인 주소" 방식은 운영에서 요청마다 다른 IP로 세어져 제한이 걸리지 않았다)
+- X-Real-IP가 없을 때만(로컬 개발·다른 배포 환경) X-Forwarded-For를 오른쪽부터 보며 사설·루프백 주소를 건너뛴
+  첫 공인 주소를, 그것도 없으면 TCP 접속 주소를 쓴다.
 """
 
 import ipaddress
@@ -14,6 +15,9 @@ from fastapi import Request
 
 
 def client_ip(request: Request) -> str:
+    real = _parse(request.headers.get("x-real-ip", ""))
+    if real is not None:
+        return str(real)
     header = ",".join(request.headers.getlist("x-forwarded-for"))
     for raw in reversed(header.split(",")):
         address = _parse(raw)

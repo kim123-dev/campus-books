@@ -96,8 +96,10 @@ def test_spoofed_left_entries_do_not_bypass_limit(client, student) -> None:
     assert web_login(client, ip="1.1.1.1, 9.9.9.9").status_code == 429
 
 
-def make_request(forwarded: list[str], peer: str = "100.64.0.7") -> Request:
+def make_request(forwarded: list[str], peer: str = "100.64.0.7", real_ip: str | None = None) -> Request:
     headers = [(b"x-forwarded-for", value.encode()) for value in forwarded]
+    if real_ip is not None:
+        headers.append((b"x-real-ip", real_ip.encode()))
     return Request({"type": "http", "headers": headers, "client": (peer, 1234)})
 
 
@@ -118,3 +120,22 @@ def make_request(forwarded: list[str], peer: str = "100.64.0.7") -> Request:
 )
 def test_client_ip_picks_rightmost_public_address(forwarded, expected) -> None:
     assert client_ip(make_request(forwarded)) == expected
+
+
+def test_x_real_ip_wins_over_forwarded_for() -> None:
+    """Railway 엣지가 넣는 X-Real-IP를 먼저 쓴다. X-Forwarded-For 오른쪽의 CDN 주소는 요청마다 바뀔 수 있다."""
+    request = make_request(["8.8.4.4, 151.101.1.1"], real_ip="8.8.4.4")
+    assert client_ip(request) == "8.8.4.4"
+    assert client_ip(make_request(["151.101.1.1"], real_ip="  ")) == "151.101.1.1"  # 비었거나 잘못된 값이면 무시
+
+
+def test_same_real_ip_is_counted_together_even_if_forwarded_for_changes(client, student) -> None:
+    for n in range(10):
+        response = client.post(
+            "/auth/login",
+            data={"username": EMAIL, "password": "wrong"},
+            headers={"X-Real-IP": "9.9.9.9", "X-Forwarded-For": f"9.9.9.9, 151.101.{n}.1"},
+        )
+        assert response.status_code == 401
+    blocked = client.post("/auth/login", data={"username": EMAIL, "password": TEST_PASSWORD}, headers={"X-Real-IP": "9.9.9.9"})
+    assert blocked.status_code == 429
