@@ -66,6 +66,18 @@ class ReviewNotHiddenError(ConflictError):
     message = "숨긴 후기가 아닙니다."
 
 
+class AppointmentConflictError(ConflictError):
+    """두 사람이 거의 동시에 제안해, 진행 중인 약속이 이미 생겼다. (DB unique가 막는다)"""
+
+    message = "방금 다른 약속 제안이 먼저 등록되었습니다. 대화를 새로 고친 뒤 다시 시도해 주세요."
+
+
+class AppointmentStateChangedError(ConflictError):
+    """수락·거절·취소하려는 사이에 약속 상태가 이미 바뀌었다."""
+
+    message = "약속 상태가 이미 바뀌었습니다. 대화를 새로 고쳐 확인해 주세요."
+
+
 class NotFoundError(DomainError):
     """요청한 데이터가 없음. main.py에서 404로 변환한다."""
 
@@ -109,6 +121,10 @@ class TradeNotFoundError(NotFoundError):
 
 class WithdrawnRevieweeError(NotFoundError):
     message = "탈퇴한 사용자에게는 후기를 남길 수 없습니다."
+
+
+class AppointmentNotFoundError(NotFoundError):
+    message = "약속을 찾을 수 없습니다."
 
 
 class ReviewNotFoundError(NotFoundError):
@@ -314,6 +330,38 @@ class PostNotSoldError(BadRequestError):
 class ReviewPeriodOverError(BadRequestError):
     # 기간은 서비스가 trade_service.REVIEW_PERIOD로 채운다.
     message = "후기는 거래 후 14일 안에만 남길 수 있습니다."
+
+
+# ---------- 거래 약속 ----------
+# 대화 화면은 전송의 403을 이용 정지로 다루므로, 약속 규칙 위반은 모두 400으로 둔다.
+
+
+class PostNotProposableError(BadRequestError):
+    message = "판매 완료되었거나 삭제된 글에서는 새 약속을 제안할 수 없습니다."
+
+
+class AppointmentTimeInPastError(BadRequestError):
+    message = "약속 시각은 지금 이후로 정해 주세요."
+
+
+class AppointmentTooFarError(BadRequestError):
+    message = "약속은 60일 안으로 정해 주세요."
+
+
+class InvalidMeetingPlaceError(BadRequestError):
+    message = "고를 수 없는 장소입니다. 목록을 새로 고치거나 직접 입력해 주세요."
+
+
+class CannotRespondOwnAppointmentError(BadRequestError):
+    message = "내가 제안한 약속은 수락하거나 거절할 수 없습니다."
+
+
+class NotAppointmentProposerError(BadRequestError):
+    message = "약속을 제안한 사람만 취소할 수 있습니다."
+
+
+class AppointmentAlreadyStartedError(BadRequestError):
+    message = "약속 시각이 지나 바꿀 수 없습니다."
 
 
 class PayloadTooLargeError(DomainError):

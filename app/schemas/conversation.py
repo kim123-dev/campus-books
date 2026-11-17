@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import PostStatus
+from app.schemas.appointment import MessageAppointmentResponse
 from app.schemas.review import TradeReviewState
 
 MAX_MESSAGE_LENGTH = 1000
@@ -144,6 +145,8 @@ class MessageResponse(BaseModel):
     read_at: datetime | None
     # 사진이 붙어 있으면 true. 사진은 GET /messages/{id}/image로 받는다. (공개 주소 없음)
     has_image: bool = False
+    # 약속 메시지(제안·수락·거절·취소)면 약속 정보, 아니면 null. content에는 서버가 만든 한국어 요약이 들어 있다.
+    appointment: MessageAppointmentResponse | None = None
 
 
 class MessageListResponse(BaseModel):

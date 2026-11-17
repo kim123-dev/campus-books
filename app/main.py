@@ -28,6 +28,7 @@ from app.routers import (
     admin_schools,
     admin_users,
     alerts,
+    appointments,
     auth,
     blocks,
     conversations,
@@ -105,6 +106,7 @@ app.include_router(schools.router)
 app.include_router(admin_schools.router)
 app.include_router(profiles.router)
 app.include_router(reviews.router)
+app.include_router(appointments.router)
 
 # multipart 본문에는 파일 말고도 경계 문자열·헤더가 붙으므로 그만큼 여유를 둔다.
 MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024

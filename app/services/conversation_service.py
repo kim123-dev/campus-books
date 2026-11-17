@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -18,7 +18,18 @@ from app.core.exceptions import (
     SoldPostNotContactableError,
     WithdrawnPartnerMessageError,
 )
-from app.models import Conversation, ConversationUserState, Message, MessageImage, PostStatus, User
+from app.models import (
+    Appointment,
+    AppointmentEvent,
+    AppointmentMessage,
+    Conversation,
+    ConversationUserState,
+    Message,
+    MessageImage,
+    PostStatus,
+    User,
+)
+from app.schemas.appointment import MessageAppointmentResponse
 from app.schemas.conversation import (
     ConversationDetailResponse,
     ConversationPostResponse,
@@ -193,9 +204,14 @@ def list_messages(
         has_more = len(rows) > params.limit
         messages = list(reversed(rows[: params.limit]))
 
-    with_image = _message_ids_with_image(db, [message.id for message in messages])
+    message_ids = [message.id for message in messages]
+    with_image = _message_ids_with_image(db, message_ids)
+    appointments = appointment_info(db, message_ids, user)
     return MessageListResponse(
-        items=[_to_message_response(message, user, message.id in with_image) for message in messages],
+        items=[
+            _to_message_response(message, user, message.id in with_image, appointments.get(message.id))
+            for message in messages
+        ],
         has_more=has_more,
     )
 
@@ -357,6 +373,11 @@ def _find_conversation(db: Session, post_id: int, buyer_id: int) -> Conversation
 
 
 # 대화방 API의 공통 순서: 방이 없으면 404, 참여자가 아니면 403.
+def get_participating_conversation(db: Session, conversation_id: int, user: User) -> Conversation:
+    """참여자만 열 수 있는 대화방(404 없는 방 → 403 참여자 아님). 약속 서비스가 같은 규칙을 쓰도록 공개한다."""
+    return _get_participating_conversation(db, conversation_id, user)
+
+
 def _get_participating_conversation(db: Session, conversation_id: int, user: User) -> Conversation:
     conversation = _load_conversation(db, conversation_id)
     if conversation is None:
@@ -483,7 +504,12 @@ def _to_partner_response(partner: User) -> PartnerResponse:
     )
 
 
-def _to_message_response(message: Message, viewer: User, has_image: bool = False) -> MessageResponse:
+def _to_message_response(
+    message: Message,
+    viewer: User,
+    has_image: bool = False,
+    appointment: MessageAppointmentResponse | None = None,
+) -> MessageResponse:
     return MessageResponse(
         id=message.id,
         sender_id=message.sender_id,
@@ -492,9 +518,49 @@ def _to_message_response(message: Message, viewer: User, has_image: bool = False
         created_at=message.created_at,
         read_at=message.read_at,
         has_image=has_image,
+        appointment=appointment,
     )
 
 
-def to_message_response(message: Message, viewer: User, has_image: bool) -> MessageResponse:
-    """사진 쪽지 서비스가 같은 응답 형식을 쓰도록 공개한다."""
-    return _to_message_response(message, viewer, has_image)
+def to_message_response(
+    message: Message, viewer: User, has_image: bool, appointment: MessageAppointmentResponse | None = None
+) -> MessageResponse:
+    """사진·약속 쪽지 서비스가 같은 응답 형식을 쓰도록 공개한다."""
+    return _to_message_response(message, viewer, has_image, appointment)
+
+
+def appointment_info(
+    db: Session, message_ids: list[int], viewer: User, now: datetime | None = None
+) -> dict[int, MessageAppointmentResponse]:
+    """메시지 id → 약속 정보(약속 메시지만). 메시지 수와 상관없이 쿼리 1번.
+    약속 상태는 지금 값을 준다. 그래서 오래된 제안 카드도 다시 불러오면 수락·취소된 상태로 보인다.
+    """
+    if not message_ids:
+        return {}
+    now = now or user_service.utc_now()
+    rows = db.execute(
+        select(AppointmentMessage.message_id, AppointmentMessage.event, Appointment)
+        .join(Appointment, Appointment.id == AppointmentMessage.appointment_id)
+        .where(AppointmentMessage.message_id.in_(message_ids))
+    ).all()
+    return {
+        message_id: to_appointment_response(appointment, event, viewer, now) for message_id, event, appointment in rows
+    }
+
+
+def to_appointment_response(
+    appointment: Appointment, event: AppointmentEvent, viewer: User, now: datetime
+) -> MessageAppointmentResponse:
+    starts_at = user_service.as_utc(appointment.starts_at)
+    return MessageAppointmentResponse(
+        event=event,
+        id=appointment.id,
+        status=appointment.status,
+        starts_at=starts_at,
+        place_name=appointment.place_name,
+        meeting_place_id=appointment.meeting_place_id,
+        proposer_id=appointment.proposer_id,
+        is_mine=appointment.proposer_id == viewer.id,
+        is_past=starts_at <= now,
+        replaces_id=appointment.replaces_id,
+    )
