@@ -35,7 +35,7 @@ class CampusBooksApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Campus Books',
+      title: '캠퍼스북스',
       theme: buildTheme(),
       routerConfig: router,
       debugShowCheckedModeBanner: false,
