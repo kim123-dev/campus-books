@@ -19,3 +19,8 @@ __pycache__/
 
 # Railway IaC SDK (npm)
 node_modules/
+
+# 안드로이드 릴리스 서명 키와 비밀번호 (mobile/android/.gitignore에도 있지만 저장소 어디서든 막는다)
+key.properties
+*.jks
+*.keystore

@@ -2,7 +2,7 @@
     <!-- 서버 API를 부르려면 릴리스에서도 필요하다. (생성 직후에는 debug·profile에만 있었다) -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="Campus Books"
+        android:label="캠퍼스북스"
         android:networkSecurityConfig="@xml/network_security_config"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
