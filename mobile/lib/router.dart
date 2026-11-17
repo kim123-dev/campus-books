@@ -8,6 +8,7 @@ import 'screens/home_screen.dart';
 import 'screens/placeholder_screen.dart';
 import 'screens/post_create_screen.dart';
 import 'screens/post_detail_screen.dart';
+import 'screens/post_edit_screen.dart';
 import 'screens/signup_screen.dart';
 
 GoRouter buildRouter(Session session) {
@@ -19,7 +20,8 @@ GoRouter buildRouter(Session session) {
       final location = state.matchedLocation;
       final atAuth = location == '/login' || location == '/signup';
       // 로그인하지 않아도 볼 수 있는 화면: 홈 목록과 글 상세 (웹과 같음). 글쓰기·쪽지·내 정보는 로그인 필요.
-      final public = location == '/home' || location.startsWith('/posts/');
+      // 수정 화면(/posts/:id/edit)은 로그인이 필요하다.
+      final public = location == '/home' || (location.startsWith('/posts/') && !location.endsWith('/edit'));
       if (!session.signedIn) {
         if (atAuth) return null;
         // 로그인이 만료되면 어디에 있든 로그인 화면으로 보낸다(만료 안내를 보여주려고).
@@ -34,6 +36,11 @@ GoRouter buildRouter(Session session) {
       GoRoute(
         path: '/posts/:id',
         builder: (context, state) => PostDetailScreen(postId: int.parse(state.pathParameters['id']!)),
+      ),
+      // 상세 아래가 아닌 따로 둔 경로: 내 글 목록에서 열어도 수정 화면 하나만 쌓이고, 저장하면 연 곳으로 돌아간다.
+      GoRoute(
+        path: '/posts/:id/edit',
+        builder: (context, state) => PostEditScreen(postId: int.parse(state.pathParameters['id']!)),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => HomeShell(shell: shell),

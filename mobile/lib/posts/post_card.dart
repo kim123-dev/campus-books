@@ -6,7 +6,7 @@ import 'post_models.dart';
 
 /// 목록 카드: 대표 사진, 제목, 가격, 판매 상태, 올린 시간
 class PostCard extends StatelessWidget {
-  const PostCard({super.key, required this.post, required this.imageBase, required this.onTap, this.now});
+  const PostCard({super.key, required this.post, required this.imageBase, required this.onTap, this.now, this.trailing});
 
   final PostSummary post;
 
@@ -16,6 +16,9 @@ class PostCard extends StatelessWidget {
 
   /// 테스트에서 "올린 시간"을 고정하려고
   final DateTime? now;
+
+  /// 카드 오른쪽 끝(내 글 목록의 관리 메뉴)
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +62,7 @@ class PostCard extends StatelessWidget {
                 ],
               ),
             ),
+            ?trailing,
           ],
         ),
       ),

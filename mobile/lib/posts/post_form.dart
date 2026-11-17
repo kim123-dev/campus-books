@@ -10,7 +10,7 @@ import '../providers.dart';
 import 'post_format.dart';
 import 'post_rules.dart';
 
-/// 저장할 때 화면이 넘겨받는 값. 수정(6단계)은 removedImageIds도 쓴다.
+/// 저장할 때 화면이 넘겨받는 값. 수정은 removedImageIds도 쓴다.
 class PostFormResult {
   const PostFormResult({required this.values, required this.pendingImageIds, required this.removedImageIds});
 
@@ -32,6 +32,7 @@ class PostForm extends ConsumerStatefulWidget {
     this.initial = const PostFormValues(),
     this.existingImages = const [],
     this.preselectMySchool = true,
+    this.resetAfterSubmit = true,
     this.onDiscard,
   });
 
@@ -44,6 +45,9 @@ class PostForm extends ConsumerStatefulWidget {
 
   /// 새 글: 학교 칸이 비어 있으면 내 학교를 미리 고른다(웹과 같음).
   final bool preselectMySchool;
+
+  /// 저장 뒤 폼을 비울지. 글쓰기 탭은 다음 글을 위해 비우고, 수정은 화면을 닫으므로 그대로 둔다.
+  final bool resetAfterSubmit;
 
   /// 쓰던 내용을 버리기로 했을 때(뒤로 가기 확인 후). 없으면 Navigator.pop.
   final VoidCallback? onDiscard;
@@ -60,6 +64,8 @@ class PostFormState extends ConsumerState<PostForm> {
   late final _description = TextEditingController(text: widget.initial.description);
   late String? _condition = widget.initial.condition;
   late int? _schoolId = widget.initial.schoolId;
+  // 바뀌었는지 비교할 학교 기준값. 내 학교를 미리 고른 것은 사용자가 바꾼 것이 아니다.
+  late int? _baselineSchoolId = widget.initial.schoolId;
   late final PhotoList _photos = PhotoList(ref.read(photoServiceProvider), existing: widget.existingImages);
 
   List<School> _schools = const [];
@@ -68,6 +74,8 @@ class PostFormState extends ConsumerState<PostForm> {
   String? _generalError;
   bool _submitting = false;
   bool _waitingPhotos = false;
+  // 저장을 마쳐 화면을 닫는 중(수정): 뒤로 가기 확인을 띄우지 않는다.
+  bool _saved = false;
 
   List<TextEditingController> get _texts => [_title, _bookTitle, _courseName, _price, _description];
 
@@ -81,6 +89,7 @@ class PostFormState extends ConsumerState<PostForm> {
         now.price != first.price ||
         now.description != first.description ||
         now.condition != first.condition ||
+        now.schoolId != _baselineSchoolId ||
         _photos.changed;
   }
 
@@ -128,6 +137,7 @@ class PostFormState extends ConsumerState<PostForm> {
         _noMySchool = mine == null;
         if (widget.preselectMySchool && _schoolId == null && mine != null && schools.any((s) => s.id == mine)) {
           _schoolId = mine;
+          _baselineSchoolId = mine;
         }
       });
     } catch (_) {
@@ -231,7 +241,12 @@ class PostFormState extends ConsumerState<PostForm> {
         pendingImageIds: _photos.pendingIds,
         removedImageIds: _photos.removedExistingIds,
       ));
-      if (mounted) _clear();
+      if (!mounted) return;
+      if (widget.resetAfterSubmit) {
+        _clear();
+      } else {
+        setState(() => _saved = true);
+      }
     } catch (e) {
       final error = ApiError.from(e);
       if (mounted) {
@@ -287,7 +302,7 @@ class PostFormState extends ConsumerState<PostForm> {
   Widget build(BuildContext context) {
     final errorColor = Theme.of(context).colorScheme.error;
     return PopScope(
-      canPop: !dirty && !_submitting,
+      canPop: _saved || (!dirty && !_submitting),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && !_submitting) _confirmDiscard();
       },
@@ -425,7 +440,11 @@ class _PhotoStrip extends StatelessWidget {
               for (final (i, p) in photos.existing.indexed)
                 _tile(
                   context,
-                  image: Image.network('$imageBase${p.thumbnailUrl}', fit: BoxFit.cover),
+                  image: Image.network(
+                    '$imageBase${p.thumbnailUrl}',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const Center(child: Icon(Icons.broken_image_outlined)),
+                  ),
                   label: '올린 사진 ${i + 1}',
                   dimmed: p.removed,
                   overlay: p.removed ? const Text('삭제 예정', style: TextStyle(color: Colors.white)) : null,

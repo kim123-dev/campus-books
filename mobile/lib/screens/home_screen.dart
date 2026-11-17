@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../posts/post_card.dart';
+import '../posts/post_events.dart';
 import '../posts/post_feed.dart';
 import '../providers.dart';
 import '../widgets/state_views.dart';
@@ -26,15 +27,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final api = ref.read(postApiProvider);
     _feed = PostFeed(api.list)..refresh();
     _scroll.addListener(_maybeLoadMore);
-    // 글을 등록·수정하면 목록을 새로 받는다.
-    _postsChanged = ref.read(postsChangedProvider)..addListener(_feed.refresh);
+    // 다른 화면에서 글을 쓰거나 바꾸거나 지우면 목록에 바로 반영한다.
+    _events = ref.read(postEventsProvider)..addListener(_onPostEvent);
   }
 
-  late final ValueNotifier<int> _postsChanged;
+  late final PostEvents _events;
+
+  void _onPostEvent() {
+    final event = _events.value;
+    if (event != null) _feed.apply(event);
+  }
 
   @override
   void dispose() {
-    _postsChanged.removeListener(_feed.refresh);
+    _events.removeListener(_onPostEvent);
     _feed.dispose();
     _search.dispose();
     _scroll.dispose();

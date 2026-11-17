@@ -51,4 +51,45 @@ class PostApi {
     final response = await dio.get<dynamic>('/posts/$id');
     return PostDetail.fromJson(response.data as Map<String, dynamic>);
   }
+
+  /// GET /users/me/posts 전부(최신순). 상태별로 나눠 보여주려면 다 받아야 해서 한도(100)씩 끝까지 받는다.
+  Future<List<PostSummary>> myPosts() async {
+    final items = <PostSummary>[];
+    final seen = <int>{};
+    // 내 글은 많아야 수십 개라 보통 한 번에 끝난다. 혹시 모를 무한 반복만 막는다.
+    for (var page = 1; page <= 20; page++) {
+      final response = await dio.get<dynamic>('/users/me/posts', queryParameters: {'page': page, 'size': 100});
+      final result = PostPage.fromJson(response.data as Map<String, dynamic>);
+      items.addAll(result.items.where((post) => seen.add(post.id)));
+      if (result.items.isEmpty || items.length >= result.total) break;
+    }
+    return items;
+  }
+
+  /// PATCH /posts/{id}. 보낸 칸만 바뀐다(사진은 remove_image_ids·add_image_ids).
+  Future<PostDetail> update(int id, Map<String, dynamic> body) async {
+    final response = await dio.patch<dynamic>('/posts/$id', data: body);
+    return PostDetail.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// PATCH /posts/{id}/status. 판매 완료일 때만 거래한 사람(buyerId)을 함께 보낼 수 있다.
+  Future<PostDetail> changeStatus(int id, String status, {int? buyerId}) async {
+    final response = await dio.patch<dynamic>('/posts/$id/status', data: {
+      'status': status,
+      'buyer_id': ?buyerId,
+    });
+    return PostDetail.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// GET /posts/{id}/buyer의 후보(이 글로 쪽지를 주고받은 사람). 판매 완료 창에서 고른다.
+  Future<List<BuyerCandidate>> buyerCandidates(int id) async {
+    final response = await dio.get<dynamic>('/posts/$id/buyer');
+    return [
+      for (final c in ((response.data as Map)['candidates'] as List).cast<Map<String, dynamic>>())
+        BuyerCandidate(id: c['id'] as int, nickname: c['nickname'] as String),
+    ];
+  }
+
+  /// DELETE /posts/{id}
+  Future<void> delete(int id) => dio.delete<dynamic>('/posts/$id');
 }

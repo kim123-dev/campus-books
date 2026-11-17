@@ -4,14 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/api_error.dart';
+import '../posts/post_actions.dart';
 import '../posts/post_card.dart';
+import '../posts/post_events.dart';
 import '../posts/post_format.dart';
 import '../posts/post_models.dart';
 import '../providers.dart';
 import '../widgets/state_views.dart';
 import 'photo_viewer_screen.dart';
 
-/// 판매글 상세. 로그인하지 않아도 볼 수 있다(웹과 같음). 쪽지·찜은 2차 범위라 "준비 중", 내 글이면 수정 자리만.
+/// 판매글 상세. 로그인하지 않아도 볼 수 있다(웹과 같음). 쪽지·찜은 2차 범위라 "준비 중".
+/// 내 글이면 수정·판매 상태 변경·삭제를 바로 할 수 있다.
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({super.key, required this.postId});
 
@@ -27,11 +30,42 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   ApiError? _error;
   bool _loading = true;
   int _photoIndex = 0;
+  // 상태 변경·삭제 중(버튼을 두 번 누르지 않게)
+  bool _busy = false;
+  late final PostEvents _events;
 
   @override
   void initState() {
     super.initState();
     _load();
+    // 수정 화면이나 내 글 목록에서 바꾼 내용을 다시 열지 않아도 보여준다.
+    _events = ref.read(postEventsProvider)..addListener(_onPostEvent);
+  }
+
+  @override
+  void dispose() {
+    _events.removeListener(_onPostEvent);
+    super.dispose();
+  }
+
+  void _onPostEvent() {
+    final event = _events.value;
+    if (event == null || event.id != widget.postId || event.kind != PostEventKind.updated) return;
+    setState(() {
+      _post = event.post;
+      // 사진이 바뀌었을 수 있어 첫 장부터 다시 보여준다(사진 줄은 사진 번호를 key로 새로 만든다).
+      _photoIndex = 0;
+    });
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _load() async {
@@ -51,7 +85,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         _myId = results[1] as int?;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = ApiError.from(e));
+      if (!mounted) return;
+      final error = ApiError.from(e);
+      setState(() => _error = error);
+      // 이미 지워진 글이면 목록에 남아 있지 않게 알린다.
+      if (error.status == 404) ref.read(postEventsProvider).emit(PostEvent.deleted(widget.postId));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -73,7 +111,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           : _loading
               ? const LoadingView()
               : _error?.status == 404
-                  ? MessageView(icon: Icons.search_off, title: '글을 찾을 수 없습니다', body: _error!.message)
+                  ? MessageView(
+                      icon: Icons.search_off,
+                      title: '글을 찾을 수 없습니다',
+                      body: _error!.message,
+                      action: FilledButton(
+                        onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                        child: const Text('목록으로'),
+                      ),
+                    )
                   : ErrorView(message: _error?.message ?? '', onRetry: _load),
       bottomNavigationBar: post == null ? null : _actions(post),
     );
@@ -154,6 +200,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       child: Stack(
         children: [
           PageView.builder(
+            key: ValueKey(post.images.map((image) => image.id).join(',')),
             itemCount: urls.length,
             onPageChanged: (index) => setState(() => _photoIndex = index),
             itemBuilder: (context, index) => GestureDetector(
@@ -189,16 +236,63 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
   }
 
-  /// 아래 버튼: 내 글이면 수정 자리, 로그인 안 했으면 로그인 안내(웹과 같음), 아니면 찜·쪽지(준비 중)
+  /// 내 글: 수정(판매 완료면 숨기고 안내), 판매 상태 변경, 삭제
+  Widget _ownerActions(PostDetail post) {
+    final sold = post.status == 'SOLD';
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (sold)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(soldNotice, style: theme.textTheme.bodySmall),
+          ),
+        Row(
+          children: [
+            if (!sold) ...[
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('edit-post'),
+                  onPressed: _busy ? null : () => context.push('/posts/${post.id}/edit'),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('수정'),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: FilledButton.tonalIcon(
+                key: const Key('change-status'),
+                // 판매 완료는 되돌리기 하나뿐이라 고르는 창 없이 바로 확인 창으로 간다.
+                onPressed: _busy
+                    ? null
+                    : () => _run(() => sold ? changePostStatus(context, ref, post, 'ON_SALE') : chooseStatus(context, ref, post)),
+                icon: const Icon(Icons.swap_horiz),
+                label: Text(sold ? '판매 중으로 되돌리기' : '상태 변경'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              key: const Key('delete-post'),
+              tooltip: '삭제',
+              color: theme.colorScheme.error,
+              onPressed: _busy ? null : () => _run(() => deletePost(context, ref, post.id)),
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 아래 버튼: 내 글이면 관리 버튼, 로그인 안 했으면 로그인 안내(웹과 같음), 아니면 찜·쪽지(준비 중)
   Widget _actions(PostDetail post) {
     final signedIn = ref.read(sessionProvider).signedIn;
     final Widget row;
     if (_myId != null && _myId == post.sellerId) {
-      row = OutlinedButton.icon(
-        onPressed: () => _comingSoon('글 수정'),
-        icon: const Icon(Icons.edit_outlined),
-        label: const Text('수정'),
-      );
+      row = _ownerActions(post);
     } else if (!signedIn) {
       row = FilledButton(onPressed: () => context.go('/login'), child: const Text('로그인하고 문의하기'));
     } else {

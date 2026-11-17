@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../posts/post_events.dart';
 import '../posts/post_form.dart';
 import '../providers.dart';
 
@@ -23,7 +24,7 @@ class PostCreateScreen extends ConsumerWidget {
               ...result.values.toJson(),
               'image_ids': result.pendingImageIds,
             });
-            ref.read(postsChangedProvider).value++;
+            ref.read(postEventsProvider).emit(PostEvent.created(id));
             if (!context.mounted) return;
             // 홈 탭으로 바꾼 뒤 상세를 위에 쌓는다(뒤로 가면 새로고침된 홈 목록).
             context.go('/home');

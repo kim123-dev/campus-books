@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../api/api_error.dart';
 import 'post_api.dart';
+import 'post_events.dart';
 import 'post_models.dart';
 
 typedef PostFetcher = Future<PostPage> Function(PostQuery query, int page);
@@ -127,6 +128,18 @@ class PostFeed extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  /// 다른 화면에서 글을 쓰거나 바꾸거나 지웠을 때. 가진 목록만 고치고, 안 되면(새 글 등) 새로 받는다.
+  void apply(PostEvent event) {
+    final next = applyPostEvent(_items, event, visible: (post) => _query.includeSold || post.status != 'SOLD');
+    if (next == null) {
+      if (loaded) refresh();
+      return;
+    }
+    _total -= _items.length - next.length;
+    _items = next;
+    _notify();
   }
 
   /// 페이지를 받는 사이 새 글이 올라오면 앞 페이지의 글이 뒤로 밀려 다음 페이지에 또 나온다. 한 번만 보여준다.

@@ -11,6 +11,7 @@ class PostSummary {
     required this.sellerId,
     required this.sellerNickname,
     required this.thumbnailUrl,
+    this.schoolId,
     required this.schoolName,
     required this.createdAt,
   });
@@ -27,6 +28,7 @@ class PostSummary {
 
   /// "/images/…" 같은 서버 기준 경로. 사진이 없으면 null.
   final String? thumbnailUrl;
+  final int? schoolId;
   final String? schoolName;
   final DateTime createdAt;
 
@@ -44,6 +46,7 @@ class PostSummary {
       sellerId: seller['id'] as int,
       sellerNickname: seller['nickname'] as String,
       thumbnailUrl: json['thumbnail_url'] as String?,
+      schoolId: school?['id'] as int?,
       schoolName: school?['name'] as String?,
       createdAt: parseServerTime(json['created_at'] as String),
     );
@@ -51,8 +54,10 @@ class PostSummary {
 }
 
 class PostImage {
-  const PostImage({required this.url, required this.thumbnailUrl});
+  const PostImage({required this.id, required this.url, required this.thumbnailUrl});
 
+  /// 수정할 때 지울 사진을 이 번호로 보낸다(remove_image_ids).
+  final int id;
   final String url;
   final String thumbnailUrl;
 }
@@ -69,6 +74,7 @@ class PostDetail extends PostSummary {
     required super.sellerId,
     required super.sellerNickname,
     required super.thumbnailUrl,
+    super.schoolId,
     required super.schoolName,
     required super.createdAt,
     required this.description,
@@ -91,12 +97,17 @@ class PostDetail extends PostSummary {
       sellerId: s.sellerId,
       sellerNickname: s.sellerNickname,
       thumbnailUrl: s.thumbnailUrl,
+      schoolId: s.schoolId,
       schoolName: s.schoolName,
       createdAt: s.createdAt,
       description: json['description'] as String?,
       images: [
         for (final image in (json['images'] as List? ?? const []).cast<Map<String, dynamic>>())
-          PostImage(url: image['url'] as String, thumbnailUrl: image['thumbnail_url'] as String),
+          PostImage(
+            id: image['id'] as int,
+            url: image['url'] as String,
+            thumbnailUrl: image['thumbnail_url'] as String,
+          ),
       ],
     );
   }
@@ -114,6 +125,13 @@ class PostPage {
         total: json['total'] as int,
         page: json['page'] as int,
       );
+}
+
+class BuyerCandidate {
+  const BuyerCandidate({required this.id, required this.nickname});
+
+  final int id;
+  final String nickname;
 }
 
 /// 서버 시간은 UTC다. SQLite(개발)는 시간대 표시 없이 오므로 그때도 UTC로 본다. (웹 parseServerDate와 같음)
