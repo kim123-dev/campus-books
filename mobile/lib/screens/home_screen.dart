@@ -58,7 +58,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final imageBase = ref.watch(dioProvider).options.baseUrl;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Campus Books'),
+        title: const Text('캠퍼스북스'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(112),
           child: Padding(
