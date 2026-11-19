@@ -21,7 +21,10 @@
     <script type="module" src="/static/js/pages/index.js"></script>
   </head>
   <body>
-    <header id="site-header" class="site-header"></header>
+    <!-- 스크립트가 늦거나 실패해도 빈 헤더가 되지 않게 로고 글자를 먼저 둔다. renderHeader가 통째로 바꾼다. -->
+    <header id="site-header" class="site-header">
+      <div class="container site-header__inner"><a class="site-logo" href="/static/index.html">Campus Books</a></div>
+    </header>
 
     <main class="container">
       <h1 class="page-title" data-i18n="home.title">중고 교재 목록</h1>
@@ -32,14 +35,14 @@
           <!-- 검색창 한 줄 + 검색·필터 버튼. 필터 버튼을 누르면 아래 칸이 펼쳐진다. (PC·모바일 같은 구조) -->
           <div class="filter-form__search-row">
             <input id="q" name="q" type="search" maxlength="100" placeholder="교재명, 과목명" enterkeyhint="search" data-i18n-attr="placeholder:home.search_placeholder" />
-            <button type="submit" id="search-button" class="button button--primary filter-form__icon-button" aria-label="검색" data-i18n-attr="aria-label:common.search"></button>
+            <button type="submit" id="search-button" class="button button--primary filter-form__icon-button" aria-label="검색" data-i18n-attr="aria-label:common.search"><span data-i18n="common.search">검색</span></button>
             <button
               type="button"
               id="filter-toggle"
               class="button filter-form__toggle"
               aria-expanded="false"
               aria-controls="filter-more"
-            ></button>
+            ><span data-i18n="term.filter">필터</span></button>
           </div>
           <p class="field-error" data-error-for="q" hidden></p>
         </div>

@@ -20,6 +20,10 @@ const STORAGE_KEY = "campus-books.lang";
 const LOCALES = { ko: "ko-KR", en: "en-US", "zh-CN": "zh-CN" };
 const REF = /\{@([\w.]+)\}/g;
 const PLACEHOLDER = /\{(\w+)\}/g;
+// 이 모듈은 사전을 기다리는 동안(top-level await) 이것을 불러오는 모든 화면 모듈을 멈춰 세운다.
+// 휴대폰에서 첫 요청이 응답 없이 걸려 있으면 헤더·목록이 영영 안 그려지므로 시간 제한을 둔다.
+// (top-level await보다 위에 있어야 한다. 아래에 두면 호출 시점에 아직 선언 전이라 오류가 난다)
+const MESSAGES_TIMEOUT_MS = 5000;
 
 /** 언어 선택 버튼을 보여줄지. 기능 플래그는 lang-boot.js의 상수 하나다. */
 export const LANG_SWITCH_ENABLED = document.documentElement.hasAttribute("data-lang-switch");
@@ -43,13 +47,26 @@ document.documentElement.removeAttribute("data-i18n-pending");
 async function loadMessages(lang) {
   for (const candidate of lang === DEFAULT_LANG ? [lang] : [lang, DEFAULT_LANG]) {
     try {
-      const response = await fetch(`/static/i18n/${candidate}.json`);
+      const response = await fetchWithTimeout(`/static/i18n/${candidate}.json`, MESSAGES_TIMEOUT_MS);
       if (response.ok) return { lang: candidate, messages: resolveRefs(await response.json()) };
     } catch {
       // 다음 후보로 넘어간다.
     }
   }
   return { lang: DEFAULT_LANG, messages: {} };
+}
+
+// AbortController가 없는 오래된 브라우저에서도 시간이 지나면 실패로 끝나게 Promise.race로 묶는다.
+function fetchWithTimeout(url, ms) {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller?.abort();
+      reject(new Error("timeout"));
+    }, ms);
+  });
+  return Promise.race([fetch(url, controller ? { signal: controller.signal } : {}), timeout]).finally(() => clearTimeout(timer));
 }
 
 // {@키}를 미리 풀어 둔다. 부를 때마다 풀지 않아도 되게 하기 위해서다.

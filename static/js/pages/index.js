@@ -38,21 +38,27 @@ const filterCount = el("span", { className: "count-badge filter-form__count", at
 // 응답이 늦게 도착한 이전 요청이 최신 결과를 덮어쓰지 않도록 요청마다 번호를 붙인다.
 let latestRequestId = 0;
 
-// 학교 선택 목록. 주소의 school_id를 칸에 채우기 전에 목록이 있어야 하므로 load가 이것을 기다린다.
-// 학교 이름은 번역하지 않는다. 목록을 받지 못하면 "전체"만 남는다(글 목록은 그대로 보인다).
-const schoolsReady = listSchools()
-  .then(({ items }) => {
-    form.elements.school_id.append(...items.map((school) => el("option", { value: String(school.id), text: school.name })));
-    return items.length;
-  })
-  .catch(() => 0);
+/**
+ * 초기화 단계 하나를 실행한다. 한 단계가 예외를 내도(예: 휴대폰 브라우저에서만 없는 기능)
+ * 나머지 단계와 목록 불러오기는 그대로 진행되게 단계마다 따로 감싼다.
+ */
+function safely(label, step, fallback = undefined) {
+  try {
+    return step();
+  } catch (error) {
+    console.error(`[home] ${label} 실패`, error);
+    return fallback;
+  }
+}
 
 // 로그인한 사용자(없으면 null). 내 글에는 하트를 그리지 않으려고 쓴다.
-const mePromise = renderHeader(document.getElementById("site-header"));
-// 아이폰 Safari에서 처음 열었을 때만 "홈 화면에 추가" 안내를 목록 위에 보여준다.
-showInstallGuide(document.querySelector("main"));
-showSchoolHint();
+// 헤더를 그리다 실패해도 목록은 "로그인 안 함"으로 그린다.
+const mePromise = Promise.resolve(
+  safely("헤더", () => renderHeader(document.getElementById("site-header")), null),
+).catch(() => null);
 
+// 검색 폼은 스크립트가 붙기 전 기본 제출(새로고침)로도 동작하지만, 붙은 뒤에는 화면 안에서 처리한다.
+// 목록 불러오기보다 먼저 붙여서, 다른 단계가 실패해도 검색 버튼이 새로고침 없이 동작하게 한다.
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   // 검색하면 필터를 접어 결과가 바로 보이게 한다. (오류가 나면 load가 다시 펼친다)
@@ -68,8 +74,6 @@ document.getElementById("filter-reset").addEventListener("click", () => {
 // ---------- 필터 접기 ----------
 // PC·모바일 모두 검색창 한 줄만 보이고, 필터 버튼을 누르면 판매 상태·과목명·가격 칸이 펼쳐진다.
 
-document.getElementById("search-button").append(icon("search"));
-filterToggle.append(icon("filter"), el("span", { text: t("term.filter") }), filterCount);
 filterToggle.addEventListener("click", () => setFilterOpen(!form.classList.contains("is-open")));
 
 function setFilterOpen(open) {
@@ -94,7 +98,37 @@ function openIfFoldedError() {
 // 뒤로 가기/앞으로 가기로 주소가 바뀌면 그 주소의 조건으로 다시 불러온다.
 window.addEventListener("popstate", load);
 
+// 목록은 이벤트(DOMContentLoaded 등)를 기다리지 않고 모듈이 실행될 때 바로 1회 불러온다.
+// (모듈은 문서를 다 읽은 뒤 실행되므로 이 시점에 HTML 요소가 모두 있다)
 load();
+
+// ---------- 목록과 따로 도는 초기화 ----------
+
+// 아이콘은 HTML에 적어 둔 글자("검색", "필터")를 바꾼다. 실패하면 글자가 그대로 남는다.
+safely("검색 아이콘", () => document.getElementById("search-button").replaceChildren(icon("search")));
+safely("필터 아이콘", () => filterToggle.replaceChildren(icon("filter"), el("span", { text: t("term.filter") }), filterCount));
+
+// 아이폰 Safari에서 처음 열었을 때만 "홈 화면에 추가" 안내를 목록 위에 보여준다.
+safely("홈 화면 추가 안내", () => showInstallGuide(document.querySelector("main")));
+
+// 학교 선택 목록. 학교 이름은 번역하지 않는다. 목록을 받지 못하면 "전체"만 남는다.
+// 글 목록은 이것을 기다리지 않는다. 받은 뒤 주소의 school_id를 칸에 다시 채운다.
+// 학교 개수를 돌려준다(고를 학교가 없으면 학교 안내를 띄우지 않으려고 쓴다).
+const schoolsReady = safely(
+  "학교 목록",
+  () =>
+    listSchools()
+      .then(({ items }) => {
+        form.elements.school_id.append(...items.map((school) => el("option", { value: String(school.id), text: school.name })));
+        form.elements.school_id.value = readUrl().filters.school_id ?? "";
+        return items.length;
+      })
+      .catch(() => 0),
+  Promise.resolve(0),
+);
+
+// 내 학교가 비어 있으면 제목 아래 학교 안내. 보조 안내라 실패해도 조용히 넘어간다.
+safely("학교 안내", () => showSchoolHint().catch((error) => console.error("[home] 학교 안내 실패", error)));
 
 // ---------- 주소창 ↔ 조건 ----------
 
@@ -196,9 +230,7 @@ async function load() {
   const { filters, page } = readUrl();
   const requestId = ++latestRequestId;
 
-  // 학교 칸은 목록이 채워진 뒤에야 주소의 school_id를 고를 수 있다.
-  await schoolsReady;
-  if (requestId !== latestRequestId) return;
+  // 학교 목록이 아직 없으면 학교 칸은 "전체"로 보이고, 목록이 도착하면 다시 채워진다(위 학교 목록 단계).
   fillForm(filters);
   showFilterCount(filters);
   clearFormErrors(form, filterError);

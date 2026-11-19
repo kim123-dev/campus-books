@@ -10,14 +10,23 @@ export const INSTALL_GUIDE_KEY = "campus-books.install-guide-dismissed";
 registerServiceWorker();
 
 function registerServiceWorker() {
-  // 서비스 워커는 https(또는 localhost)에서만 동작한다. 지원하지 않으면 그냥 웹 페이지로 쓴다.
-  if (!("serviceWorker" in navigator)) return;
-  // 화면을 그리는 요청과 겹치지 않게, 페이지를 다 불러온 뒤 등록한다.
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/static/sw.js", { scope: "/static/" }).catch(() => {
-      // 등록에 실패해도 화면은 그대로 쓸 수 있으므로 알리지 않는다.
+  // 서비스 워커는 https(또는 localhost)에서만 동작한다. 휴대폰에서 http://PC-IP로 열면 비보안 컨텍스트라 건너뛴다.
+  // 지원하지 않거나 막혀 있으면 그냥 웹 페이지로 쓴다. 여기서 난 예외가 화면 모듈까지 멈추지 않게 모두 삼킨다.
+  try {
+    if (window.isSecureContext === false || !("serviceWorker" in navigator)) return;
+    // 화면을 그리는 요청과 겹치지 않게, 페이지를 다 불러온 뒤 등록한다.
+    window.addEventListener("load", () => {
+      try {
+        navigator.serviceWorker.register("/static/sw.js", { scope: "/static/" }).catch(() => {
+          // 등록에 실패해도 화면은 그대로 쓸 수 있으므로 알리지 않는다.
+        });
+      } catch {
+        // 위와 같다.
+      }
     });
-  });
+  } catch {
+    // 위와 같다.
+  }
 }
 
 /**
